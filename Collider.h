@@ -163,7 +163,7 @@ struct Polytope : Collider {
     }
 
     void get_neighbors_of_vertex(int v, std::set<int> &neighbors);
-    void get_edges_of_vertex( int v, std::set<int> &edges );
+    std::vector<int>& get_edges_of_vertex( int v );
     std::vector<int>& get_edges_of_face( int f );
     void get_faces_of_edge( int e, std::set<int> &faces);
     void get_neighbors_of_face( int f, std::set<int> &faces );
@@ -256,12 +256,9 @@ void Polytope::get_neighbors_of_vertex(int v, std::set<int> &neighbors) {
 }
 
 //return all edges a given vertex is part of
-void Polytope::get_edges_of_vertex( int v, std::set<int> &edges ) {
+std::vector<int>& Polytope::get_edges_of_vertex( int v ) {
 	Vertex &vertex = vertices2[v];  		        //membership info of this vertex
-	std::for_each( std::begin(vertex.edges), std::end(vertex.edges), 	//go through all edges this vertex is member of
-					[&](auto &e) { 
-                        edges.insert(e); 
-                    } ); 
+	return vertex.edges;
 }
 
 //return all edges of a given face

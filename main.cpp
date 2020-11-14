@@ -40,7 +40,8 @@ int main() {
 
 	//get all edges of face 0
 	int f = 0;
-	auto &edges = box.get_edges_of_face( f );
+	auto edges  = box.get_edges_of_face( f );
+	auto &edges2 = box.get_edges_of_face( f );
 
 	//get the faces that contain a given edge
 	int e = 0;
