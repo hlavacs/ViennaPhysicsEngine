@@ -1,6 +1,9 @@
 #pragma once
-//#include "GameMaths.h"
+
+
 #include "glm/glm/glm.hpp"
+#include "glm/glm/ext.hpp"
+
 #include "Collider.h"
 
 //Kevin's implementation of the Gilbert-Johnson-Keerthi intersection algorithm

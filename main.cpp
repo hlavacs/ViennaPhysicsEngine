@@ -1,3 +1,7 @@
+
+#define _USE_MATH_DEFINES
+#include <cmath>
+
 #include <stdio.h>
 #include <array>
 #include <set>
@@ -5,12 +9,14 @@
 #include <algorithm>
 #include <iterator>
 
+
+
 #include "GJK.h"
 
 int main() {
 	//Set up level geometry
 
-	BBox ground;
+	/* BBox ground;
 	ground.pos = vec3( 0.0, 0, 0.0);
 	ground.min = vec3(-500, -500,-500);
 	ground.max = vec3( 500, 0, 500);
@@ -30,10 +36,12 @@ int main() {
 	auto hit = gjk(&box, &ground, &mtv);
 
 	Polytope point;
+	point.point( vec3(0.0f, -0.1f, 0.0f), mat3(1.0));
+
 	vec3 pointpos(0.0f, 0.0f, 0.0f);
 	Vertex point_n[] = { {{1}, {}} };
 	point.num_points = 1;
-	point.points = (float*)&pointpos;
+	point.points2 = (float*)&pointpos;
 	point.pos = vec3(0.0f, -0.1f, 0.0f);
 	point.matRS = mat3(1.0);
 	point.matRS_inverse = inverse(mat4(1.0));
@@ -134,5 +142,42 @@ int main() {
 	std::set<int> faces2;
 	get_neighbors_of_face( quad, f, faces2);
 	//empty since there is only one face
+	*/
+
+	Box ground( vec3( 0.0f, -50.0f, 0.0f), scale( mat4(1.0f), vec3(100.0f, 100.0f, 100.0f)) );
+	Box box( vec3( 10.0f, -1.0f, 10.0f ) ) ;
+	vec3 mtv(0,0,0); //minimum translation vector
+	auto hit = gjk(&box, &ground, &mtv);
+
+	Point point( vec3(0,-10,0) );
+	hit = gjk(&point, &ground, &mtv);
+
+	Triangle triangle( vec3(0.0, -0.0, 0.0), rotate( mat4(1.0f), (float)M_PI_2, vec3(1.0f, 0.0f, 0.0f) ) );
+	hit = gjk(&triangle, &ground, &mtv);
+
+	Quad quad( vec3(0.0, -0.01, 0.0) );
+	hit = gjk(&quad, &ground, &mtv);
+
+	hit = gjk(&triangle, &quad, &mtv);
+
+	//--------------------------------------------------------------------
+
+	//get all vertex neighbors of vertex 0
+	int v = 0;
+	std::set<int> neighbors;
+	box.get_neighbors_of_vertex( v, neighbors);
+
+	//get all edges of face 0
+	int f = 0;
+	auto &edges = box.get_edges_of_face( f );
+
+	//get the faces that contain a given edge
+	int e = 0;
+	std::set<int> faces;
+	box.get_faces_of_edge( e, faces);
+
+	//get the neighboring faces of a given face
+	std::set<int> faces2;
+	box.get_neighbors_of_face( f, faces2);
 
 }
