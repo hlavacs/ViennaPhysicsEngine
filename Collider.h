@@ -117,16 +117,23 @@ struct Vertex {
 
 struct Edge {
     std::array<int, 2>  vertices;  //indices of the two vertices of this edge
+
+    bool contains_vertex( int v ) {
+        return vertices[0] == v || vertices[1] == v;
+    }
 };
 
+struct Polytope; 
+
 struct Face {
-    std::vector<int> vertices;      //indices of all vertices of this face
     std::vector<int> edges;         //indices of all edges of this face
 
-    bool contains( int v ) {
-        auto result = std::find( vertices.begin(), vertices.end(), v);
-        return result != vertices.end();
+    bool contains_edge( int v ) {
+        auto result = std::find( edges.begin(), edges.end(), v);
+        return result != edges.end();
     }
+
+    bool contains_vertex( Polytope &polytope, int v );
 };
 
 //Polytope: Just a set of points
@@ -193,7 +200,7 @@ struct Triangle : Polytope {
 							, 	{ {1,2}, {0} } 
 						};
 	    edges2 = { {{0,1}}, {{1,2}}, {{2,0}} }; 	//3 edges
-	    faces2 = { {{0,1,2}} };			            //one face with 3 vertices
+	    faces2 = { {{0,1,2}} };			            //one face with 3 edges
     };
 };
 
@@ -206,7 +213,7 @@ struct Quad : Polytope {
 							, 	{ {2,3}, {0} } 
 						};
 	    edges2 = { {{0,1}}, {{1,2}}, {{2,3}}, {{3,0}} }; 	//4 edges
-	    faces2 = { {{0,1,2,3}, {0,1,2,3}} };			    //one face with 4 vertices
+	    faces2 = { {{0,1,2,3}} };			    //one face with 4 edges
     };
 };
 
@@ -231,25 +238,33 @@ struct Box : Polytope {
         //                 8        9       10       11
                     ,   {{0,4}}, {{1,5}}, {{2,6}}, {{3,7}}  }; 	//12 edges
 
-        //                         0                        1
-	    faces2 = {      {{0,1,2,3}, {0,1,2,3}},   {{4,5,6,7}, {4,5,6,7}}
-        //                         2                        3
-                    ,   {{0,1,5,4}, {0,9,4,8}},   {{1,2,6,5}, {1,10,5,9}}
-        //                         4                        5
-                    ,   {{2,3,7,6}, {2,11,6,10}}, {{3,0,4,7}, {3,8,7,11}} };		    //6 faces
+        //                   0              1
+	    faces2 = {      {{0,1,2,3}},   {{4,5,6,7}}
+        //                   2              3
+                    ,   {{0,9,4,8}},   {{1,10,5,9}}
+        //                    4              5
+                    ,   {{2,11,6,10}}, {{3,8,7,11}} };		    //6 faces, each having 4 edges
     };
 };
 
+
+bool Face::contains_vertex( Polytope &polytope, int v ) {
+    auto it = std::find_if( std::begin(edges), std::end(edges), 
+                    [&]( auto &e){
+                       return polytope.edges2[e].contains_vertex(v);
+                    });
+    return it != std::end(edges);
+}
 
 
 //Polytope functions
 
 //Return all neighboring vertices of a given vertex
 void Polytope::get_neighbors_of_vertex(int v, std::set<int> &neighbors) {
-	Vertex &vertex = vertices2[v];	                    //membership info of vertex v
-	std::for_each( std::begin(vertex.edges) , std::end(vertex.edges), 
+	Vertex &vertex = vertices2[v];	                    //edge info of vertex v
+	std::for_each( std::begin(vertex.edges) , std::end(vertex.edges), //go through all edges that contain v
 					[&]( auto &e ){ 
-						auto &i = edges2[e].vertices;
+						auto &i = edges2[e].vertices;       //access the vertices of the edge
 						if(i[0]!=v) neighbors.insert(i[0]); //do not add the vertex itself, only true neighbor
 						if(i[1]!=v) neighbors.insert(i[1]); 
 					} );
@@ -269,29 +284,16 @@ std::vector<int>& Polytope::get_edges_of_face( int f ) {
 
 //return zero, one or two faces that contain a given edge
 void Polytope::get_faces_of_edge( int e, std::set<int> &faces) {
-	Edge &edge = edges2[e];  		               //info for this edge
-	
-    int v0 = edge.vertices[0];                             //vertex indices
-    int v1 = edge.vertices[1];
-
-    Vertex &vertex0 = vertices2[v0];               //get both vertices of the edge
-    Vertex &vertex1 = vertices2[v1];
-
-    std::set<int> tmp_faces;                               //get all faces the vertices belong to
-    std::copy( std::begin(vertex0.faces), std::end(vertex0.faces), std::inserter( tmp_faces, std::begin(tmp_faces) ) );
-    std::copy( std::begin(vertex1.faces), std::end(vertex1.faces), std::inserter( tmp_faces, std::begin(tmp_faces) ) );
-
-    std::for_each( std::begin(tmp_faces), std::end(tmp_faces), 	    //go through all faces that contain the vertices
-					[&](auto &f) { 
-                        Face &face = faces2[f];             //if face contains both vertices
-                        if( face.contains(v0) && face.contains(v1)) //it contains the edge
-                            faces.insert(f);
-                    } ); 
+    for( int f=0; f<faces2.size(); ++f) {
+        Face &face = faces2[f];
+        if( face.contains_edge(e) )     //it contains the edge
+            faces.insert(f);
+    }
 }
 
 //return all neighboring faces of a given face
 void Polytope::get_neighbors_of_face( int f, std::set<int> &faces ) {
-    auto& edges = get_edges_of_face( f );        //get all edges of the face
+    auto& edges = faces2[f].edges;        //get all edges of the face
     std::for_each( std::begin(edges), std::end(edges), 	    //go through all edges and get their faces
 					[&](auto &e) { 
                         get_faces_of_edge( e, faces );
