@@ -10,7 +10,7 @@
 #include <iterator>
 
 
-
+#include "sat.h"
 #include "GJK.h"
 
 int main() {

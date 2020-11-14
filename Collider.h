@@ -1,5 +1,4 @@
 #pragma once
-//#include "GameMaths.h"
 
 //Kevin's simple collider objects for collision detection
 //Different shapes which inherit from Collider and implement
