@@ -18,7 +18,7 @@ bool sat_axis_test( Collider *obj1, Collider *obj2, vec3 *dir, vec3 *r, float *d
     vec3 q = obj2->support( -1.0f* (*dir) );
     *r = normalize(q - p); 
     *d = dot( *r, *dir );
-    return  *d > 0.0f;
+    return  *d > 1.0e-6f;
 
 }
 
@@ -55,13 +55,15 @@ bool sat_random_test(Collider *obj1, Collider *obj2, vec3 *dir) {
     return found;
 }
 
-bool sat_chung_wang_test( Collider *obj1, Collider *obj2, vec3 *dir, int max_loops = 100 ) {
+bool sat_chung_wang_test( Collider *obj1, Collider *obj2, vec3 *dir, int max_loops = 50 ) {
     vec3 r;
     float d;
     int loop = 0;
+    float f = 1.0f;
     while( loop < max_loops && !sat_axis_test(obj1, obj2, dir, &r, &d) ) {
-        *dir = reflect( *dir, r); //dir = dir - 2*dot(r, dir)*r
+        *dir = *dir - (1.0f + f)*dot(r, *dir)*r;
         ++loop;
+        f = std::max( f * 0.97f, 0.5f );
     }
     std::cout << "Loops: " << loop << std::endl;
     return sat_axis_test(obj1, obj2, dir, &r, &d);
@@ -114,7 +116,7 @@ bool sat( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
 
 bool sat( Collider *obj1, Collider *obj2, vec3 *dir ) {
     if( dot(*dir, *dir) < 1.0e-6 ) *dir = vec3(0.0f, 1.0f, 0.0f);
-    if( sat_random_test( obj1, obj2, dir ) ) return false;
+    //if( sat_random_test( obj1, obj2, dir ) ) return false;
     if( sat_chung_wang_test( obj1, obj2, dir ) ) return false;
     return true;
 }
