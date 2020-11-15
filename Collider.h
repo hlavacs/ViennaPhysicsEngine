@@ -173,7 +173,8 @@ struct Polytope : Collider {
     std::vector<int>& get_edges_of_face( int f );
     void get_faces_of_edge( int e, std::set<int> &faces);
     void get_neighbors_of_face( int f, std::set<int> &faces );
-
+    vec3 get_normal_of_face( int f );
+    void get_edge_vectors( std::vector<vec3> &edges);
 };
 
 struct Point : Polytope {
@@ -256,6 +257,7 @@ bool Face::contains_vertex( Polytope &polytope, int v ) {
 }
 
 
+
 //Polytope functions
 
 //Return all neighboring vertices of a given vertex
@@ -299,4 +301,33 @@ void Polytope::get_neighbors_of_face( int f, std::set<int> &faces ) {
                     } ); 
     faces.erase(f);         //remove the given face since it is not its own neighbor
 }
+
+vec3 Polytope::get_normal_of_face( int f ) {
+    std::vector<int>& edges = get_edges_of_face( f );
+    std::set<int> vertices;
+    vertices.insert( edges2[edges[0]].vertices[0]);
+    vertices.insert( edges2[edges[0]].vertices[1]);
+    vertices.insert( edges2[edges[1]].vertices[0]);
+    vertices.insert( edges2[edges[1]].vertices[1]);
+
+    auto it = std::begin(vertices);
+    vec3 a, b, c;
+    a = points2[*it]; ++it;
+    b = points2[*it]; ++it;
+    c = points2[*it];
+
+    vec3 d1 = b - a;
+    vec3 d2 = c - a;
+    return cross( d1, d2 );
+}
+
+void Polytope::get_edge_vectors( std::vector<vec3> &edges) {
+    std::for_each( std::begin(edges2), std::begin(edges2),
+                    [&,this]( auto &e) {
+                        vec3 v0 = this->points2[e.vertices[0]];
+                        vec3 v1 = this->points2[e.vertices[1]];
+                        edges.push_back( v1 - v0 );
+                    });
+}
+
 

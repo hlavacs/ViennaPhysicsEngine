@@ -16,9 +16,11 @@
 int main() {
 
 	Box ground( vec3( 0.0f, -50.0f, 0.0f), scale( mat4(1.0f), vec3(100.0f, 100.0f, 100.0f)) );
-	Box box( vec3( 10.0f, -1.0f, 10.0f ) ) ;
+	Box box( vec3( 0.0f, 1.0f, 0.0f ) ) ;
 	vec3 mtv(0,0,0); //minimum translation vector
 	auto hit = gjk(&box, &ground, &mtv);
+
+	hit = sat( &box, &ground, &mtv);
 
 	Point point( vec3(0,-10,0) );
 	hit = gjk(&point, &ground, &mtv);
@@ -30,6 +32,8 @@ int main() {
 	hit = gjk(&quad, &ground, &mtv);
 
 	hit = gjk(&triangle, &quad, &mtv);
+
+
 
 	//--------------------------------------------------------------------
 
@@ -51,5 +55,7 @@ int main() {
 	//get the neighboring faces of a given face
 	std::set<int> faces2;
 	box.get_neighbors_of_face( f, faces2);
+
+
 
 }
