@@ -126,6 +126,7 @@ struct Polytope;
 
 struct Face {
     std::vector<int> edges;         //indices of all edges of this face
+    vec3 normal;                    //normal of this face
 
     bool contains_edge( int v ) {
         auto result = std::find( edges.begin(), edges.end(), v);
@@ -200,7 +201,7 @@ struct Triangle : Polytope {
 							, 	{ {1,2}, {0} } 
 						};
 	    edges2 = { {{0,1}}, {{1,2}}, {{2,0}} }; 	//3 edges
-	    faces2 = { {{0,1,2}} };			            //one face with 3 edges
+	    faces2 = { {{0,1,2}, {0.0f, 1.0f, 0.0f}} };			            //one face with 3 edges
     };
 };
 
@@ -213,7 +214,7 @@ struct Quad : Polytope {
 							, 	{ {2,3}, {0} } 
 						};
 	    edges2 = { {{0,1}}, {{1,2}}, {{2,3}}, {{3,0}} }; 	//4 edges
-	    faces2 = { {{0,1,2,3}} };			    //one face with 4 edges
+	    faces2 = { {{0,1,2,3}, {0.0f, 1.0f, 0.0f}} };			    //one face with 4 edges
     };
 };
 
@@ -238,12 +239,12 @@ struct Box : Polytope {
         //                 8        9       10       11
                     ,   {{0,4}}, {{1,5}}, {{2,6}}, {{3,7}}  }; 	//12 edges
 
-        //                   0              1
-	    faces2 = {      {{0,1,2,3}},   {{4,5,6,7}}
-        //                   2              3
-                    ,   {{0,9,4,8}},   {{1,10,5,9}}
-        //                    4              5
-                    ,   {{2,11,6,10}}, {{3,8,7,11}} };		    //6 faces, each having 4 edges
+        //                          0                                 1
+	    faces2 = {      {{0,1,2,3}, {0.0f, -1.0f, 0.0f}},  {{4,5,6,7}, {0.0f, 1.0f, 0.0f}}
+        //                          2                                 3
+                    ,   {{0,9,4,8}, {0.0f, 1.0f, 0.0f}},   {{1,10,5,9}, {0.0f, 1.0f, 0.0f}}
+        //                          4                                 5
+                    ,   {{2,11,6,10}, {0.0f, 1.0f, 0.0f}}, {{3,8,7,11}, {0.0f, 1.0f, 0.0f}} };		    //6 faces, each having 4 edges
     };
 };
 
