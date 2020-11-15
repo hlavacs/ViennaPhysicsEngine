@@ -19,7 +19,6 @@ bool sat_axis_test( Collider *obj1, Collider *obj2, vec3 *dir, vec3 *r, float *d
     *r = normalize(q - p); 
     *d = dot( *r, *dir );
     return  *d > 1.0e-6f;
-
 }
 
 constexpr int NUM_RANDOM_DIR = 64;
@@ -109,14 +108,13 @@ bool sat( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
         if( sat_edges_test( obj1, obj2, dir ) ) return false;
     } else {
         if( sat_edges_test( obj1, obj2, dir ) ) return false;
-        if( sat_random_test( obj1, obj2, dir ) ) return false;
     }
     return true;
 }
 
 bool sat( Collider *obj1, Collider *obj2, vec3 *dir ) {
     if( dot(*dir, *dir) < 1.0e-6 ) *dir = vec3(0.0f, 1.0f, 0.0f);
-    //if( sat_random_test( obj1, obj2, dir ) ) return false;
+    if( sat_random_test( obj1, obj2, dir ) ) return false;
     if( sat_chung_wang_test( obj1, obj2, dir ) ) return false;
     return true;
 }
