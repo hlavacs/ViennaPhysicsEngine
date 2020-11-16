@@ -180,7 +180,9 @@ struct Face {
         return std::find( edges.begin(), edges.end(), v) != edges.end();
     }
 
-    bool contains_vertex( Polytope &polytope, int v );
+    bool contains_vertex(int v ) {
+        return std::find( std::begin(vertices), std::end(vertices), v) != std::end(vertices);
+    }
 };
 
 
@@ -312,17 +314,6 @@ struct Quad : Box {
 
 struct Polygon : Polytope {
 
-    void make_vertex(int N, int i) {
-        Vertex vertex;
-    }
-
-    void make_edges(int N, int i) {
-
-    }
-
-    void make_faces(int N, int i) {
-    }
-
     Polygon( std::vector<vec3>& points ) : Polytope() {
         vec3 d0 = points[2] - points[0];
         vec3 d1 = points[1] - points[0];
@@ -331,23 +322,12 @@ struct Polygon : Polytope {
 	    m_points = points;
         for( int i=0; i<points.size(); ++i ) {
             m_points.push_back(points[i] + up);
-            make_vertex(points.size(), i);
-            make_edges(points.size(), i);
-            make_faces(points.size(), i);
         }
     }
 };
 
 
 //implementations
-
-bool Face::contains_vertex( Polytope &polytope, int v ) {
-    auto it = std::find_if( std::begin(edges), std::end(edges), 
-                    [&]( auto &e){
-                       return polytope.m_edges[e].contains_vertex(v);
-                    });
-    return it != std::end(edges);
-}
 
 
 //Polytope functions
