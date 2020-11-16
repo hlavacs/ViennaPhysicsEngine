@@ -6,13 +6,13 @@
 #include "glm/glm/ext.hpp"
 
 #include "Collider.h"
-#include "hash.h"
 #include <random>
 
 
-using v3pair = std::pair<vec3,vec3>;
+constexpr int NUM_RANDOM_DIR = 64;
 
 
+//test whether a direction is a separating axis
 bool sat_axis_test( Collider *obj1, Collider *obj2, vec3 *dir, vec3 *r, float *d) {
     vec3 p = obj1->support( *dir );
     vec3 q = obj2->support( -1.0f* (*dir) );
@@ -21,8 +21,7 @@ bool sat_axis_test( Collider *obj1, Collider *obj2, vec3 *dir, vec3 *r, float *d
     return  *d > 1.0e-6f;
 }
 
-constexpr int NUM_RANDOM_DIR = 64;
-
+//choose N random directions to find SA
 bool sat_random_test(Collider *obj1, Collider *obj2, vec3 *dir) {
     static std::vector<vec3> random_axes;   //Fibonacci sphere
     if( random_axes.empty()) {
@@ -54,6 +53,7 @@ bool sat_random_test(Collider *obj1, Collider *obj2, vec3 *dir) {
     return found;
 }
 
+//Chung Wang Test with damping
 bool sat_chung_wang_test( Collider *obj1, Collider *obj2, vec3 *dir, int max_loops = 50 ) {
     vec3 r;
     float d;
@@ -68,6 +68,7 @@ bool sat_chung_wang_test( Collider *obj1, Collider *obj2, vec3 *dir, int max_loo
     return sat_axis_test(obj1, obj2, dir, &r, &d);
 }
 
+//SAT using the normals of polytope faces
 bool sat_faces_test( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
     auto &faces = obj1->m_faces;
     vec3 r;
@@ -77,9 +78,17 @@ bool sat_faces_test( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
         *dir = obj1->get_face_normal(i);
         found = sat_axis_test(obj1, obj2, dir, &r, &d);
     }
+
+    faces = obj2->m_faces;
+    for( int i=0; !found && i<faces.size(); ++i) {
+        *dir = obj1->get_face_normal(i);
+        found = sat_axis_test(obj1, obj2, dir, &r, &d);
+    }
+
     return found;
 }
 
+//SAT using the cross products of edge pairs from two polytopes
 bool sat_edges_test( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
     std::vector<vec3> edges1;
     std::vector<vec3> edges2;
@@ -99,6 +108,10 @@ bool sat_edges_test( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
     return found; 
 }
 
+
+//entry points for SAT
+//returns true of the objects are in contact
+//else false
 bool sat( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
     if( dot(*dir, *dir) < 1.0e-6 ) *dir = vec3(0.0f, 1.0f, 0.0f);
     if( sat_faces_test( obj1, obj2, dir ) ) return false;
@@ -112,11 +125,17 @@ bool sat( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
     return true;
 }
 
+//entry points for SAT
+//returns true of the objects are in contact
+//else false
 bool sat( Collider *obj1, Collider *obj2, vec3 *dir ) {
     if( dot(*dir, *dir) < 1.0e-6 ) *dir = vec3(0.0f, 1.0f, 0.0f);
     if( sat_random_test( obj1, obj2, dir ) ) return false;
     if( sat_chung_wang_test( obj1, obj2, dir ) ) return false;
     return true;
 }
+
+
+
 
 

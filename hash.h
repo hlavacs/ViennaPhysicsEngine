@@ -30,7 +30,8 @@ auto hash_impl(T const& t, std::index_sequence<Is...>) {
 	return seed;
 }
 
-template<typename... Args>
+//hash of a tuple of hashables
+template<Hashable... Args>
 struct std::hash<std::tuple<Args...>> {
     size_t operator()(const std::tuple<Args...>& v) {
         return hash_impl(v, std::make_index_sequence<sizeof...(Args)>());

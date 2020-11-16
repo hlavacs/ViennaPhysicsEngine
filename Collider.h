@@ -51,6 +51,7 @@ struct Sphere : Collider {
 };
 
 
+//a point is a sphere with tiny radius
 struct Point : Sphere {
     Point( vec3 pos = vec3(0.0f, 0.0f, 0.0f) ) : Sphere(pos, SMALL_LENGTH) {}
 };
@@ -91,6 +92,7 @@ struct Capsule : Collider {
 };
 
 
+//a line is a capsule with tiny radius
 struct Line : Capsule {
     Line( vec3 start = vec3{0.0f, -0.5f, 0.0f}, vec3 end = vec3{0.0f, 0.5f, 0.0f}  ) 
             : Capsule( (start + end)*0.5f, mat3(1.0), 1.0e-6f ) {
@@ -147,12 +149,18 @@ struct TriangleCollider : Collider {
 };
 
 
-constexpr int MAX_NEIGHBORS = 8;   //adapt the max if you need more neighbors
+struct Polytope; 
+
+//Vertex of a polytope
+//constexpr int MAX_NEIGHBORS = 8;   //adapt the max if you need more neighbors
+
 struct Vertex {
     std::vector<int> edges;       //indices of all edges of this vertex
     std::vector<int> faces;       //indices of all faces of this vertex
 };
 
+
+//Edge of a polytope
 struct Edge {
     std::array<int, 2>  vertices;  //indices of the two vertices of this edge
 
@@ -161,9 +169,10 @@ struct Edge {
     }
 };
 
-struct Polytope; 
 
+//Face of a polytope
 struct Face {
+    std::vector<int>  vertices;      //indices of all vertices of this face
     std::vector<int>  edges;         //indices of all edges of this face
     std::vector<int>  normal;        //indices of the points to use to compute the cormal of this face
 
@@ -174,7 +183,10 @@ struct Face {
     bool contains_vertex( Polytope &polytope, int v );
 };
 
-//Polytope: Just a set of points
+
+struct Polygon;
+
+//Polytope: Just a set of points plus adjencency information
 struct Polytope : Collider {
     std::vector<vec3>   m_points;
     std::vector<Vertex> m_vertices;
@@ -210,10 +222,12 @@ struct Polytope : Collider {
     void get_vertex_neighbors(int v, std::set<int> &neighbors);
     std::vector<int>& get_vertex_edges( int v );
     std::vector<int>& get_face_edges( int f );
+    void get_face_points( int f, std::vector<vec3> &points );
     void get_edge_faces( int e, std::set<int> &faces);
     void get_face_neighbors( int f, std::set<int> &faces );
     vec3 get_face_normal( int f );
     void get_edge_vectors( std::vector<vec3> &edges);
+    Polygon && face_to_polygon(int f);
 };
 
 
@@ -231,15 +245,16 @@ struct Tetrahedron : Polytope {
                     ,   {.vertices = {0,3}}, {.vertices = {1,3}}, {.vertices = {2,3}}
                   }; 
 
-	    m_faces =   {       {.edges = {0,1,2}, .normal = {1,0,2,0}}     //4 faces, each has 3 edges
-                        ,   {.edges = {0,3,4}, .normal = {3,0,1,0}}
-                        ,   {.edges = {1,4,5}, .normal = {3,1,2,1}}
-                        ,   {.edges = {2,3,5}, .normal = {3,2,0,2}}
+	    m_faces =   {       {.vertices = {0,1,2}, .edges = {0,1,2}, .normal = {1,0,2,0}}     //4 faces, each has 3 vertices and 3 edges
+                        ,   {.vertices = {0,3,1}, .edges = {0,3,4}, .normal = {3,0,1,0}}
+                        ,   {.vertices = {1,3,2}, .edges = {1,4,5}, .normal = {3,1,2,1}}
+                        ,   {.vertices = {2,3,0}, .edges = {2,3,5}, .normal = {3,2,0,2}}
                     };
     };
 };
 
 
+//a triangle is a tertrahedron with tiny height
 struct Triangle : Tetrahedron {
     Triangle( vec3 p0, vec3 p1, vec3 p2 )  : Tetrahedron( p0, p1, p2, {0,0,0} ) {
         vec3 d0 = p2 - p0;
@@ -250,6 +265,7 @@ struct Triangle : Tetrahedron {
 };
 
 
+//a box is a polytope with 8 vertices
 struct Box : Polytope {
     Box( vec3 pos = vec3(0.0f, 0.0f, 0.0f), mat3 matRS = mat3(1.0f) )  : Polytope( pos, matRS ) {
 	    m_points = {    vec3(-0.5f, -0.5f, -0.5f), vec3(0.5f, -0.5f, -0.5f), vec3(-0.5f, -0.5f, 0.5f), vec3(0.5f, -0.5f, 0.5f),
@@ -265,31 +281,61 @@ struct Box : Polytope {
 							, 	{ .edges = {5,7,11}, .faces = {1,3,5} }   // 7
 						};
         //                             0                    1                    2                    3
-	    m_edges = {     {.vertices = {0,1}}, {.vertices = {1,2}}, {.vertices = {0,2}}, {.vertices = {2,3}}
+	    m_edges = {     {.vertices = {0,1}}, {.vertices = {1,2}}, {.vertices = {0,2}}, {.vertices = {2,3}}	//12 edges
         //                             4                    5                    6                    7
                     ,   {.vertices = {4,5}}, {.vertices = {5,7}}, {.vertices = {4,6}}, {.vertices = {6,7}}
         //                             8                    9                   10                   11
                     ,   {.vertices = {0,4}}, {.vertices = {1,5}}, {.vertices = {2,6}}, {.vertices = {3,7}}
-                      }; 	//12 edges
+                      }; 
 
-        //                          0                                 1
-	    m_faces = {     {.edges = {0,2,4,6}, .normal = {6,2,0,2}}, {.edges = {1,3,5,7}, .normal = {5,1,3,1}}
-        //                          2                                 3
-                    ,   {.edges = {0,1,2,3}, .normal = {1,0,2,0}}, {.edges = {4,5,6,7}, .normal = {6,4,5,4}}
-        //                          4                                 5
-                    ,   {.edges = {0,1,4,5}, .normal = {4,0,1,0}}, {.edges = {2,3,6,7}, .normal = {7,3,2,3}}
-                    };		    //6 faces, each having 4 edges
+                        //6 faces, each having 4 vertices and 4 edges
+	    m_faces = {     {.vertices = {0,2,4,6}, .edges = {2,4,6,8},     .normal = {6,2,0,2}}   //0
+                    ,   {.vertices = {1,3,5,7}, .edges = {1,5,9,11},    .normal = {5,1,3,1}}   //1
+                    ,   {.vertices = {0,1,2,3}, .edges = {0,1,2,3},     .normal = {1,0,2,0}}   //2
+                    ,   {.vertices = {4,5,6,7}, .edges = {4,5,6,7},     .normal = {6,4,5,4}}   //3
+                    ,   {.vertices = {0,1,4,5}, .edges = {0,4,8,9},     .normal = {4,0,1,0}}   //4
+                    ,   {.vertices = {2,3,6,7}, .edges = {3,7,10,11},   .normal = {7,3,2,3}}   //5
+                    };
     };
 };
 
-
+//a quad is a box with tiny height
 struct Quad : Box {
-    Quad( vec3 p0, vec3 p1, vec3 p2, vec3 p3 )  : Box() {
+    Quad( vec3 p0, vec3 p1, vec3 p2, vec3 p3 )  : Box() {   //points should lie in the same plane
         vec3 d0 = p2 - p0;
         vec3 d1 = p1 - p0;
         vec3 up = SMALL_LENGTH * normalize( cross( d0,  d1) );
 	    m_points = { p0, p1, p2, p3, p0 + up, p1 + up, p2 + up, p3 + up };
     };
+};
+
+
+struct Polygon : Polytope {
+
+    void make_vertex(int N, int i) {
+        Vertex vertex;
+    }
+
+    void make_edges(int N, int i) {
+
+    }
+
+    void make_faces(int N, int i) {
+    }
+
+    Polygon( std::vector<vec3>& points ) : Polytope() {
+        vec3 d0 = points[2] - points[0];
+        vec3 d1 = points[1] - points[0];
+        vec3 up = SMALL_LENGTH * normalize( cross( d0,  d1) );
+
+	    m_points = points;
+        for( int i=0; i<points.size(); ++i ) {
+            m_points.push_back(points[i] + up);
+            make_vertex(points.size(), i);
+            make_edges(points.size(), i);
+            make_faces(points.size(), i);
+        }
+    }
 };
 
 
@@ -362,4 +408,16 @@ void Polytope::get_edge_vectors( std::vector<vec3> &edges) {
                     });
 }
 
+void Polytope::get_face_points( int f, std::vector<vec3> &points ) {
+    Face &face = m_faces[f];
+    for( auto i : face.vertices) {
+        points.push_back( m_points[i]);
+    }
+}
+
+Polygon && Polytope::face_to_polygon(int f) {
+    std::vector<vec3> points;
+    get_face_points(f, points);
+    return std::move( Polygon{ points } );
+}
 

@@ -31,7 +31,7 @@
 			"command": "cl.exe",
 			"args": [
 				"/MDd",
-				"/W4",
+				// "/W4",
 				"/Zi",
 				"/EHsc",
 				"/Fe:${workspaceFolder}\\main.exe",
