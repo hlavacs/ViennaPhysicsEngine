@@ -69,7 +69,7 @@ bool sat_chung_wang_test( Collider *obj1, Collider *obj2, vec3 *dir, int max_loo
 }
 
 bool sat_faces_test( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
-    auto &faces = obj1->faces2;
+    auto &faces = obj1->m_faces;
     vec3 r;
     float d;
     bool found = false;
@@ -96,14 +96,14 @@ bool sat_edges_test( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
             found = sat_axis_test(obj1, obj2, dir, &r, &d);
         }
     }
-    return found;
+    return found; 
 }
 
 bool sat( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
     if( dot(*dir, *dir) < 1.0e-6 ) *dir = vec3(0.0f, 1.0f, 0.0f);
     if( sat_faces_test( obj1, obj2, dir ) ) return false;
 
-    if( obj1->edges2.size() * obj2->edges2.size() > NUM_RANDOM_DIR ) {
+    if( obj1->m_edges.size() * obj2->m_edges.size() > NUM_RANDOM_DIR ) {
         if( sat_random_test( obj1, obj2, dir ) ) return false;
         if( sat_edges_test( obj1, obj2, dir ) ) return false;
     } else {

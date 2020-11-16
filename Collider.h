@@ -138,10 +138,10 @@ struct Face {
 
 //Polytope: Just a set of points
 struct Polytope : Collider {
-    std::vector<vec3>   points2;
-    std::vector<Vertex> vertices2;
-    std::vector<Edge>   edges2;
-    std::vector<Face>   faces2;
+    std::vector<vec3>   m_points;
+    std::vector<Vertex> m_vertices;
+    std::vector<Edge>   m_edges;
+    std::vector<Face>   m_faces;
 
     Polytope( vec3 pos, mat3 matRS ) : Collider(pos, matRS) {}
 
@@ -149,11 +149,11 @@ struct Polytope : Collider {
     vec3 support(vec3 dir){
         dir = matRS_inverse*dir;
 
-        vec3 furthest_point = points2[0]; 
+        vec3 furthest_point = m_points[0]; 
         float max_dot = dot(furthest_point, dir);
 
         if( true ) {           //if( neighbors == nullptr ) {  //replace the if statement so this branch is only taken if no neighbor info available
-            std::for_each(  std::begin(points2), std::end(points2), 
+            std::for_each(  std::begin(m_points), std::end(m_points), 
                             [&]( auto &v) {
                                 float d = dot(v, dir);
                                 if(d>max_dot){
@@ -180,49 +180,49 @@ struct Polytope : Collider {
 
 struct Point : Polytope {
     Point( vec3 pos = vec3(0.0f, 0.0f, 0.0f), mat3 matRS = mat3(1.0f) ) : Polytope(pos, matRS) {
-        points2 = { vec3(0.0f, 0.0f, 0.0f) };
-        vertices2 = { {} };
+        m_points = { vec3(0.0f, 0.0f, 0.0f) };
+        m_vertices = { {} };
     };
 };
 
 struct Line : Polytope {
     Line( vec3 pos = vec3(0.0f, 0.0f, 0.0f), mat3 matRS = mat3(1.0f) ) : Polytope(pos, matRS ) {
-        points2 = { vec3{-0.5f, 0.0f, 0.0f}, vec3{0.5f, 0.0f, 0.0f} };
-        vertices2 = { { { 0 } }, { { 0 } } }; 
-        edges2 = { {{0,1}} };
+        m_points = { vec3{-0.5f, 0.0f, 0.0f}, vec3{0.5f, 0.0f, 0.0f} };
+        m_vertices = { { { 0 } }, { { 0 } } }; 
+        m_edges = { {{0,1}} };
     };
 };
 
 struct Triangle : Polytope {
     Triangle( vec3 pos = vec3(0.0f, 0.0f, 0.0f), mat3 matRS = mat3(1.0f) )  : Polytope(pos, matRS ) {
-	    points2 = { vec3(-0.5f, 0.0f, 0.0f), vec3(0.5f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 0.5f) };
-	    vertices2 = 	{ 	    { {0,2}, {0} } //every vertex is member of 2 edges and 1 face
+	    m_points = { vec3(-0.5f, 0.0f, 0.0f), vec3(0.5f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 0.5f) };
+	    m_vertices = 	{ 	    { {0,2}, {0} } //every vertex is member of 2 edges and 1 face
 							, 	{ {0,1}, {0} }
 							, 	{ {1,2}, {0} } 
 						};
-	    edges2 = { {{0,1}}, {{1,2}}, {{2,0}} }; 	//3 edges
-	    faces2 = { {{0,1,2}, {0.0f, 1.0f, 0.0f}} };			            //one face with 3 edges
+	    m_edges = { {{0,1}}, {{1,2}}, {{2,0}} }; 	//3 edges
+	    m_faces = { {{0,1,2}, {0.0f, 1.0f, 0.0f}} };			            //one face with 3 edges
     };
 };
 
 struct Quad : Polytope {
     Quad( vec3 pos = vec3(0.0f, 0.0f, 0.0f), mat3 matRS = mat3(1.0f) )  : Polytope(pos, matRS ) {
-	    points2 = { vec3(-0.5f, 0.0f, -0.5f), vec3(0.5f, 0.0f, -0.5f), vec3(0.5f, 0.0f, 0.5f), vec3(-0.5f, 0.0f, 0.5f)  };
-	    vertices2 = 	{ 	    { {0,3}, {0} } //every vertex is member of 2 edges and 1 face
+	    m_points = { vec3(-0.5f, 0.0f, -0.5f), vec3(0.5f, 0.0f, -0.5f), vec3(0.5f, 0.0f, 0.5f), vec3(-0.5f, 0.0f, 0.5f)  };
+	    m_vertices = 	{ 	    { {0,3}, {0} } //every vertex is member of 2 edges and 1 face
 							, 	{ {0,1}, {0} }
 							, 	{ {1,2}, {0} } 
 							, 	{ {2,3}, {0} } 
 						};
-	    edges2 = { {{0,1}}, {{1,2}}, {{2,3}}, {{3,0}} }; 	//4 edges
-	    faces2 = { {{0,1,2,3}, {0.0f, 1.0f, 0.0f}} };			    //one face with 4 edges
+	    m_edges = { {{0,1}}, {{1,2}}, {{2,3}}, {{3,0}} }; 	//4 edges
+	    m_faces = { {{0,1,2,3}, {0.0f, 1.0f, 0.0f}} };			    //one face with 4 edges
     };
 };
 
 struct Box : Polytope {
     Box( vec3 pos = vec3(0.0f, 0.0f, 0.0f), mat3 matRS = mat3(1.0f) )  : Polytope(pos, matRS ) {
-	    points2 = { vec3(-0.5f, -0.5f, -0.5f), vec3(0.5f, -0.5f, -0.5f), vec3(0.5f, -0.5f, 0.5f), vec3(-0.5f, -0.5f, 0.5f),
+	    m_points = { vec3(-0.5f, -0.5f, -0.5f), vec3(0.5f, -0.5f, -0.5f), vec3(0.5f, -0.5f, 0.5f), vec3(-0.5f, -0.5f, 0.5f),
                     vec3(-0.5f,  0.5f, -0.5f), vec3(0.5f,  0.5f, -0.5f), vec3(0.5f,  0.5f, 0.5f), vec3(-0.5f,  0.5f, 0.5f)};
-	    vertices2 = 	{ 	                            //every vertex is member of 3 edges and 3 faces
+	    m_vertices = 	{ 	                            //every vertex is member of 3 edges and 3 faces
                                 { {0,3, 8}, {0,2,5} }   // 0  
 							, 	{ {0,1, 9}, {0,2,3} }   // 1
 							, 	{ {1,2,10}, {0,3,4} }   // 2
@@ -233,14 +233,14 @@ struct Box : Polytope {
 							, 	{ {6,7,11}, {1,4,5} }   // 7
 						};
         //                 0        1        2        3
-	    edges2 = {      {{0,1}}, {{1,2}}, {{2,3}}, {{3,0}}
+	    m_edges = {      {{0,1}}, {{1,2}}, {{2,3}}, {{3,0}}
         //                 4        5        6        7
                     ,   {{4,5}}, {{5,6}}, {{6,7}}, {{7,4}}
         //                 8        9       10       11
                     ,   {{0,4}}, {{1,5}}, {{2,6}}, {{3,7}}  }; 	//12 edges
 
         //                          0                                 1
-	    faces2 = {      {{0,1,2,3}, {0.0f, -1.0f, 0.0f}},  {{4,5,6,7}, {0.0f, 1.0f, 0.0f}}
+	    m_faces = {      {{0,1,2,3}, {0.0f, -1.0f, 0.0f}},  {{4,5,6,7}, {0.0f, 1.0f, 0.0f}}
         //                          2                                 3
                     ,   {{0,9,4,8}, {0.0f, 1.0f, 0.0f}},   {{1,10,5,9}, {0.0f, 1.0f, 0.0f}}
         //                          4                                 5
@@ -252,7 +252,7 @@ struct Box : Polytope {
 bool Face::contains_vertex( Polytope &polytope, int v ) {
     auto it = std::find_if( std::begin(edges), std::end(edges), 
                     [&]( auto &e){
-                       return polytope.edges2[e].contains_vertex(v);
+                       return polytope.m_edges[e].contains_vertex(v);
                     });
     return it != std::end(edges);
 }
@@ -263,10 +263,10 @@ bool Face::contains_vertex( Polytope &polytope, int v ) {
 
 //Return all neighboring vertices of a given vertex
 void Polytope::get_neighbors_of_vertex(int v, std::set<int> &neighbors) {
-	Vertex &vertex = vertices2[v];	                    //edge info of vertex v
+	Vertex &vertex = m_vertices[v];	                    //edge info of vertex v
 	std::for_each( std::begin(vertex.edges) , std::end(vertex.edges), //go through all edges that contain v
 					[&]( auto &e ){ 
-						auto &i = edges2[e].vertices;       //access the vertices of the edge
+						auto &i = m_edges[e].vertices;       //access the vertices of the edge
 						if(i[0]!=v) neighbors.insert(i[0]); //do not add the vertex itself, only true neighbor
 						if(i[1]!=v) neighbors.insert(i[1]); 
 					} );
@@ -274,20 +274,20 @@ void Polytope::get_neighbors_of_vertex(int v, std::set<int> &neighbors) {
 
 //return all edges a given vertex is part of
 std::vector<int>& Polytope::get_edges_of_vertex( int v ) {
-	Vertex &vertex = vertices2[v];  		        //membership info of this vertex
+	Vertex &vertex = m_vertices[v];  		        //membership info of this vertex
 	return vertex.edges;
 }
 
 //return all edges of a given face
 std::vector<int>& Polytope::get_edges_of_face( int f ) {
-	Face &face = faces2[f];                         //information of face f
+	Face &face = m_faces[f];                         //information of face f
 	return face.edges;
 }
 
 //return zero, one or two faces that contain a given edge
 void Polytope::get_faces_of_edge( int e, std::set<int> &faces) {
-    for( int f=0; f<faces2.size(); ++f) {
-        Face &face = faces2[f];
+    for( int f=0; f<m_faces.size(); ++f) {
+        Face &face = m_faces[f];
         if( face.contains_edge(e) )     //it contains the edge
             faces.insert(f);
     }
@@ -295,7 +295,7 @@ void Polytope::get_faces_of_edge( int e, std::set<int> &faces) {
 
 //return all neighboring faces of a given face
 void Polytope::get_neighbors_of_face( int f, std::set<int> &faces ) {
-    auto& edges = faces2[f].edges;        //get all edges of the face
+    auto& edges = m_faces[f].edges;        //get all edges of the face
     std::for_each( std::begin(edges), std::end(edges), 	    //go through all edges and get their faces
 					[&](auto &e) { 
                         get_faces_of_edge( e, faces );
@@ -306,16 +306,16 @@ void Polytope::get_neighbors_of_face( int f, std::set<int> &faces ) {
 vec3 Polytope::get_normal_of_face( int f ) {
     std::vector<int>& edges = get_edges_of_face( f );
     std::set<int> vertices;
-    vertices.insert( edges2[edges[0]].vertices[0]);
-    vertices.insert( edges2[edges[0]].vertices[1]);
-    vertices.insert( edges2[edges[1]].vertices[0]);
-    vertices.insert( edges2[edges[1]].vertices[1]);
+    vertices.insert( m_edges[edges[0]].vertices[0]);
+    vertices.insert( m_edges[edges[0]].vertices[1]);
+    vertices.insert( m_edges[edges[1]].vertices[0]);
+    vertices.insert( m_edges[edges[1]].vertices[1]);
 
     auto it = std::begin(vertices);
     vec3 a, b, c;
-    a = points2[*it]; ++it;
-    b = points2[*it]; ++it;
-    c = points2[*it];
+    a = m_points[*it]; ++it;
+    b = m_points[*it]; ++it;
+    c = m_points[*it];
 
     vec3 d1 = b - a;
     vec3 d2 = c - a;
@@ -323,10 +323,10 @@ vec3 Polytope::get_normal_of_face( int f ) {
 }
 
 void Polytope::get_edge_vectors( std::vector<vec3> &edges) {
-    std::for_each( std::begin(edges2), std::begin(edges2),
+    std::for_each( std::begin(m_edges), std::begin(m_edges),
                     [&,this]( auto &e) {
-                        vec3 v0 = this->points2[e.vertices[0]];
-                        vec3 v1 = this->points2[e.vertices[1]];
+                        vec3 v0 = this->m_points[e.vertices[0]];
+                        vec3 v1 = this->m_points[e.vertices[1]];
                         edges.push_back( v1 - v0 );
                     });
 }
