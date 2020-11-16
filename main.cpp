@@ -21,9 +21,15 @@ int main() {
 
 
 	Box ground{ {0.0f, -50.0f, 0.0f}, scale( mat4(1.0f), vec3(100.0f, 100.0f, 100.0f)) };
-	Box box{ {0.0f, 0.5f, 0.0f} };
+	Box box{ {0.0f, 0.5001f, 0.0f} };
 	vec3 mtv(0,1,0); //minimum translation vector
 	auto hit1 = gjk(&box, &ground, &mtv);
+	auto n0 = box.get_face_normal(0);
+	auto n1 = box.get_face_normal(1);
+	auto n2 = box.get_face_normal(2);
+	auto n3 = box.get_face_normal(3);
+	auto n4 = box.get_face_normal(4);
+	auto n5 = box.get_face_normal(5);
 
 	auto hit2 = sat( (Collider*)&box, (Collider*)&ground, &mtv);
 

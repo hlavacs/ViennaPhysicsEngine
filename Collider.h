@@ -228,7 +228,8 @@ struct Tetrahedron : Polytope {
 						};
 
 	    m_edges = {     {.vertices = {0,1}}, {.vertices = {1,2}}, {.vertices = {2,0}}	    //6 edges
-                    ,   {.vertices = {0,3}}, {.vertices = {1,3}}, {.vertices = {2,3}}}; 
+                    ,   {.vertices = {0,3}}, {.vertices = {1,3}}, {.vertices = {2,3}}
+                  }; 
 
 	    m_faces =   {       {.edges = {0,1,2}, .normal = {1,0,2,0}}     //4 faces, each has 3 edges
                         ,   {.edges = {0,3,4}, .normal = {3,0,1,0}}
@@ -251,9 +252,9 @@ struct Triangle : Tetrahedron {
 
 struct Box : Polytope {
     Box( vec3 pos = vec3(0.0f, 0.0f, 0.0f), mat3 matRS = mat3(1.0f) )  : Polytope( pos, matRS ) {
-	    m_points = {    vec3(-0.5f, -0.5f, -0.5f), vec3(0.5f, -0.5f, -0.5f), vec3(0.5f, -0.5f, 0.5f), vec3(-0.5f, -0.5f, 0.5f),
-                        vec3(-0.5f,  0.5f, -0.5f), vec3(0.5f,  0.5f, -0.5f), vec3(0.5f,  0.5f, 0.5f), vec3(-0.5f,  0.5f, 0.5f)};
-	    m_vertices = 	{ 	                            //every vertex is member of 3 edges and 3 faces
+	    m_points = {    vec3(-0.5f, -0.5f, -0.5f), vec3(0.5f, -0.5f, -0.5f), vec3(-0.5f, -0.5f, 0.5f), vec3(0.5f, -0.5f, 0.5f),
+                        vec3(-0.5f,  0.5f, -0.5f), vec3(0.5f,  0.5f, -0.5f), vec3(-0.5f,  0.5f, 0.5f), vec3(0.5f,  0.5f, 0.5f)};
+	    m_vertices = 	{ 	    //every vertex is member of 3 edges and 3 faces
                                 { .edges = {0,2, 8}, .faces = {0,2,4} }   // 0  
 							, 	{ .edges = {0,1, 9}, .faces = {1,2,4} }   // 1
 							, 	{ .edges = {2,3,10}, .faces = {0,2,5} }   // 2
