@@ -74,7 +74,7 @@ bool sat_faces_test( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
     float d;
     bool found = false;
     for( int i=0; !found && i<faces.size(); ++i) {
-        *dir = obj1->get_normal_of_face(i);
+        *dir = obj1->get_face_normal(i);
         found = sat_axis_test(obj1, obj2, dir, &r, &d);
     }
     return found;
