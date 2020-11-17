@@ -129,29 +129,56 @@ struct PolytopePart : ICollider {
     PolytopePart() : ICollider() {};
 };
 
-//Vertex of a polytope
-//constexpr int MAX_NEIGHBORS = 8;   //adapt the max if you need more neighbors
-struct Vertex : PolytopePart {
-    Polytope*        polytope;
+
+struct VertexData {
     int              index;
     std::vector<int> edges;       //indices of all edges of this vertex
     std::vector<int> faces;       //indices of all faces of this vertex
+    VertexData(int i, std::vector<int> e, std::vector<int> f) : index(i), edges(e), faces(f) {}
+    VertexData & operator=(const VertexData & v) = default;
+};
 
-    Vertex(Polytope* p, int i, std::vector<int> e, std::vector<int> f) 
-        : PolytopePart(), polytope(p), index(i), edges(e), faces(f) {}
-    Vertex & operator=(const Vertex & v) = default;
+
+//Vertex of a polytope
+//constexpr int MAX_NEIGHBORS = 8;   //adapt the max if you need more neighbors
+struct Vertex : PolytopePart {
+    Polytope*         polytope;
+    int               index;
+    std::vector<int>& edges;       //indices of all edges of this vertex
+    std::vector<int>& faces;       //indices of all faces of this vertex
+
+    Vertex(Polytope* p, VertexData &data ) 
+        : PolytopePart(), polytope(p), index(data.index), edges(data.edges), faces(data.faces) {}
+
+    Vertex & operator=(const Vertex & v) {
+        polytope = v.polytope;
+        index = v.index;
+        edges = v.edges;
+        faces = v.faces;
+        return *this;
+    }
 
     vec3 support(vec3 dir);
 };
 
 
-//Edge of a polytope
-struct Edge : PolytopePart {
-    Polytope*        polytope;
+struct EdgeData {
     int              index;
     std::vector<int> vertices;  //indices of the two vertices of this edge
+    EdgeData(int i, std::vector<int> v) : index(i), vertices(v) {}
+    EdgeData & operator=(const EdgeData & v) = default;
+};
 
-    Edge(Polytope* p, int i, std::vector<int> v) : PolytopePart(), polytope(p), index(i), vertices(v) {}
+
+//Edge of a polytope
+struct Edge : PolytopePart {
+    Polytope*         polytope;
+    int               index;
+    std::vector<int>& vertices;  //indices of the two vertices of this edge
+
+    Edge(Polytope* p, EdgeData& data ) 
+        : PolytopePart(), polytope(p), index(data.index), vertices(data.vertices) {}
+
     Edge & operator=(const Edge & v) = default;
 
     bool contains_vertex( int v ) const {
@@ -194,6 +221,9 @@ struct Polygon;
 
 //Polytope: Just a set of points plus adjencency information
 struct Polytope : Collider {
+    inline static std::vector<VertexData> m_vertices_data;
+    inline static std::vector<EdgeData> m_edges_data;
+
     std::vector<vec3>     m_points;
     std::vector<Vertex>   m_vertices;
     std::vector<Edge>     m_edges;
@@ -237,26 +267,31 @@ struct Polytope : Collider {
 
 
 struct Tetrahedron : Polytope {
+
     Tetrahedron( vec3 p0, vec3 p1, vec3 p2, vec3 p3 )  : Polytope() {
 	    m_points = { p0, p1, p2, p3 };
 
-        //if( !m_vertices.empty() ) return;
-
-                                //4 vertices, each is member of 3 edges and 3 faces
-	    m_vertices = 	{ 	    Vertex{ this, 0, {0,2,3}, {0,1,3} }  //0
-							, 	Vertex{ this, 1, {0,1,4}, {0,1,2} }  //1
-							, 	Vertex{ this, 2, {1,2,5}, {0,2,3} }  //2
-							, 	Vertex{ this, 3, {3,4,5}, {1,2,3} }  //3
+        if( m_vertices_data.empty() ) 
+        m_vertices_data = {     //4 vertices, each is member of 3 edges and 3 faces	
+                                VertexData{ 0, {0,2,3}, {0,1,3} }  //0
+							, 	VertexData{ 1, {0,1,4}, {0,1,2} }  //1
+							, 	VertexData{ 2, {1,2,5}, {0,2,3} }  //2
+							, 	VertexData{ 3, {3,4,5}, {1,2,3} }  //3
                         };
 
-	                    //6 edges, each having 2 vertices
-	    m_edges = {     Edge{ this, 0, {0,1} }  //0
-                    ,   Edge{ this, 1, {1,2} }  //1
-                    ,   Edge{ this, 2, {2,0} }  //2
-                    ,   Edge{ this, 3, {0,3} }  //3
-                    ,   Edge{ this, 4, {1,3} }  //4
-                    ,   Edge{ this, 5, {2,3} }  //5
-                  }; 
+        for( auto& data : m_vertices_data ) m_vertices.push_back(  { this, data } );
+
+        if( m_edges_data.empty() )
+	    m_edges_data =                //6 edges, each having 2 vertices
+	                {   EdgeData{ 0, {0,1} }  //0
+                    ,   EdgeData{ 1, {1,2} }  //1
+                    ,   EdgeData{ 2, {2,0} }  //2
+                    ,   EdgeData{ 3, {0,3} }  //3
+                    ,   EdgeData{ 4, {1,3} }  //4
+                    ,   EdgeData{ 5, {2,3} }  //5
+                    }; 
+
+        for( auto& data : m_edges_data ) m_edges.push_back(  { this, data } );
 
                             //4 faces, each has 3 vertices, 3 edges, 4 vertices for computing normals, 3 neighbor faces
 	    m_faces =   {       Face{ this, 0, {0,1,2}, {0,1,2}, {1,0,2,0}, {1,2,3} }  //0
@@ -264,6 +299,7 @@ struct Tetrahedron : Polytope {
                         ,   Face{ this, 2, {1,3,2}, {1,4,5}, {3,1,2,1}, {0,1,3} }  //2
                         ,   Face{ this, 3, {2,3,0}, {2,3,5}, {3,2,0,2}, {0,1,2} }  //3
                     };
+
     };
 };
 
@@ -286,32 +322,36 @@ struct Box : Polytope {
 	    m_points = {    vec3(-0.5f, -0.5f, -0.5f), vec3(0.5f, -0.5f, -0.5f), vec3(-0.5f, -0.5f, 0.5f), vec3(0.5f, -0.5f, 0.5f),
                         vec3(-0.5f,  0.5f, -0.5f), vec3(0.5f,  0.5f, -0.5f), vec3(-0.5f,  0.5f, 0.5f), vec3(0.5f,  0.5f, 0.5f)};
 
-        //if( !m_vertices.empty() ) return;
-
-	    m_vertices = 	{ 	    //every vertex is member of 3 edges and 3 faces
-                                Vertex{ this, 0, {0,2, 8}, {0,2,4} }   // 0  
-							, 	Vertex{ this, 1, {0,1, 9}, {1,2,4} }   // 1
-							, 	Vertex{ this, 2, {2,3,10}, {0,2,5} }   // 2
-							, 	Vertex{ this, 3, {1,3,11}, {1,2,5} }   // 3
-                            ,   Vertex{ this, 4, {4,6, 8}, {0,3,4} }   // 4
-							, 	Vertex{ this, 5, {4,5, 9}, {1,3,4} }   // 5
-							, 	Vertex{ this, 6, {6,7,10}, {0,3,5} }   // 6
-							, 	Vertex{ this, 7, {5,7,11}, {1,3,5} }   // 7
+        if( m_vertices_data.empty() ) 
+        m_vertices_data = { 	//every vertex is member of 3 edges and 3 faces
+                                VertexData{ 0, {0,2, 8}, {0,2,4} }   // 0  
+							, 	VertexData{ 1, {0,1, 9}, {1,2,4} }   // 1
+							, 	VertexData{ 2, {2,3,10}, {0,2,5} }   // 2
+							, 	VertexData{ 3, {1,3,11}, {1,2,5} }   // 3
+                            ,   VertexData{ 4, {4,6, 8}, {0,3,4} }   // 4
+							, 	VertexData{ 5, {4,5, 9}, {1,3,4} }   // 5
+							, 	VertexData{ 6, {6,7,10}, {0,3,5} }   // 6
+							, 	VertexData{ 7, {5,7,11}, {1,3,5} }   // 7
 						};
 
-	    m_edges = {     Edge{ this,  0, {0,1} } //0
-                    ,   Edge{ this,  1, {1,2} } //1
-                    ,   Edge{ this,  2, {0,2} } //2
-                    ,   Edge{ this,  3, {2,3} } //3
-                    ,   Edge{ this,  4, {4,5} } //4
-                    ,   Edge{ this,  5, {5,7} } //5
-                    ,   Edge{ this,  6, {4,6} } //6
-                    ,   Edge{ this,  7, {6,7} } //7
-                    ,   Edge{ this,  8, {0,4} } //8
-                    ,   Edge{ this,  9, {1,5} } //9
-                    ,   Edge{ this, 10, {2,6} } //10
-                    ,   Edge{ this, 11, {3,7} } //11
-                  }; 
+        for( auto& data : m_vertices_data ) m_vertices.push_back(  { this, data } );
+
+        if( m_edges_data.empty() )
+	    m_edges_data = {    EdgeData{  0, {0,1} } //0
+                        ,   EdgeData{  1, {1,2} } //1
+                        ,   EdgeData{  2, {0,2} } //2
+                        ,   EdgeData{  3, {2,3} } //3
+                        ,   EdgeData{  4, {4,5} } //4
+                        ,   EdgeData{  5, {5,7} } //5
+                        ,   EdgeData{  6, {4,6} } //6
+                        ,   EdgeData{  7, {6,7} } //7
+                        ,   EdgeData{  8, {0,4} } //8
+                        ,   EdgeData{  9, {1,5} } //9
+                        ,   EdgeData{ 10, {2,6} } //10
+                        ,   EdgeData{ 11, {3,7} } //11
+                        }; 
+
+        for( auto& data : m_edges_data ) m_edges.push_back(  { this, data } );
 
                         //6 faces, each having 4 vertices, 4 edges, 4 vertices for computing normals, 4 neighbor faces
 	    m_faces =  {    Face{ this, 0, {0,2,4,6}, {2,4,6,8},   {6,2,0,2}, {2,3,4,5} }   //0

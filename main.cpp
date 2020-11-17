@@ -20,7 +20,7 @@ int main() {
 	Triangle3D tri{ {-1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f} };
 
 	Box ground{ {0.0f, -50.0f, 0.0f}, scale( mat4(1.0f), vec3(100.0f, 100.0f, 100.0f)) };
-	Box box{ {0.0f, 0.5001f, 0.0f} };
+	Box box{ {0.0f, 0.5f, 0.0f} };
 	vec3 mtv(0,1,0); //minimum translation vector
 	auto hit1 = gjk(&box, &ground, &mtv);
 	
