@@ -145,18 +145,12 @@ struct Vertex : PolytopePart {
     Polytope*    polytope;
     VertexData & data;
 
-    int               index;
-    std::vector<int>& edges;       //indices of all edges of this vertex
-    std::vector<int>& faces;       //indices of all faces of this vertex
-
     Vertex(Polytope* p, VertexData &d ) 
-        : PolytopePart(), polytope(p), data(d), index(d.index), edges(d.edges), faces(d.faces) {}
+        : PolytopePart(), polytope(p), data(d) {}
 
     Vertex & operator=(const Vertex & v) {
         polytope = v.polytope;
-        index = v.index;
-        edges = v.edges;
-        faces = v.faces;
+        data = v.data;
         return *this;
     }
 
@@ -177,16 +171,12 @@ struct Edge : PolytopePart {
     Polytope* polytope;
     EdgeData& data;
 
-    int               index;
-    std::vector<int>& vertices;  //indices of the two vertices of this edge
-
-    Edge(Polytope* p, EdgeData& d ) 
-        : PolytopePart(), polytope(p), data(d), index(d.index), vertices(d.vertices) {}
+    Edge(Polytope* p, EdgeData& d ) : PolytopePart(), polytope(p), data(d) {}
 
     Edge & operator=(const Edge & v) = default;
 
     bool contains_vertex( int v ) const {
-        return vertices[0] == v || vertices[1] == v;
+        return data.vertices[0] == v || data.vertices[1] == v;
     }
 
     vec3 support(vec3 dir);
@@ -431,14 +421,14 @@ struct Polygon3D : Polytope {
 //Polytope parts
 
 vec3 Vertex::support(vec3 dir) {
-    vec3 result = polytope->m_points[index];
+    vec3 result = polytope->m_points[data.index];
     return polytope->matRS * result + polytope->pos; //convert support to world space
 }
 
 vec3 Edge::support(vec3 dir) {
     dir = polytope->matRS_inverse*dir; //find support in model space
-    vec3 result = dot( dir, polytope->m_points[vertices[0]] ) > dot( dir, polytope->m_points[vertices[1]] ) 
-                    ?  polytope->m_points[vertices[0]] : polytope->m_points[vertices[1]];
+    vec3 result = dot( dir, polytope->m_points[data.vertices[0]] ) > dot( dir, polytope->m_points[data.vertices[1]] ) 
+                    ?  polytope->m_points[data.vertices[0]] : polytope->m_points[data.vertices[1]];
 
     return polytope->matRS * result + polytope->pos; //convert support to world space
 }
@@ -450,8 +440,8 @@ vec3 Face::get_face_normal() {
 void Face::get_edge_vectors( std::vector<vec3>& vectors ) {
     auto &pedges = polytope->m_edges;
     for( int e : edges ) {
-        vec3 p0 = polytope->m_points[pedges[e].vertices[0]];
-        vec3 p1 = polytope->m_points[pedges[e].vertices[1]];
+        vec3 p0 = polytope->m_points[pedges[e].data.vertices[0]];
+        vec3 p1 = polytope->m_points[pedges[e].data.vertices[1]];
         vectors.push_back( polytope->matRS * (p1 - p0) );
     }
 }
@@ -478,9 +468,9 @@ vec3 Face::support(vec3 dir) {
 //Return all neighboring vertices of a given vertex
 void Polytope::get_vertex_neighbors(int v, std::set<int> &neighbors) const {
 	const Vertex &vertex = m_vertices[v];	                    //edge info of vertex v
-	std::for_each( std::begin(vertex.edges) , std::end(vertex.edges), //go through all edges that contain v
+	std::for_each( std::begin(vertex.data.edges) , std::end(vertex.data.edges), //go through all edges that contain v
 					[&]( auto &e ){ 
-						auto &i = m_edges[e].vertices;       //access the vertices of the edge
+						auto &i = m_edges[e].data.vertices;       //access the vertices of the edge
 						if(i[0]!=v) neighbors.insert(i[0]); //do not add the vertex itself, only true neighbor
 						if(i[1]!=v) neighbors.insert(i[1]); 
 					} );
@@ -488,7 +478,7 @@ void Polytope::get_vertex_neighbors(int v, std::set<int> &neighbors) const {
 
 //return all edges a given vertex is part of
 const std::vector<int>& Polytope::get_vertex_edges( int v ) const {
-	return m_vertices[v].edges;
+	return m_vertices[v].data.edges;
 }
 
 //return all edges of a given face
@@ -520,8 +510,8 @@ vec3 Polytope::get_face_normal( int f ) const {
 void Polytope::get_edge_vectors( std::vector<vec3> &edges) const {
     std::for_each( std::begin(m_edges), std::begin(m_edges),
                     [&,this]( auto &e) {
-                        vec3 v0 = this->m_points[e.vertices[0]];
-                        vec3 v1 = this->m_points[e.vertices[1]];
+                        vec3 v0 = this->m_points[e.data.vertices[0]];
+                        vec3 v1 = this->m_points[e.data.vertices[1]];
                         edges.push_back( matRS * ( v1 - v0 ) );
                     });
 }
