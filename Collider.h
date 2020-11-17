@@ -133,7 +133,8 @@ struct Vertex : ICollider {
     std::vector<int> edges;       //indices of all edges of this vertex
     std::vector<int> faces;       //indices of all faces of this vertex
 
-    Vertex(Polytope* p, int i, std::vector<int> e, std::vector<int> f) : ICollider(), polytope(p), index(i), edges(e), faces(f) {}
+    Vertex(Polytope* p, int i, std::vector<int> e, std::vector<int> f) 
+        : ICollider(), polytope(p), index(i), edges(e), faces(f) {}
     Vertex & operator=(const Vertex & v) = default;
 
     vec3 support(vec3 dir);
@@ -149,7 +150,7 @@ struct Edge : ICollider {
     Edge(Polytope* p, int i, std::vector<int> v) : ICollider(), polytope(p), index(i), vertices(v) {}
     Edge & operator=(const Edge & v) = default;
 
-    bool contains_vertex( int v ) {
+    bool contains_vertex( int v ) const {
         return vertices[0] == v || vertices[1] == v;
     }
 
@@ -161,20 +162,21 @@ struct Edge : ICollider {
 struct Face  : ICollider {
     Polytope*        polytope;
     int              index;
-    std::vector<int> vertices;      //indices of all vertices of this face
-    std::vector<int> edges;         //indices of all edges of this face
-    std::vector<int> normal;        //indices of the points to use to compute the cormal of this face
+    std::vector<int> vertices;          //indices of all vertices of this face
+    std::vector<int> edges;             //indices of all edges of this face
+    std::vector<int> normal_vertices;   //indices of the points to use to compute the normal of this face
+    std::vector<int> neighbors;         //indices of the faces that are neighbors of this face
 
-    Face(Polytope* p, int i, std::vector<int> v, std::vector<int> e, std::vector<int> n) 
-        : ICollider(), polytope(p), index(i), vertices(v), edges(e), normal(n) {}
+    Face(Polytope* p, int i, std::vector<int> v, std::vector<int> e, std::vector<int> n, std::vector<int> neigh) 
+        : ICollider(), polytope(p), index(i), vertices(v), edges(e), normal_vertices(n), neighbors(neigh) {}
 
     Face & operator=(const Face & v) = default;
 
-    bool contains_edge( int v ) {
+    bool contains_edge( int v ) const {
         return std::find( edges.begin(), edges.end(), v) != edges.end();
     }
 
-    bool contains_vertex(int v ) {
+    bool contains_vertex(int v ) const {
         return std::find( std::begin(vertices), std::end(vertices), v) != std::end(vertices);
     }
 
@@ -194,7 +196,7 @@ struct Polytope : Collider {
     Polytope( vec3 pos = {0,0,0}, mat3 matRS = mat3(1.0f) ) : Collider(pos, matRS) {}
 
     //Dumb O(n) support function, just brute force check all points
-    vec3 support(vec3 dir){
+    vec3 support(vec3 dir) {
         dir = matRS_inverse*dir;
 
         vec3 furthest_point = m_points[0]; 
@@ -217,47 +219,50 @@ struct Polytope : Collider {
         return result;
     }
 
-    std::vector<int>& get_vertex_edges( int v );
-    std::vector<int>& get_face_edges( int f );
-    void get_vertex_neighbors(int v, std::set<int> &neighbors);
-    void get_face_points( int f, std::vector<vec3> &points );
-    void get_edge_faces( int e, std::set<int> &faces);
-    void get_face_neighbors( int f, std::set<int> &faces );
-    vec3 get_face_normal( int f );
-    void get_edge_vectors( std::vector<vec3> &edges);
+    const std::vector<int>& get_vertex_edges( int v ) const;
+    const std::vector<int>& get_face_edges( int f ) const;
+    const std::vector<int>& get_face_neighbors( int f ) const;
+    void get_vertex_neighbors(int v, std::set<int> &neighbors) const;
+    void get_face_points( int f, std::vector<vec3> &points ) const;
+    void get_edge_faces( int e, std::set<int> &faces) const;
+    vec3 get_face_normal( int f ) const;
+    void get_edge_vectors( std::vector<vec3> &edges) const;
 };
 
 
 struct Tetrahedron : Polytope {
     Tetrahedron( vec3 p0, vec3 p1, vec3 p2, vec3 p3 )  : Polytope() {
 	    m_points = { p0, p1, p2, p3 };
-
-	    m_vertices = 	{ 	    Vertex{ this, 0, {0,2,3}, {0,1,3} } //every vertex is member of 3 edges and 3 faces
-							, 	Vertex{ this, 1, {0,1,4}, {0,1,2} }
-							, 	Vertex{ this, 2, {1,2,5}, {0,2,3} } 
-							, 	Vertex{ this, 3, {3,4,5}, {1,2,3} } 
+                                //4 vertices, each is member of 3 edges and 3 faces
+	    m_vertices = 	{ 	    Vertex{ this, 0, {0,2,3}, {0,1,3} }  //0
+							, 	Vertex{ this, 1, {0,1,4}, {0,1,2} }  //1
+							, 	Vertex{ this, 2, {1,2,5}, {0,2,3} }  //2
+							, 	Vertex{ this, 3, {3,4,5}, {1,2,3} }  //3
                         };
 
-	    m_edges = {     Edge{ this, 0, {0,1} }	    //6 edges, each having 2 vertices
-                    ,   Edge{ this, 1, {1,2} }
-                    ,   Edge{ this, 2, {2,0} }
-                    ,   Edge{ this, 3, {0,3} }
-                    ,   Edge{ this, 4, {1,3} }
-                    ,   Edge{ this, 5, {2,3} }
+	                    //6 edges, each having 2 vertices
+	    m_edges = {     Edge{ this, 0, {0,1} }  //0
+                    ,   Edge{ this, 1, {1,2} }  //1
+                    ,   Edge{ this, 2, {2,0} }  //2
+                    ,   Edge{ this, 3, {0,3} }  //3
+                    ,   Edge{ this, 4, {1,3} }  //4
+                    ,   Edge{ this, 5, {2,3} }  //5
                   }; 
 
-	    m_faces =   {       Face{ this, 0, {0,1,2}, {0,1,2}, {1,0,2,0} }  //4 faces, each has 3 vertices, 3 edges, 4 vertices for normals
-                        ,   Face{ this, 1, {0,3,1}, {0,3,4}, {3,0,1,0} }
-                        ,   Face{ this, 2, {1,3,2}, {1,4,5}, {3,1,2,1} }
-                        ,   Face{ this, 3, {2,3,0}, {2,3,5}, {3,2,0,2} }
+                            //4 faces, each has 3 vertices, 3 edges, 4 vertices for computing normals, 3 neighbor faces
+	    m_faces =   {       Face{ this, 0, {0,1,2}, {0,1,2}, {1,0,2,0}, {1,2,3} }  //0
+                        ,   Face{ this, 1, {0,3,1}, {0,3,4}, {3,0,1,0}, {0,2,3} }  //1
+                        ,   Face{ this, 2, {1,3,2}, {1,4,5}, {3,1,2,1}, {0,1,3} }  //2
+                        ,   Face{ this, 3, {2,3,0}, {2,3,5}, {3,2,0,2}, {0,1,2} }  //3
                     };
     };
 };
 
 
 //a triangle is a tertrahedron with tiny height
-struct Triangle : Tetrahedron {
-    Triangle( vec3 p0, vec3 p1, vec3 p2 )  : Tetrahedron( p0, p1, p2, {0,0,0} ) {
+//can be used with GJK
+struct Triangle3D : Tetrahedron {
+    Triangle3D( vec3 p0, vec3 p1, vec3 p2 )  : Tetrahedron( p0, p1, p2, {0,0,0} ) {
         vec3 d0 = p2 - p0;
         vec3 d1 = p1 - p0;
         vec3 up = SMALL_LENGTH * normalize( cross( d0,  d1) );
@@ -295,18 +300,19 @@ struct Box : Polytope {
                     ,   Edge{ this, 11, {3,7} } //11
                   }; 
 
-                        //6 faces, each having 4 vertices, 4 edges, 4 vertices for normals
-	    m_faces =  {    Face{ this, 0, {0,2,4,6}, {2,4,6,8},   {6,2,0,2} }   //0
-                    ,   Face{ this, 1, {1,3,5,7}, {1,5,9,11},  {5,1,3,1} }   //1
-                    ,   Face{ this, 2, {0,1,2,3}, {0,1,2,3},   {1,0,2,0} }   //2
-                    ,   Face{ this, 3, {4,5,6,7}, {4,5,6,7},   {6,4,5,4} }   //3
-                    ,   Face{ this, 4, {0,1,4,5}, {0,4,8,9},   {4,0,1,0} }   //4
-                    ,   Face{ this, 5, {2,3,6,7}, {3,7,10,11}, {7,3,2,3} }   //5
+                        //6 faces, each having 4 vertices, 4 edges, 4 vertices for computing normals, 4 neighbor faces
+	    m_faces =  {    Face{ this, 0, {0,2,4,6}, {2,4,6,8},   {6,2,0,2}, {2,3,4,5} }   //0
+                    ,   Face{ this, 1, {1,3,5,7}, {1,5,9,11},  {5,1,3,1}, {2,3,4,5} }   //1
+                    ,   Face{ this, 2, {0,1,2,3}, {0,1,2,3},   {1,0,2,0}, {0,1,4,5} }   //2
+                    ,   Face{ this, 3, {4,5,6,7}, {4,5,6,7},   {6,4,5,4}, {0,1,4,5} }   //3
+                    ,   Face{ this, 4, {0,1,4,5}, {0,4,8,9},   {4,0,1,0}, {0,1,2,3} }   //4
+                    ,   Face{ this, 5, {2,3,6,7}, {3,7,10,11}, {7,3,2,3}, {0,1,2,3} }   //5
                     };
     };
 };
 
 //a quad is a box with tiny height
+//can be used with GJK
 struct Quad3D : Box {
     Quad3D( vec3 p0, vec3 p1, vec3 p2, vec3 p3 )  : Box() {   //points should lie in the same plane
         vec3 d0 = p2 - p0;
@@ -316,7 +322,9 @@ struct Quad3D : Box {
     };
 };
 
-
+//a Polygon3D with N vertices, all vertices must lie in the same plane
+//the polgon has a 3D body but is infinitely thin
+//can be used with GJK
 struct Polygon3D : Polytope {
     Polygon3D( std::vector<vec3>& points ) : Polytope() {
         vec3 d0 = points[2] - points[0];
@@ -349,25 +357,25 @@ vec3 Edge::support(vec3 dir) {
 vec3 Face::support(vec3 dir) {
     dir = polytope->matRS_inverse*dir; //find support in model space
 
-    int maxindex = 0;
-    float max = -1e30;
+    vec3 maxp = polytope->m_points[0];
+    float max = dot( dir, maxp );
     for( auto i : vertices ) {
         float d = dot( dir, polytope->m_points[vertices[i]] );
         if( d > max ) {
-            maxindex = i;
+            maxp = polytope->m_points[vertices[i]];
             max = d;
         }
     }
 
-     return polytope->matRS * polytope->m_points[vertices[maxindex]] + polytope->pos; //convert support to world space
+     return polytope->matRS * maxp + polytope->pos; //convert support to world space
 }
 
 
 //Polytope functions
 
 //Return all neighboring vertices of a given vertex
-void Polytope::get_vertex_neighbors(int v, std::set<int> &neighbors) {
-	Vertex &vertex = m_vertices[v];	                    //edge info of vertex v
+void Polytope::get_vertex_neighbors(int v, std::set<int> &neighbors) const {
+	const Vertex &vertex = m_vertices[v];	                    //edge info of vertex v
 	std::for_each( std::begin(vertex.edges) , std::end(vertex.edges), //go through all edges that contain v
 					[&]( auto &e ){ 
 						auto &i = m_edges[e].vertices;       //access the vertices of the edge
@@ -377,42 +385,39 @@ void Polytope::get_vertex_neighbors(int v, std::set<int> &neighbors) {
 }
 
 //return all edges a given vertex is part of
-std::vector<int>& Polytope::get_vertex_edges( int v ) {
-	Vertex &vertex = m_vertices[v];  		        //membership info of this vertex
+const std::vector<int>& Polytope::get_vertex_edges( int v ) const {
+	const Vertex &vertex = m_vertices[v];  		        //membership info of this vertex
 	return vertex.edges;
 }
 
 //return all edges of a given face
-std::vector<int>& Polytope::get_face_edges( int f ) {
-	Face &face = m_faces[f];                         //information of face f
+const std::vector<int>& Polytope::get_face_edges( int f ) const {
+	const Face &face = m_faces[f];                         //information of face f
 	return face.edges;
 }
 
 //return zero, one or two faces that contain a given edge
-void Polytope::get_edge_faces( int e, std::set<int> &faces) {
+void Polytope::get_edge_faces( int e, std::set<int> &faces) const {
     for( int f=0; f<m_faces.size(); ++f) {
-        Face &face = m_faces[f];
+        const Face &face = m_faces[f];
         if( face.contains_edge(e) )     //it contains the edge
             faces.insert(f);
     }
 }
 
 //return all neighboring faces of a given face
-void Polytope::get_face_neighbors( int f, std::set<int> &faces ) {
-    auto& edges = m_faces[f].edges;        //get all edges of the face
-    std::for_each( std::begin(edges), std::end(edges), 	    //go through all edges and get their faces
-					[&](auto &e) { 
-                        get_edge_faces( e, faces );
-                    } ); 
-    faces.erase(f);         //remove the given face since it is not its own neighbor
+const std::vector<int> & Polytope::get_face_neighbors( int f ) const {
+    return m_faces[f].normal_vertices;        //get all edges of the face
 }
 
-vec3 Polytope::get_face_normal( int f ) {
-    auto &n = m_faces[f].normal;
-    return cross( m_points[n[0]] - m_points[n[1]], m_points[n[2]] - m_points[n[3]] );
+//get the normal of a given face
+vec3 Polytope::get_face_normal( int f ) const {
+    auto &n = m_faces[f].normal_vertices;
+    return cross( matRS * (m_points[n[0]] - m_points[n[1]]), matRS * (m_points[n[2]] - m_points[n[3]] ) );
 }
 
-void Polytope::get_edge_vectors( std::vector<vec3> &edges) {
+//return a list of vectors going along the edges of the polytope
+void Polytope::get_edge_vectors( std::vector<vec3> &edges) const {
     std::for_each( std::begin(m_edges), std::begin(m_edges),
                     [&,this]( auto &e) {
                         vec3 v0 = this->m_points[e.vertices[0]];
@@ -421,8 +426,9 @@ void Polytope::get_edge_vectors( std::vector<vec3> &edges) {
                     });
 }
 
-void Polytope::get_face_points( int f, std::vector<vec3> &points ) {
-    Face &face = m_faces[f];
+//return a list with the coordinates of the vertices of a given face
+void Polytope::get_face_points( int f, std::vector<vec3> &points ) const {
+    const Face &face = m_faces[f];
     for( auto i : face.vertices) {
         points.push_back( m_points[i]);
     }

@@ -17,7 +17,7 @@ int main() {
 	Line3D line{ {0.f,0.f, -1.f}, {0.f,0.0f,1.f} };
 
 	Tetrahedron tet{ {-1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.5f} };
-	Triangle tri{ {-1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f} };
+	Triangle3D tri{ {-1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f} };
 
 	Box ground{ {0.0f, -50.0f, 0.0f}, scale( mat4(1.0f), vec3(100.0f, 100.0f, 100.0f)) };
 	Box box{ {0.0f, 0.5001f, 0.0f} };
@@ -36,7 +36,7 @@ int main() {
 	Point3D point{ {0,-10,0} };
 	auto hit3 = gjk(&point, &ground, &mtv);
 
-	Triangle triangle{ {-1,0,0}, {1,0,0}, {0,1,0} };
+	Triangle3D triangle{ {-1,0,0}, {1,0,0}, {0,1,0} };
 	auto hit4 = gjk(&triangle, &ground, &mtv);
 
 	Quad3D quad{ {-1,0,-1}, {1,0,-1}, {1,0,1}, {-1,0,1} };
@@ -62,8 +62,7 @@ int main() {
 	box.get_edge_faces( e, faces);
 
 	//get the neighboring faces of a given face
-	std::set<int> faces2;
-	box.get_face_neighbors( f, faces2);
+	const std::vector<int>& faces2 = box.get_face_neighbors(f);
 
 
 
