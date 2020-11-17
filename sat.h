@@ -16,15 +16,17 @@ constexpr int NUM_RANDOM_DIR = 32;
 
 
 //test whether a direction is a separating axis
+//returns true if a separating axis was found (i.e. objects are NOT in contact), else false
 bool sat_axis_test( ICollider *obj1, ICollider *obj2, vec3 *dir, vec3 *r, float *d) {
     vec3 p = obj1->support( *dir );
     vec3 q = obj2->support( -1.0f* (*dir) );
     *r = normalize(q - p); 
     *d = dot( *r, *dir );
-    return  *d > 1.0e-6f;
+    return  *d > 1.0e-6f;       //allow for numerical inaccuracies
 }
 
 //choose N random directions to find SA
+//returns true if a separating axis was found (i.e. objects are NOT in contact), else false
 bool sat_random_test( ICollider *obj1, ICollider *obj2, vec3 *dir) {
     static std::vector<vec3> random_axes;   //Fibonacci sphere
     if( random_axes.empty()) {
@@ -57,6 +59,7 @@ bool sat_random_test( ICollider *obj1, ICollider *obj2, vec3 *dir) {
 }
 
 //Chung Wang Test with damping
+//returns true if a separating axis was found (i.e. objects are NOT in contact), else false
 bool sat_chung_wang_test( ICollider *obj1, ICollider *obj2, vec3 *dir, int max_loops = 50 ) {
     vec3 r;
     float d;
@@ -72,26 +75,27 @@ bool sat_chung_wang_test( ICollider *obj1, ICollider *obj2, vec3 *dir, int max_l
 }
 
 //SAT using the normals of polytope faces
+//returns true if a separating axis was found (i.e. objects are NOT in contact), else false
 bool sat_faces_test( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
     auto &faces = obj1->m_faces;
     vec3 r;
     float d;
-    bool found = false;
-    for( int i=0; !found && i<faces.size(); ++i) {
+    for( int i=0; i<faces.size(); ++i) {
         *dir = obj1->get_face_normal(i);
-        found = sat_axis_test(obj1, obj2, dir, &r, &d);
+        if( sat_axis_test(obj1, obj2, dir, &r, &d) ) return true;
     }
 
     faces = obj2->m_faces;
-    for( int i=0; !found && i<faces.size(); ++i) {
+    for( int i=0; i<faces.size(); ++i) {
         *dir = obj1->get_face_normal(i);
-        found = sat_axis_test(obj1, obj2, dir, &r, &d);
+        if( sat_axis_test(obj1, obj2, dir, &r, &d) ) return true;
     }
 
-    return found;
+    return false;
 }
 
 //SAT using the cross products of edge pairs from two polytopes
+//returns true if a separating axis was found (i.e. objects are NOT in contact), else false
 bool sat_edges_test( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
     std::vector<vec3> edges1;
     std::vector<vec3> edges2;
@@ -101,16 +105,16 @@ bool sat_edges_test( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
 
     vec3 r;
     float d;
-    bool found = false;
-    for( int i=0; !found && i<edges1.size(); ++i) {
-        for( int j=0; !found && i<edges2.size(); ++j) {
+    for( int i=0; i<edges1.size(); ++i) {
+        for( int j=0; i<edges2.size(); ++j) {
             *dir = cross( edges1[i], edges2[j] );
-            found = sat_axis_test(obj1, obj2, dir, &r, &d);
+            if( sat_axis_test(obj1, obj2, dir, &r, &d) ) return true;
         }
     }
-    return found; 
+    return false; 
 }
 
+//---------------------------------------------------------------------------
 
 //entry points for SAT
 //returns true of the objects are in contact
