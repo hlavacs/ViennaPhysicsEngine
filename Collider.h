@@ -339,7 +339,9 @@ struct Polygon3D : Polytope {
 };
 
 
-//implementations
+//-------------------------------------------------------------------------------------
+
+//Polytope parts
 
 vec3 Vertex::support(vec3 dir) {
     vec3 result = polytope->m_points[index];

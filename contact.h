@@ -18,16 +18,6 @@
 using vec3pair = std::pair<vec3,vec3>;
 
 
-
-struct face_face_contact {
-    Polytope *obj1;    
-    Polytope *obj2;
-    int f1;
-    int f2;
-
-    face_face_contact(Polytope *o1, Polytope *o2, int fi1, int fi2 = -1) : obj1(o1), obj2(o2), f1(fi1), f2(fi2) {};
-};
-
 struct contact {
     Polytope *obj1;    
     Polytope *obj2;    
@@ -43,6 +33,7 @@ struct contact {
     }
  };*/
 
+
 void process_vertex_face_contact( Polytope *obj1, Polytope *obj2, int v1, int f2, std::set<contact> & contacts) {
 
 }
@@ -50,7 +41,6 @@ void process_vertex_face_contact( Polytope *obj1, Polytope *obj2, int v1, int f2
 void process_edge_edge_contact( Polytope *obj1, Polytope *obj2, int e1, int e2, std::set<contact> & contacts) {
 
 }
-
 
 
 void process_face_face_contact(    Polytope *obj1, Polytope *obj2, vec3 *dir
@@ -78,7 +68,7 @@ void process_face_face_contact(    Polytope *obj1, Polytope *obj2, vec3 *dir
 }
 
 void process_face_obj_contacts(     Polytope *obj1, Polytope *obj2, vec3 *dir
-                                ,   std::set<int>& obj1_faces, std::set<int>& obj2_faces
+                                ,   std::vector<int>& obj1_faces, std::vector<int>& obj2_faces
                                 ,   std::set<contact> & contacts ) {
     
     for( int f1 : obj1_faces) {
@@ -90,11 +80,11 @@ void process_face_obj_contacts(     Polytope *obj1, Polytope *obj2, vec3 *dir
     }
 }
 
-void get_face_obj_contacts( Polytope *obj1, Polytope *obj2, vec3 *dir, std::set<int>& obj_faces ) {
+void get_face_obj_contacts( Polytope *obj1, Polytope *obj2, vec3 *dir, std::vector<int>& obj_faces ) {
     for( int f = 0; f < obj1->m_faces.size(); ++f ) {
         Face *face = &obj1->m_faces[f];
         if( sat( face, obj2, dir ) ) {              //find the first face from obj1 that touches obj2
-            obj_faces.insert(f);                    //insert into result list
+            obj_faces.push_back(f);                    //insert into result list
             auto& neighbors = obj1->get_face_neighbors(f);
             std::copy( std::begin(neighbors), std::end(neighbors), std::back_inserter(obj_faces) );   //also insert its neighbors
             return;
@@ -103,8 +93,8 @@ void get_face_obj_contacts( Polytope *obj1, Polytope *obj2, vec3 *dir, std::set<
 }
 
 void neighboring_faces( Polytope *obj1, Polytope *obj2, vec3 *dir, std::set<contact> & contacts ) {
-    std::set<int> obj1_faces;
-    std::set<int> obj2_faces;
+    std::vector<int> obj1_faces;
+    std::vector<int> obj2_faces;
 
     get_face_obj_contacts(obj1, obj2, dir, obj1_faces );    
     get_face_obj_contacts(obj2, obj1, dir, obj2_faces );    
