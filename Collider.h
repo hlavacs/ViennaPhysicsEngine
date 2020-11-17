@@ -194,10 +194,10 @@ struct Polygon;
 
 //Polytope: Just a set of points plus adjencency information
 struct Polytope : Collider {
-    std::vector<vec3>   m_points;
-    std::vector<Vertex> m_vertices;
-    std::vector<Edge>   m_edges;
-    std::vector<Face>   m_faces;
+    std::vector<vec3>                   m_points;
+    inline static std::vector<Vertex>   m_vertices;
+    inline static std::vector<Edge>     m_edges;
+    inline static std::vector<Face>     m_faces;
 
     Polytope( vec3 pos = {0,0,0}, mat3 matRS = mat3(1.0f) ) : Collider(pos, matRS) {}
 
@@ -237,9 +237,10 @@ struct Polytope : Collider {
 
 
 struct Tetrahedron : Polytope {
-
     Tetrahedron( vec3 p0, vec3 p1, vec3 p2, vec3 p3 )  : Polytope() {
 	    m_points = { p0, p1, p2, p3 };
+
+        if( !m_vertices.empty() ) return;
 
                                 //4 vertices, each is member of 3 edges and 3 faces
 	    m_vertices = 	{ 	    Vertex{ this, 0, {0,2,3}, {0,1,3} }  //0
@@ -284,6 +285,9 @@ struct Box : Polytope {
     Box( vec3 pos = vec3(0.0f, 0.0f, 0.0f), mat3 matRS = mat3(1.0f) )  : Polytope( pos, matRS ) {
 	    m_points = {    vec3(-0.5f, -0.5f, -0.5f), vec3(0.5f, -0.5f, -0.5f), vec3(-0.5f, -0.5f, 0.5f), vec3(0.5f, -0.5f, 0.5f),
                         vec3(-0.5f,  0.5f, -0.5f), vec3(0.5f,  0.5f, -0.5f), vec3(-0.5f,  0.5f, 0.5f), vec3(0.5f,  0.5f, 0.5f)};
+
+        if( !m_vertices.empty() ) return;
+
 	    m_vertices = 	{ 	    //every vertex is member of 3 edges and 3 faces
                                 Vertex{ this, 0, {0,2, 8}, {0,2,4} }   // 0  
 							, 	Vertex{ this, 1, {0,1, 9}, {1,2,4} }   // 1
