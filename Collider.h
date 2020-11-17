@@ -142,13 +142,15 @@ struct VertexData {
 //Vertex of a polytope
 //constexpr int MAX_NEIGHBORS = 8;   //adapt the max if you need more neighbors
 struct Vertex : PolytopePart {
-    Polytope*         polytope;
+    Polytope*    polytope;
+    VertexData & data;
+
     int               index;
     std::vector<int>& edges;       //indices of all edges of this vertex
     std::vector<int>& faces;       //indices of all faces of this vertex
 
-    Vertex(Polytope* p, VertexData &data ) 
-        : PolytopePart(), polytope(p), index(data.index), edges(data.edges), faces(data.faces) {}
+    Vertex(Polytope* p, VertexData &d ) 
+        : PolytopePart(), polytope(p), data(d), index(d.index), edges(d.edges), faces(d.faces) {}
 
     Vertex & operator=(const Vertex & v) {
         polytope = v.polytope;
@@ -172,12 +174,14 @@ struct EdgeData {
 
 //Edge of a polytope
 struct Edge : PolytopePart {
-    Polytope*         polytope;
+    Polytope* polytope;
+    EdgeData& data;
+
     int               index;
     std::vector<int>& vertices;  //indices of the two vertices of this edge
 
-    Edge(Polytope* p, EdgeData& data ) 
-        : PolytopePart(), polytope(p), index(data.index), vertices(data.vertices) {}
+    Edge(Polytope* p, EdgeData& d ) 
+        : PolytopePart(), polytope(p), data(d), index(d.index), vertices(d.vertices) {}
 
     Edge & operator=(const Edge & v) = default;
 
@@ -189,19 +193,41 @@ struct Edge : PolytopePart {
 };
 
 
-//Face of a polytope
-struct Face  : PolytopePart {
-    Polytope*        polytope;
+struct FaceData {
     int              index;
     std::vector<int> vertices;          //indices of all vertices of this face
     std::vector<int> edges;             //indices of all edges of this face
     std::vector<int> normal_vertices;   //indices of the points to use to compute the normal of this face
     std::vector<int> neighbors;         //indices of the faces that are neighbors of this face
 
-    Face(Polytope* p, int i, std::vector<int> v, std::vector<int> e, std::vector<int> n, std::vector<int> neigh) 
-        : PolytopePart(), polytope(p), index(i), vertices(v), edges(e), normal_vertices(n), neighbors(neigh) {}
+    FaceData(int i, std::vector<int> v, std::vector<int> e, std::vector<int> n, std::vector<int> ne )
+         : index(i), vertices(v), edges(e), normal_vertices(n), neighbors(ne) {}
+    FaceData & operator=(const FaceData & v) = default;
+};
 
-    Face & operator=(const Face & v) = default;
+
+//Face of a polytope
+struct Face  : PolytopePart {
+    Polytope* polytope;
+    FaceData& data;
+
+    int              index;
+    std::vector<int>& vertices;          //indices of all vertices of this face
+    std::vector<int>& edges;             //indices of all edges of this face
+    std::vector<int>& normal_vertices;   //indices of the points to use to compute the normal of this face
+    std::vector<int>& neighbors;         //indices of the faces that are neighbors of this face 
+
+    Face(Polytope* p, FaceData &d) 
+        : PolytopePart(), polytope(p), data(d), index(d.index), vertices(d.vertices)
+        , edges(d.edges), normal_vertices(d.normal_vertices), neighbors(d.neighbors) {}
+
+    Face & operator=( const Face & v) {
+        vertices = v.vertices;
+        edges = v.edges;
+        normal_vertices = v.normal_vertices;
+        neighbors = v.neighbors;
+        return *this;
+    }
 
     bool contains_edge( int v ) const {
         return std::find( edges.begin(), edges.end(), v) != edges.end();
@@ -221,8 +247,9 @@ struct Polygon;
 
 //Polytope: Just a set of points plus adjencency information
 struct Polytope : Collider {
-    inline static std::vector<VertexData> m_vertices_data;
-    inline static std::vector<EdgeData> m_edges_data;
+    inline static std::vector<VertexData>   m_vertices_data;
+    inline static std::vector<EdgeData>     m_edges_data;
+    inline static std::vector<FaceData>     m_faces_data;
 
     std::vector<vec3>     m_points;
     std::vector<Vertex>   m_vertices;
@@ -282,7 +309,7 @@ struct Tetrahedron : Polytope {
         for( auto& data : m_vertices_data ) m_vertices.push_back(  { this, data } );
 
         if( m_edges_data.empty() )
-	    m_edges_data =                //6 edges, each having 2 vertices
+	    m_edges_data =  //6 edges, each having 2 vertices
 	                {   EdgeData{ 0, {0,1} }  //0
                     ,   EdgeData{ 1, {1,2} }  //1
                     ,   EdgeData{ 2, {2,0} }  //2
@@ -293,12 +320,15 @@ struct Tetrahedron : Polytope {
 
         for( auto& data : m_edges_data ) m_edges.push_back(  { this, data } );
 
-                            //4 faces, each has 3 vertices, 3 edges, 4 vertices for computing normals, 3 neighbor faces
-	    m_faces =   {       Face{ this, 0, {0,1,2}, {0,1,2}, {1,0,2,0}, {1,2,3} }  //0
-                        ,   Face{ this, 1, {0,3,1}, {0,3,4}, {3,0,1,0}, {0,2,3} }  //1
-                        ,   Face{ this, 2, {1,3,2}, {1,4,5}, {3,1,2,1}, {0,1,3} }  //2
-                        ,   Face{ this, 3, {2,3,0}, {2,3,5}, {3,2,0,2}, {0,1,2} }  //3
+        if( m_edges_data.empty() )
+	    m_faces_data =      //4 faces, each has 3 vertices, 3 edges, 4 vertices for computing normals, 3 neighbor faces
+                    {       FaceData{ 0, {0,1,2}, {0,1,2}, {1,0,2,0}, {1,2,3} }  //0
+                        ,   FaceData{ 1, {0,3,1}, {0,3,4}, {3,0,1,0}, {0,2,3} }  //1
+                        ,   FaceData{ 2, {1,3,2}, {1,4,5}, {3,1,2,1}, {0,1,3} }  //2
+                        ,   FaceData{ 3, {2,3,0}, {2,3,5}, {3,2,0,2}, {0,1,2} }  //3
                     };
+
+        for( auto& data : m_faces_data ) m_faces.push_back(  { this, data } );
 
     };
 };
@@ -337,7 +367,8 @@ struct Box : Polytope {
         for( auto& data : m_vertices_data ) m_vertices.push_back(  { this, data } );
 
         if( m_edges_data.empty() )
-	    m_edges_data = {    EdgeData{  0, {0,1} } //0
+	    m_edges_data = {    //every edge has 2 vertices
+                            EdgeData{  0, {0,1} } //0
                         ,   EdgeData{  1, {1,2} } //1
                         ,   EdgeData{  2, {0,2} } //2
                         ,   EdgeData{  3, {2,3} } //3
@@ -353,14 +384,17 @@ struct Box : Polytope {
 
         for( auto& data : m_edges_data ) m_edges.push_back(  { this, data } );
 
-                        //6 faces, each having 4 vertices, 4 edges, 4 vertices for computing normals, 4 neighbor faces
-	    m_faces =  {    Face{ this, 0, {0,2,4,6}, {2,4,6,8},   {6,2,0,2}, {2,3,4,5} }   //0
-                    ,   Face{ this, 1, {1,3,5,7}, {1,5,9,11},  {5,1,3,1}, {2,3,4,5} }   //1
-                    ,   Face{ this, 2, {0,1,2,3}, {0,1,2,3},   {1,0,2,0}, {0,1,4,5} }   //2
-                    ,   Face{ this, 3, {4,5,6,7}, {4,5,6,7},   {6,4,5,4}, {0,1,4,5} }   //3
-                    ,   Face{ this, 4, {0,1,4,5}, {0,4,8,9},   {4,0,1,0}, {0,1,2,3} }   //4
-                    ,   Face{ this, 5, {2,3,6,7}, {3,7,10,11}, {7,3,2,3}, {0,1,2,3} }   //5
+        if( m_faces_data.empty())
+	    m_faces_data =  //6 faces, each having 4 vertices, 4 edges, 4 vertices for computing normals, 4 neighbor faces
+                    {   FaceData{ 0, {0,2,4,6}, {2,4,6,8},   {6,2,0,2}, {2,3,4,5} }   //0
+                    ,   FaceData{ 1, {1,3,5,7}, {1,5,9,11},  {5,1,3,1}, {2,3,4,5} }   //1
+                    ,   FaceData{ 2, {0,1,2,3}, {0,1,2,3},   {1,0,2,0}, {0,1,4,5} }   //2
+                    ,   FaceData{ 3, {4,5,6,7}, {4,5,6,7},   {6,4,5,4}, {0,1,4,5} }   //3
+                    ,   FaceData{ 4, {0,1,4,5}, {0,4,8,9},   {4,0,1,0}, {0,1,2,3} }   //4
+                    ,   FaceData{ 5, {2,3,6,7}, {3,7,10,11}, {7,3,2,3}, {0,1,2,3} }   //5
                     };
+
+        for( auto& data : m_faces_data ) m_faces.push_back(  { this, data } );
     };
 };
 
