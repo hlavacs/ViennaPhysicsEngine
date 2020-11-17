@@ -121,6 +121,7 @@ struct Line3D : Capsule {
 };
 
 
+//--------------------------------------------------------------------------------------
 
 struct Polytope; 
 
@@ -183,6 +184,8 @@ struct Face  : PolytopePart {
         return std::find( std::begin(vertices), std::end(vertices), v) != std::end(vertices);
     }
 
+    vec3 get_face_normal();
+    void get_edge_vectors( std::vector<vec3>& vectors );
     vec3 support(vec3 dir);
 };
 
@@ -234,8 +237,10 @@ struct Polytope : Collider {
 
 
 struct Tetrahedron : Polytope {
+
     Tetrahedron( vec3 p0, vec3 p1, vec3 p2, vec3 p3 )  : Polytope() {
 	    m_points = { p0, p1, p2, p3 };
+
                                 //4 vertices, each is member of 3 edges and 3 faces
 	    m_vertices = 	{ 	    Vertex{ this, 0, {0,2,3}, {0,1,3} }  //0
 							, 	Vertex{ this, 1, {0,1,4}, {0,1,2} }  //1
@@ -289,6 +294,7 @@ struct Box : Polytope {
 							, 	Vertex{ this, 6, {6,7,10}, {0,3,5} }   // 6
 							, 	Vertex{ this, 7, {5,7,11}, {1,3,5} }   // 7
 						};
+
 	    m_edges = {     Edge{ this,  0, {0,1} } //0
                     ,   Edge{ this,  1, {1,2} } //1
                     ,   Edge{ this,  2, {0,2} } //2
@@ -357,6 +363,19 @@ vec3 Edge::support(vec3 dir) {
                     ?  polytope->m_points[vertices[0]] : polytope->m_points[vertices[1]];
 
     return polytope->matRS * result + polytope->pos; //convert support to world space
+}
+
+vec3 Face::get_face_normal() {
+    return polytope->get_face_normal( index );
+}
+
+void Face::get_edge_vectors( std::vector<vec3>& vectors ) {
+    auto &pedges = polytope->m_edges;
+    for( int e : edges ) {
+        vec3 p0 = polytope->m_points[pedges[e].vertices[0]];
+        vec3 p1 = polytope->m_points[pedges[e].vertices[1]];
+        vectors.push_back( polytope->matRS * (p1 - p0) );
+    }
 }
 
 vec3 Face::support(vec3 dir) {

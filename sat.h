@@ -68,11 +68,25 @@ bool sat_chung_wang_test( ICollider *obj1, ICollider *obj2, vec3 *dir, int max_l
     while( loop < max_loops && !sat_axis_test(obj1, obj2, dir, &r, &d) ) {
         *dir = *dir - (1.0f + f)*dot(r, *dir)*r;
         ++loop;
-        f = std::max( f * 0.97f, 0.5f );
+        f = std::max( f * 0.97f, 0.5f );   //apply damping to prevent small gaps from oscillating forever
     }
     std::cout << "Loops: " << loop << std::endl;
     return sat_axis_test(obj1, obj2, dir, &r, &d);
 }
+
+
+//SAT using the normals of 2 faces
+//returns true if a separating axis was found (i.e. objects are NOT in contact), else false
+bool sat_faces_test( Face *face1, Face *face2, vec3 *dir ) {
+    vec3 r;
+    float d;
+    *dir = face1->get_face_normal();
+    if( sat_axis_test(face1, face2, dir, &r, &d) ) return true;
+    *dir = face2->get_face_normal();
+    if( sat_axis_test(face1, face2, dir, &r, &d) ) return true;
+    return false;
+}
+
 
 //SAT using the normals of polytope faces
 //returns true if a separating axis was found (i.e. objects are NOT in contact), else false
@@ -91,6 +105,30 @@ bool sat_faces_test( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
         if( sat_axis_test(obj1, obj2, dir, &r, &d) ) return true;
     }
 
+    return false;
+}
+
+
+//SAT using the cross products of edge pairs from two polytopes
+//returns true if a separating axis was found (i.e. objects are NOT in contact), else false
+bool sat_edges_test( Face *face1, Face *face2, vec3 *dir ) {
+    std::vector<vec3> edges1;
+    face1->get_edge_vectors( edges1 );
+
+    std::vector<vec3> edges2;
+    face2->get_edge_vectors( edges2 );
+
+    vec3 r;
+    float d;
+    for( int i=0; i<edges1.size(); ++i) {
+        for( int j=0; i<edges2.size(); ++j) {
+            vec3 axis = cross( edges1[i], edges2[j] );
+            *dir = axis;
+            if( sat_axis_test(face1, face2, dir, &r, &d) ) return true;       //can do this better???
+            *dir = -1.0f * axis;
+            if( sat_axis_test(face1, face2, dir, &r, &d) ) return true;
+        }
+    }
     return false;
 }
 
@@ -118,6 +156,19 @@ bool sat_edges_test( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
 }
 
 //---------------------------------------------------------------------------
+
+
+//entry points for SAT
+//returns true of the objects are in contact
+//else false
+bool sat( Face *face1, Face *face2, vec3 *dir ) {
+    if( dot(*dir, *dir) < 1.0e-6 ) *dir = vec3(0.0f, 1.0f, 0.0f);
+
+    if( sat_faces_test( face1, face2, dir ) ) return false;
+    if( sat_edges_test( face1, face2, dir ) ) return false;
+    return true;
+}
+
 
 //entry points for SAT
 //returns true of the objects are in contact
