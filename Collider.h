@@ -8,16 +8,22 @@ using namespace glm;
 
 constexpr float SMALL_LENGTH = 1.0e-6f;
 
+struct ICollider {
+    ICollider(){};
+    virtual vec3 support(vec3 dir) = 0;
+};
+
+
 //Base struct for all collision shapes
-struct Collider {
+struct Collider : ICollider {
     vec3    pos;            //origin in world space
     mat3    matRS;          //rotation/scale component of model matrix
     mat3    matRS_inverse; 
 
-    Collider( vec3 pos, mat3 matRS ) {
-        this->pos = pos;
-        this->matRS = matRS;
-        matRS_inverse = inverse( matRS );
+    Collider( vec3 p = {0,0,0}, mat3 m = mat3(1.f) ) {
+        pos = p;
+        matRS = m;
+        matRS_inverse = inverse( m );
     };
 
     virtual vec3 support(vec3 dir) = 0;
@@ -151,30 +157,58 @@ struct TriangleCollider : Collider {
 
 struct Polytope; 
 
+struct PolytopePart : ICollider {
+    Polytope        *polytope;
+};
+
+
 //Vertex of a polytope
 //constexpr int MAX_NEIGHBORS = 8;   //adapt the max if you need more neighbors
-
-struct Vertex {
+struct Vertex : ICollider {
+    Polytope* polytope;
     std::vector<int> edges;       //indices of all edges of this vertex
     std::vector<int> faces;       //indices of all faces of this vertex
+
+    Vertex(Polytope* p, std::vector<int> e, std::vector<int> f) : ICollider(), polytope(p), edges(e), faces(f) {}
+
+    Vertex & operator=(const Vertex & v) = default;
+
+    vec3 support(vec3 dir) {
+        return {0,0,0};
+    }
 };
 
 
 //Edge of a polytope
-struct Edge {
-    std::array<int, 2>  vertices;  //indices of the two vertices of this edge
+struct Edge : ICollider {
+    Polytope         *polytope;
+    std::vector<int>  vertices;  //indices of the two vertices of this edge
+
+    Edge(Polytope* p, std::vector<int> v) : ICollider(), polytope(p), vertices(v) {}
+
+    Edge & operator=(const Edge & v) = default;
 
     bool contains_vertex( int v ) {
         return vertices[0] == v || vertices[1] == v;
+    }
+
+    vec3 support(vec3 dir) {
+        return {0,0,0};
     }
 };
 
 
 //Face of a polytope
-struct Face {
+struct Face  : ICollider {
+    Polytope          *polytope;
     std::vector<int>  vertices;      //indices of all vertices of this face
     std::vector<int>  edges;         //indices of all edges of this face
     std::vector<int>  normal;        //indices of the points to use to compute the cormal of this face
+
+    Face(Polytope* p, std::vector<int> v, std::vector<int> e, std::vector<int> n) 
+        : ICollider(), polytope(p), vertices(v), edges(e), normal(n) {}
+
+    Face & operator=(const Face & v) = default;
 
     bool contains_edge( int v ) {
         return std::find( edges.begin(), edges.end(), v) != edges.end();
@@ -182,6 +216,10 @@ struct Face {
 
     bool contains_vertex(int v ) {
         return std::find( std::begin(vertices), std::end(vertices), v) != std::end(vertices);
+    }
+
+    vec3 support(vec3 dir) {
+        return {0,0,0};
     }
 };
 
@@ -237,20 +275,24 @@ struct Tetrahedron : Polytope {
     Tetrahedron( vec3 p0, vec3 p1, vec3 p2, vec3 p3 )  : Polytope() {
 	    m_points = { p0, p1, p2, p3 };
 
-	    m_vertices = 	{ 	    { .edges = {0,2,3}, .faces = {0,1,3} } //every vertex is member of 3 edges and 3 faces
-							, 	{ .edges = {0,1,4}, .faces = {0,1,2} }
-							, 	{ .edges = {1,2,5}, .faces = {0,2,3} } 
-							, 	{ .edges = {3,4,5}, .faces = {1,2,3} } 
-						};
+	    m_vertices = 	{ 	    Vertex{ this, {0,2,3}, {0,1,3} } //every vertex is member of 3 edges and 3 faces
+							, 	Vertex{ this, {0,1,4}, {0,1,2} }
+							, 	Vertex{ this, {1,2,5}, {0,2,3} } 
+							, 	Vertex{ this, {3,4,5}, {1,2,3} } 
+                        };
 
-	    m_edges = {     {.vertices = {0,1}}, {.vertices = {1,2}}, {.vertices = {2,0}}	    //6 edges
-                    ,   {.vertices = {0,3}}, {.vertices = {1,3}}, {.vertices = {2,3}}
+	    m_edges = {     Edge{ this, {0,1} }	    //6 edges, each having 2 vertices
+                    ,   Edge{ this, {1,2} }
+                    ,   Edge{ this, {2,0} }
+                    ,   Edge{ this, {0,3} }
+                    ,   Edge{ this, {1,3} }
+                    ,   Edge{ this, {2,3} }
                   }; 
 
-	    m_faces =   {       {.vertices = {0,1,2}, .edges = {0,1,2}, .normal = {1,0,2,0}}     //4 faces, each has 3 vertices and 3 edges
-                        ,   {.vertices = {0,3,1}, .edges = {0,3,4}, .normal = {3,0,1,0}}
-                        ,   {.vertices = {1,3,2}, .edges = {1,4,5}, .normal = {3,1,2,1}}
-                        ,   {.vertices = {2,3,0}, .edges = {2,3,5}, .normal = {3,2,0,2}}
+	    m_faces =   {       Face{ this, {0,1,2}, {0,1,2}, {1,0,2,0} }  //4 faces, each has 3 vertices, 3 edges, 4 vertices for normals
+                        ,   Face{ this, {0,3,1}, {0,3,4}, {3,0,1,0} }
+                        ,   Face{ this, {1,3,2}, {1,4,5}, {3,1,2,1} }
+                        ,   Face{ this, {2,3,0}, {2,3,5}, {3,2,0,2} }
                     };
     };
 };
@@ -273,30 +315,36 @@ struct Box : Polytope {
 	    m_points = {    vec3(-0.5f, -0.5f, -0.5f), vec3(0.5f, -0.5f, -0.5f), vec3(-0.5f, -0.5f, 0.5f), vec3(0.5f, -0.5f, 0.5f),
                         vec3(-0.5f,  0.5f, -0.5f), vec3(0.5f,  0.5f, -0.5f), vec3(-0.5f,  0.5f, 0.5f), vec3(0.5f,  0.5f, 0.5f)};
 	    m_vertices = 	{ 	    //every vertex is member of 3 edges and 3 faces
-                                { .edges = {0,2, 8}, .faces = {0,2,4} }   // 0  
-							, 	{ .edges = {0,1, 9}, .faces = {1,2,4} }   // 1
-							, 	{ .edges = {2,3,10}, .faces = {0,2,5} }   // 2
-							, 	{ .edges = {1,3,11}, .faces = {1,2,5} }   // 3
-                            ,   { .edges = {4,6, 8}, .faces = {0,3,4} }   // 4
-							, 	{ .edges = {4,5, 9}, .faces = {1,3,4} }   // 5
-							, 	{ .edges = {6,7,10}, .faces = {0,3,5} }   // 6
-							, 	{ .edges = {5,7,11}, .faces = {1,3,5} }   // 7
+                                Vertex{ this, {0,2, 8}, {0,2,4} }   // 0  
+							, 	Vertex{ this, {0,1, 9}, {1,2,4} }   // 1
+							, 	Vertex{ this, {2,3,10}, {0,2,5} }   // 2
+							, 	Vertex{ this, {1,3,11}, {1,2,5} }   // 3
+                            ,   Vertex{ this, {4,6, 8}, {0,3,4} }   // 4
+							, 	Vertex{ this, {4,5, 9}, {1,3,4} }   // 5
+							, 	Vertex{ this, {6,7,10}, {0,3,5} }   // 6
+							, 	Vertex{ this, {5,7,11}, {1,3,5} }   // 7
 						};
-        //                             0                    1                    2                    3
-	    m_edges = {     {.vertices = {0,1}}, {.vertices = {1,2}}, {.vertices = {0,2}}, {.vertices = {2,3}}	//12 edges
-        //                             4                    5                    6                    7
-                    ,   {.vertices = {4,5}}, {.vertices = {5,7}}, {.vertices = {4,6}}, {.vertices = {6,7}}
-        //                             8                    9                   10                   11
-                    ,   {.vertices = {0,4}}, {.vertices = {1,5}}, {.vertices = {2,6}}, {.vertices = {3,7}}
-                      }; 
+	    m_edges = {     Edge{ this, {0,1} } //0
+                    ,   Edge{ this, {1,2} } //1
+                    ,   Edge{ this, {0,2} } //2
+                    ,   Edge{ this, {2,3} } //3
+                    ,   Edge{ this, {4,5} } //4
+                    ,   Edge{ this, {5,7} } //5
+                    ,   Edge{ this, {4,6} } //6
+                    ,   Edge{ this, {6,7} } //7
+                    ,   Edge{ this, {0,4} } //8
+                    ,   Edge{ this, {1,5} } //9
+                    ,   Edge{ this, {2,6} } //10
+                    ,   Edge{ this, {3,7} } //11
+                  }; 
 
-                        //6 faces, each having 4 vertices and 4 edges
-	    m_faces = {     {.vertices = {0,2,4,6}, .edges = {2,4,6,8},     .normal = {6,2,0,2}}   //0
-                    ,   {.vertices = {1,3,5,7}, .edges = {1,5,9,11},    .normal = {5,1,3,1}}   //1
-                    ,   {.vertices = {0,1,2,3}, .edges = {0,1,2,3},     .normal = {1,0,2,0}}   //2
-                    ,   {.vertices = {4,5,6,7}, .edges = {4,5,6,7},     .normal = {6,4,5,4}}   //3
-                    ,   {.vertices = {0,1,4,5}, .edges = {0,4,8,9},     .normal = {4,0,1,0}}   //4
-                    ,   {.vertices = {2,3,6,7}, .edges = {3,7,10,11},   .normal = {7,3,2,3}}   //5
+                        //6 faces, each having 4 vertices, 4 edges, 4 vertices for normals
+	    m_faces =  {    Face{ this, {0,2,4,6}, {2,4,6,8},   {6,2,0,2} }   //0
+                    ,   Face{ this, {1,3,5,7}, {1,5,9,11},  {5,1,3,1} }   //1
+                    ,   Face{ this, {0,1,2,3}, {0,1,2,3},   {1,0,2,0} }   //2
+                    ,   Face{ this, {4,5,6,7}, {4,5,6,7},   {6,4,5,4} }   //3
+                    ,   Face{ this, {0,1,4,5}, {0,4,8,9},   {4,0,1,0} }   //4
+                    ,   Face{ this, {2,3,6,7}, {3,7,10,11}, {7,3,2,3} }   //5
                     };
     };
 };

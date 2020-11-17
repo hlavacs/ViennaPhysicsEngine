@@ -13,7 +13,7 @@ constexpr int NUM_RANDOM_DIR = 64;
 
 
 //test whether a direction is a separating axis
-bool sat_axis_test( Collider *obj1, Collider *obj2, vec3 *dir, vec3 *r, float *d) {
+bool sat_axis_test( ICollider *obj1, ICollider *obj2, vec3 *dir, vec3 *r, float *d) {
     vec3 p = obj1->support( *dir );
     vec3 q = obj2->support( -1.0f* (*dir) );
     *r = normalize(q - p); 
@@ -22,7 +22,7 @@ bool sat_axis_test( Collider *obj1, Collider *obj2, vec3 *dir, vec3 *r, float *d
 }
 
 //choose N random directions to find SA
-bool sat_random_test(Collider *obj1, Collider *obj2, vec3 *dir) {
+bool sat_random_test( ICollider *obj1, ICollider *obj2, vec3 *dir) {
     static std::vector<vec3> random_axes;   //Fibonacci sphere
     if( random_axes.empty()) {
         float phi = (float)(M_PI * (3. - std::sqrt(5.)));  // golden angle in radians
@@ -54,7 +54,7 @@ bool sat_random_test(Collider *obj1, Collider *obj2, vec3 *dir) {
 }
 
 //Chung Wang Test with damping
-bool sat_chung_wang_test( Collider *obj1, Collider *obj2, vec3 *dir, int max_loops = 50 ) {
+bool sat_chung_wang_test( ICollider *obj1, ICollider *obj2, vec3 *dir, int max_loops = 50 ) {
     vec3 r;
     float d;
     int loop = 0;
@@ -128,7 +128,7 @@ bool sat( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
 //entry points for SAT
 //returns true of the objects are in contact
 //else false
-bool sat( Collider *obj1, Collider *obj2, vec3 *dir ) {
+bool sat( ICollider *obj1, ICollider *obj2, vec3 *dir ) {
     if( dot(*dir, *dir) < 1.0e-6 ) *dir = vec3(0.0f, 1.0f, 0.0f);
     if( sat_random_test( obj1, obj2, dir ) ) return false;
     if( sat_chung_wang_test( obj1, obj2, dir ) ) return false;

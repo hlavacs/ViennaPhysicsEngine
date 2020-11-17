@@ -35,8 +35,8 @@ struct face_contact {
  };
 
 
-void contacts_of_faces( std::vector<face_contact>& faces, std::set<vec3> & contacts ) {
-
+void process_face_contacts( std::vector<face_contact>& faces, std::set<vec3> & contacts ) {
+    
 }
 
 void neighboring_faces( Polytope *obj1, Polytope *obj2, vec3 *dir, std::set<vec3> & contacts ) {
@@ -56,7 +56,7 @@ void neighboring_faces( Polytope *obj1, Polytope *obj2, vec3 *dir, std::set<vec3
             face_contacts.emplace_back( obj2, obj1, f, polygon );
         }
     }
-    contacts_of_faces( face_contacts, contacts);
+    process_face_contacts( face_contacts, contacts);
 }
 
 
