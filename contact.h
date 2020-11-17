@@ -29,7 +29,7 @@ struct contact {
  /*template<>
  struct std::hash<face_contact> {
     size_t operator()(const face_contact& c) {
-        return std::hash<std::pair<int,int>>()(c.f1, c.f2);
+        return std::hash<std::pair<int,int>>()( std::make_pair(c.f1, c.f2));
     }
  };*/
 
@@ -42,44 +42,55 @@ void process_edge_edge_contact( Polytope *obj1, Polytope *obj2, int e1, int e2, 
 
 }
 
-
+//test a pair of faces against each other.
+//collide each vertex from one face with the other face
+//collide each edge from one face with all edges from the other face
 void process_face_face_contact(    Polytope *obj1, Polytope *obj2, vec3 *dir
                                 ,  int f1, int f2, std::set<contact> & contacts ) {
+    
+    Face &face1 = obj1->m_faces[f1];
+    Face &face2 = obj1->m_faces[f2];
 
-     for( int v1 : obj1->m_faces[f1].vertices ) {      //go through all vertices of face 1
-        if( sat( &obj1->m_vertices[v1], &obj2->m_faces[f2], dir) ) {
+    for( int v1 : face1.vertices ) {      //go through all vertices of face 1
+        if( sat( &obj1->m_vertices[v1], &face2, dir) ) {
             process_vertex_face_contact( obj1, obj2, v1, f2, contacts );
         }
-     }
+    }
 
-     for( int v2 : obj2->m_faces[f2].vertices ) {      //go through all vertices of face 2
-        if( sat( &obj2->m_vertices[v2], &obj1->m_faces[f1], dir) ) {
+    for( int v2 : face2.vertices ) {      //go through all vertices of face 2
+        if( sat( &obj2->m_vertices[v2], &face1, dir) ) {
             process_vertex_face_contact( obj2, obj1, v2, f1, contacts );
         }
-     }
+    }
 
-     for( int e1 : obj1->m_faces[f1].edges ) {      //go through all edge pairs
-        for( int e2 : obj2->m_faces[f2].edges) {
+    for( int e1 : face1.edges ) {      //go through all edge pairs
+        for( int e2 : face2.edges) {
             if( sat( &obj1->m_edges[e1], &obj2->m_edges[e2], dir) ) {
                 process_edge_edge_contact( obj1, obj2, e1, e2, contacts );
-            }
-        }
-     }
-}
-
-void process_face_obj_contacts(     Polytope *obj1, Polytope *obj2, vec3 *dir
-                                ,   std::vector<int>& obj1_faces, std::vector<int>& obj2_faces
-                                ,   std::set<contact> & contacts ) {
-    
-    for( int f1 : obj1_faces) {
-        for( int f2 : obj2_faces) {
-            if( sat( &obj1->m_faces[f1], &obj2->m_faces[f2], dir) ) {           //can also drop this if statement
-                process_face_face_contact( obj1, obj2, dir, f1, f2, contacts );
             }
         }
     }
 }
 
+
+//find a list of face-pairs that touch each other
+//process these pairs by colliding a face agains vertices and edges of the other face
+void process_face_obj_contacts(     Polytope *obj1, Polytope *obj2, vec3 *dir
+                                ,   std::vector<int>& obj1_faces, std::vector<int>& obj2_faces
+                                ,   std::set<contact> & contacts ) {
+    
+    for( int f1 : obj1_faces) {             // go through all face-face pairs
+        for( int f2 : obj2_faces) {
+            if( sat( &obj1->m_faces[f1], &obj2->m_faces[f2], dir) ) {           //only if the faces actually touch - can also drop this if statement
+                process_face_face_contact( obj1, obj2, dir, f1, f2, contacts ); //compare all vertices and edges in the faces
+            }
+        }
+    }
+}
+
+
+//find a face of obj1 that touches obj2
+//return it and its neighbors by adding their indices to a list
 void get_face_obj_contacts( Polytope *obj1, Polytope *obj2, vec3 *dir, std::vector<int>& obj_faces ) {
     for( int f = 0; f < obj1->m_faces.size(); ++f ) {
         Face *face = &obj1->m_faces[f];
@@ -92,16 +103,19 @@ void get_face_obj_contacts( Polytope *obj1, Polytope *obj2, vec3 *dir, std::vect
     }
 }
 
+
+//neighboring faces algorithm
 void neighboring_faces( Polytope *obj1, Polytope *obj2, vec3 *dir, std::set<contact> & contacts ) {
     std::vector<int> obj1_faces;
     std::vector<int> obj2_faces;
 
-    get_face_obj_contacts(obj1, obj2, dir, obj1_faces );    
-    get_face_obj_contacts(obj2, obj1, dir, obj2_faces );    
-    process_face_obj_contacts( obj1, obj2, dir, obj1_faces, obj2_faces, contacts );
+    get_face_obj_contacts(obj1, obj2, dir, obj1_faces );    //get list of faces from obj1 that touch obj2
+    get_face_obj_contacts(obj2, obj1, dir, obj2_faces );    //get list of faces from obj2 that touch obj1
+    process_face_obj_contacts( obj1, obj2, dir, obj1_faces, obj2_faces, contacts ); //collide them pairwise
 }
 
 
+//compute a list of contact points between two objects
 void  contacts( Polytope *obj1, Polytope *obj2, vec3 *dir, std::set<contact> & contacts ) {
     if( dot(*dir, *dir) < 1.0e-6 ) *dir = vec3(0.0f, 1.0f, 0.0f);
     neighboring_faces( obj1, obj2, dir, contacts);

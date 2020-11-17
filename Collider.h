@@ -124,17 +124,20 @@ struct Line3D : Capsule {
 
 struct Polytope; 
 
+struct PolytopePart : ICollider {
+    PolytopePart() : ICollider() {};
+};
 
 //Vertex of a polytope
 //constexpr int MAX_NEIGHBORS = 8;   //adapt the max if you need more neighbors
-struct Vertex : ICollider {
+struct Vertex : PolytopePart {
     Polytope*        polytope;
     int              index;
     std::vector<int> edges;       //indices of all edges of this vertex
     std::vector<int> faces;       //indices of all faces of this vertex
 
     Vertex(Polytope* p, int i, std::vector<int> e, std::vector<int> f) 
-        : ICollider(), polytope(p), index(i), edges(e), faces(f) {}
+        : PolytopePart(), polytope(p), index(i), edges(e), faces(f) {}
     Vertex & operator=(const Vertex & v) = default;
 
     vec3 support(vec3 dir);
@@ -142,12 +145,12 @@ struct Vertex : ICollider {
 
 
 //Edge of a polytope
-struct Edge : ICollider {
+struct Edge : PolytopePart {
     Polytope*        polytope;
     int              index;
     std::vector<int> vertices;  //indices of the two vertices of this edge
 
-    Edge(Polytope* p, int i, std::vector<int> v) : ICollider(), polytope(p), index(i), vertices(v) {}
+    Edge(Polytope* p, int i, std::vector<int> v) : PolytopePart(), polytope(p), index(i), vertices(v) {}
     Edge & operator=(const Edge & v) = default;
 
     bool contains_vertex( int v ) const {
@@ -159,7 +162,7 @@ struct Edge : ICollider {
 
 
 //Face of a polytope
-struct Face  : ICollider {
+struct Face  : PolytopePart {
     Polytope*        polytope;
     int              index;
     std::vector<int> vertices;          //indices of all vertices of this face
@@ -168,7 +171,7 @@ struct Face  : ICollider {
     std::vector<int> neighbors;         //indices of the faces that are neighbors of this face
 
     Face(Polytope* p, int i, std::vector<int> v, std::vector<int> e, std::vector<int> n, std::vector<int> neigh) 
-        : ICollider(), polytope(p), index(i), vertices(v), edges(e), normal_vertices(n), neighbors(neigh) {}
+        : PolytopePart(), polytope(p), index(i), vertices(v), edges(e), normal_vertices(n), neighbors(neigh) {}
 
     Face & operator=(const Face & v) = default;
 
@@ -388,14 +391,12 @@ void Polytope::get_vertex_neighbors(int v, std::set<int> &neighbors) const {
 
 //return all edges a given vertex is part of
 const std::vector<int>& Polytope::get_vertex_edges( int v ) const {
-	const Vertex &vertex = m_vertices[v];  		        //membership info of this vertex
-	return vertex.edges;
+	return m_vertices[v].edges;
 }
 
 //return all edges of a given face
 const std::vector<int>& Polytope::get_face_edges( int f ) const {
-	const Face &face = m_faces[f];                         //information of face f
-	return face.edges;
+	return m_faces[f].edges;
 }
 
 //return zero, one or two faces that contain a given edge
@@ -409,7 +410,7 @@ void Polytope::get_edge_faces( int e, std::set<int> &faces) const {
 
 //return all neighboring faces of a given face
 const std::vector<int> & Polytope::get_face_neighbors( int f ) const {
-    return m_faces[f].normal_vertices;        //get all edges of the face
+    return m_faces[f].neighbors;        //get all edges of the face
 }
 
 //get the normal of a given face
@@ -424,7 +425,7 @@ void Polytope::get_edge_vectors( std::vector<vec3> &edges) const {
                     [&,this]( auto &e) {
                         vec3 v0 = this->m_points[e.vertices[0]];
                         vec3 v1 = this->m_points[e.vertices[1]];
-                        edges.push_back( v1 - v0 );
+                        edges.push_back( matRS * ( v1 - v0 ) );
                     });
 }
 
@@ -432,7 +433,7 @@ void Polytope::get_edge_vectors( std::vector<vec3> &edges) const {
 void Polytope::get_face_points( int f, std::vector<vec3> &points ) const {
     const Face &face = m_faces[f];
     for( auto i : face.vertices) {
-        points.push_back( m_points[i]);
+        points.push_back( matRS * m_points[i] + pos );
     }
 }
 

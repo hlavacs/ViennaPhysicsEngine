@@ -107,7 +107,10 @@ bool sat_edges_test( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
     float d;
     for( int i=0; i<edges1.size(); ++i) {
         for( int j=0; i<edges2.size(); ++j) {
-            *dir = cross( edges1[i], edges2[j] );
+            vec3 axis = cross( edges1[i], edges2[j] );
+            *dir = axis;
+            if( sat_axis_test(obj1, obj2, dir, &r, &d) ) return true;       //can do this better???
+            *dir = -1.0f * axis;
             if( sat_axis_test(obj1, obj2, dir, &r, &d) ) return true;
         }
     }
