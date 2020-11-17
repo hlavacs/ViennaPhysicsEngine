@@ -145,8 +145,7 @@ struct Vertex : PolytopePart {
     Polytope*    polytope;
     VertexData & data;
 
-    Vertex(Polytope* p, VertexData &d ) 
-        : PolytopePart(), polytope(p), data(d) {}
+    Vertex(Polytope* p, VertexData &d ) : PolytopePart(), polytope(p), data(d) {}
 
     Vertex & operator=(const Vertex & v) {
         polytope = v.polytope;
@@ -201,30 +200,20 @@ struct Face  : PolytopePart {
     Polytope* polytope;
     FaceData& data;
 
-    int              index;
-    std::vector<int>& vertices;          //indices of all vertices of this face
-    std::vector<int>& edges;             //indices of all edges of this face
-    std::vector<int>& normal_vertices;   //indices of the points to use to compute the normal of this face
-    std::vector<int>& neighbors;         //indices of the faces that are neighbors of this face 
-
-    Face(Polytope* p, FaceData &d) 
-        : PolytopePart(), polytope(p), data(d), index(d.index), vertices(d.vertices)
-        , edges(d.edges), normal_vertices(d.normal_vertices), neighbors(d.neighbors) {}
+    Face(Polytope* p, FaceData &d) : PolytopePart(), polytope(p), data(d) {}
 
     Face & operator=( const Face & v) {
-        vertices = v.vertices;
-        edges = v.edges;
-        normal_vertices = v.normal_vertices;
-        neighbors = v.neighbors;
+        polytope = v.polytope;
+        data = v.data;
         return *this;
     }
 
-    bool contains_edge( int v ) const {
-        return std::find( edges.begin(), edges.end(), v) != edges.end();
+    bool contains_edge( int e ) const {
+        return std::find( std::begin(data.edges), std::end(data.edges), e) != std::end(data.edges);
     }
 
     bool contains_vertex(int v ) const {
-        return std::find( std::begin(vertices), std::end(vertices), v) != std::end(vertices);
+        return std::find( std::begin(data.vertices), std::end(data.vertices), v) != std::end(data.vertices);
     }
 
     vec3 get_face_normal();
@@ -296,7 +285,7 @@ struct Tetrahedron : Polytope {
 							, 	VertexData{ 3, {3,4,5}, {1,2,3} }  //3
                         };
 
-        for( auto& data : m_vertices_data ) m_vertices.push_back(  { this, data } );
+        for( auto& data : m_vertices_data ) m_vertices.emplace_back(  this, data );
 
         if( m_edges_data.empty() )
 	    m_edges_data =  //6 edges, each having 2 vertices
@@ -308,7 +297,7 @@ struct Tetrahedron : Polytope {
                     ,   EdgeData{ 5, {2,3} }  //5
                     }; 
 
-        for( auto& data : m_edges_data ) m_edges.push_back(  { this, data } );
+        for( auto& data : m_edges_data ) m_edges.emplace_back(  this, data );
 
         if( m_edges_data.empty() )
 	    m_faces_data =      //4 faces, each has 3 vertices, 3 edges, 4 vertices for computing normals, 3 neighbor faces
@@ -318,7 +307,7 @@ struct Tetrahedron : Polytope {
                         ,   FaceData{ 3, {2,3,0}, {2,3,5}, {3,2,0,2}, {0,1,2} }  //3
                     };
 
-        for( auto& data : m_faces_data ) m_faces.push_back(  { this, data } );
+        for( auto& data : m_faces_data ) m_faces.emplace_back( this, data );
 
     };
 };
@@ -354,7 +343,7 @@ struct Box : Polytope {
 							, 	VertexData{ 7, {5,7,11}, {1,3,5} }   // 7
 						};
 
-        for( auto& data : m_vertices_data ) m_vertices.push_back(  { this, data } );
+        for( auto& data : m_vertices_data ) m_vertices.emplace_back(  this, data );
 
         if( m_edges_data.empty() )
 	    m_edges_data = {    //every edge has 2 vertices
@@ -372,7 +361,7 @@ struct Box : Polytope {
                         ,   EdgeData{ 11, {3,7} } //11
                         }; 
 
-        for( auto& data : m_edges_data ) m_edges.push_back(  { this, data } );
+        for( auto& data : m_edges_data ) m_edges.emplace_back( this, data );
 
         if( m_faces_data.empty())
 	    m_faces_data =  //6 faces, each having 4 vertices, 4 edges, 4 vertices for computing normals, 4 neighbor faces
@@ -434,12 +423,12 @@ vec3 Edge::support(vec3 dir) {
 }
 
 vec3 Face::get_face_normal() {
-    return polytope->get_face_normal( index );
+    return polytope->get_face_normal( data.index );
 }
 
 void Face::get_edge_vectors( std::vector<vec3>& vectors ) {
     auto &pedges = polytope->m_edges;
-    for( int e : edges ) {
+    for( int e : data.edges ) {
         vec3 p0 = polytope->m_points[pedges[e].data.vertices[0]];
         vec3 p1 = polytope->m_points[pedges[e].data.vertices[1]];
         vectors.push_back( polytope->matRS * (p1 - p0) );
@@ -451,15 +440,15 @@ vec3 Face::support(vec3 dir) {
 
     vec3 maxp = polytope->m_points[0];
     float max = dot( dir, maxp );
-    for( auto i : vertices ) {
-        float d = dot( dir, polytope->m_points[vertices[i]] );
+    for( auto i : data.vertices ) {
+        float d = dot( dir, polytope->m_points[data.vertices[i]] );
         if( d > max ) {
-            maxp = polytope->m_points[vertices[i]];
+            maxp = polytope->m_points[data.vertices[i]];
             max = d;
         }
     }
 
-     return polytope->matRS * maxp + polytope->pos; //convert support to world space
+    return polytope->matRS * maxp + polytope->pos; //convert support to world space
 }
 
 
@@ -483,7 +472,7 @@ const std::vector<int>& Polytope::get_vertex_edges( int v ) const {
 
 //return all edges of a given face
 const std::vector<int>& Polytope::get_face_edges( int f ) const {
-	return m_faces[f].edges;
+	return m_faces[f].data.edges;
 }
 
 //return zero, one or two faces that contain a given edge
@@ -497,12 +486,12 @@ void Polytope::get_edge_faces( int e, std::set<int> &faces) const {
 
 //return all neighboring faces of a given face
 const std::vector<int> & Polytope::get_face_neighbors( int f ) const {
-    return m_faces[f].neighbors;        //get all edges of the face
+    return m_faces[f].data.neighbors;        //get all edges of the face
 }
 
 //get the normal of a given face
 vec3 Polytope::get_face_normal( int f ) const {
-    auto &n = m_faces[f].normal_vertices;
+    auto &n = m_faces[f].data.normal_vertices;
     return cross( matRS * (m_points[n[0]] - m_points[n[1]]), matRS * (m_points[n[2]] - m_points[n[3]] ) );
 }
 
@@ -519,7 +508,7 @@ void Polytope::get_edge_vectors( std::vector<vec3> &edges) const {
 //return a list with the coordinates of the vertices of a given face
 void Polytope::get_face_points( int f, std::vector<vec3> &points ) const {
     const Face &face = m_faces[f];
-    for( auto i : face.vertices) {
+    for( auto i : face.data.vertices) {
         points.push_back( matRS * m_points[i] + pos );
     }
 }
