@@ -12,7 +12,7 @@
 #include <random>
 
 
-constexpr int NUM_RANDOM_DIR = 64;
+constexpr int NUM_RANDOM_DIR = 32;
 
 
 //test whether a direction is a separating axis
@@ -121,10 +121,8 @@ bool sat( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
 
     if( obj1->m_edges.size() * obj2->m_edges.size() > NUM_RANDOM_DIR ) {
         if( sat_random_test( obj1, obj2, dir ) ) return false;
-        if( sat_edges_test( obj1, obj2, dir ) ) return false;
-    } else {
-        if( sat_edges_test( obj1, obj2, dir ) ) return false;
     }
+    if( sat_edges_test( obj1, obj2, dir ) ) return false;
     return true;
 }
 
@@ -133,7 +131,6 @@ bool sat( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
 //else false
 bool sat( ICollider *obj1, ICollider *obj2, vec3 *dir ) {
     if( dot(*dir, *dir) < 1.0e-6 ) *dir = vec3(0.0f, 1.0f, 0.0f);
-    if( sat_random_test( obj1, obj2, dir ) ) return false;
     if( sat_chung_wang_test( obj1, obj2, dir ) ) return false;
     return true;
 }

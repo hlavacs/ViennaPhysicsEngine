@@ -73,9 +73,9 @@ void process_face_obj_contacts(     Polytope *obj1, Polytope *obj2, vec3 *dir
     
     for( int f1 : obj1_faces) {
         for( int f2 : obj2_faces) {
-            //if( sat( &obj1->m_faces[f1], &obj2->m_faces[f2], dir) ) {         //can apply another filter?
-            process_face_face_contact( obj1, obj2, dir, f1, f2, contacts );
-            //}
+            if( sat( &obj1->m_faces[f1], &obj2->m_faces[f2], dir) ) {           //can also drop this if statement
+                process_face_face_contact( obj1, obj2, dir, f1, f2, contacts );
+            }
         }
     }
 }
