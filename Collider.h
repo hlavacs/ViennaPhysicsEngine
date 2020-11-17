@@ -146,13 +146,7 @@ struct Vertex : PolytopePart {
     VertexData & data;
 
     Vertex(Polytope* p, VertexData &d ) : PolytopePart(), polytope(p), data(d) {}
-
-    Vertex & operator=(const Vertex & v) {
-        polytope = v.polytope;
-        data = v.data;
-        return *this;
-    }
-
+    Vertex & operator=(const Vertex & v) = default;
     vec3 support(vec3 dir);
 };
 
@@ -171,7 +165,6 @@ struct Edge : PolytopePart {
     EdgeData& data;
 
     Edge(Polytope* p, EdgeData& d ) : PolytopePart(), polytope(p), data(d) {}
-
     Edge & operator=(const Edge & v) = default;
 
     bool contains_vertex( int v ) const {
@@ -274,21 +267,17 @@ struct Polytope : Collider {
 
 struct Tetrahedron : Polytope {
 
-    Tetrahedron( vec3 p0, vec3 p1, vec3 p2, vec3 p3 )  : Polytope() {
-	    m_points = { p0, p1, p2, p3 };
-
-        if( m_vertices_data.empty() ) 
-        m_vertices_data = {     //4 vertices, each is member of 3 edges and 3 faces	
-                                VertexData{ 0, {0,2,3}, {0,1,3} }  //0
+    static class _init {
+          public:
+            _init() { 
+                m_vertices_data =     //4 vertices, each is member of 3 edges and 3 faces	
+                        {       VertexData{ 0, {0,2,3}, {0,1,3} }  //0
 							, 	VertexData{ 1, {0,1,4}, {0,1,2} }  //1
 							, 	VertexData{ 2, {1,2,5}, {0,2,3} }  //2
 							, 	VertexData{ 3, {3,4,5}, {1,2,3} }  //3
                         };
 
-        for( auto& data : m_vertices_data ) m_vertices.emplace_back(  this, data );
-
-        if( m_edges_data.empty() )
-	    m_edges_data =  //6 edges, each having 2 vertices
+        	    m_edges_data =  //6 edges, each having 2 vertices
 	                {   EdgeData{ 0, {0,1} }  //0
                     ,   EdgeData{ 1, {1,2} }  //1
                     ,   EdgeData{ 2, {2,0} }  //2
@@ -297,18 +286,20 @@ struct Tetrahedron : Polytope {
                     ,   EdgeData{ 5, {2,3} }  //5
                     }; 
 
-        for( auto& data : m_edges_data ) m_edges.emplace_back(  this, data );
-
-        if( m_edges_data.empty() )
-	    m_faces_data =      //4 faces, each has 3 vertices, 3 edges, 4 vertices for computing normals, 3 neighbor faces
+	            m_faces_data =      //4 faces, each has 3 vertices, 3 edges, 4 vertices for computing normals, 3 neighbor faces
                     {       FaceData{ 0, {0,1,2}, {0,1,2}, {1,0,2,0}, {1,2,3} }  //0
                         ,   FaceData{ 1, {0,3,1}, {0,3,4}, {3,0,1,0}, {0,2,3} }  //1
                         ,   FaceData{ 2, {1,3,2}, {1,4,5}, {3,1,2,1}, {0,1,3} }  //2
                         ,   FaceData{ 3, {2,3,0}, {2,3,5}, {3,2,0,2}, {0,1,2} }  //3
                     };
+            }
+        } _initializer;
 
+    Tetrahedron( vec3 p0, vec3 p1, vec3 p2, vec3 p3 )  : Polytope() {
+	    m_points = { p0, p1, p2, p3 };
+        for( auto& data : m_vertices_data ) m_vertices.emplace_back(  this, data );
+        for( auto& data : m_edges_data ) m_edges.emplace_back(  this, data );
         for( auto& data : m_faces_data ) m_faces.emplace_back( this, data );
-
     };
 };
 
@@ -327,12 +318,10 @@ struct Triangle3D : Tetrahedron {
 
 //a box is a polytope with 8 vertices
 struct Box : Polytope {
-    Box( vec3 pos = vec3(0.0f, 0.0f, 0.0f), mat3 matRS = mat3(1.0f) )  : Polytope( pos, matRS ) {
-	    m_points = {    vec3(-0.5f, -0.5f, -0.5f), vec3(0.5f, -0.5f, -0.5f), vec3(-0.5f, -0.5f, 0.5f), vec3(0.5f, -0.5f, 0.5f),
-                        vec3(-0.5f,  0.5f, -0.5f), vec3(0.5f,  0.5f, -0.5f), vec3(-0.5f,  0.5f, 0.5f), vec3(0.5f,  0.5f, 0.5f)};
-
-        if( m_vertices_data.empty() ) 
-        m_vertices_data = { 	//every vertex is member of 3 edges and 3 faces
+        static class _init {
+          public:
+            _init() { 
+                m_vertices_data = { 	//every vertex is member of 3 edges and 3 faces
                                 VertexData{ 0, {0,2, 8}, {0,2,4} }   // 0  
 							, 	VertexData{ 1, {0,1, 9}, {1,2,4} }   // 1
 							, 	VertexData{ 2, {2,3,10}, {0,2,5} }   // 2
@@ -343,10 +332,7 @@ struct Box : Polytope {
 							, 	VertexData{ 7, {5,7,11}, {1,3,5} }   // 7
 						};
 
-        for( auto& data : m_vertices_data ) m_vertices.emplace_back(  this, data );
-
-        if( m_edges_data.empty() )
-	    m_edges_data = {    //every edge has 2 vertices
+	            m_edges_data = {    //every edge has 2 vertices
                             EdgeData{  0, {0,1} } //0
                         ,   EdgeData{  1, {1,2} } //1
                         ,   EdgeData{  2, {0,2} } //2
@@ -359,12 +345,9 @@ struct Box : Polytope {
                         ,   EdgeData{  9, {1,5} } //9
                         ,   EdgeData{ 10, {2,6} } //10
                         ,   EdgeData{ 11, {3,7} } //11
-                        }; 
+                        };           
 
-        for( auto& data : m_edges_data ) m_edges.emplace_back( this, data );
-
-        if( m_faces_data.empty())
-	    m_faces_data =  //6 faces, each having 4 vertices, 4 edges, 4 vertices for computing normals, 4 neighbor faces
+                m_faces_data =  //6 faces, each having 4 vertices, 4 edges, 4 vertices for computing normals, 4 neighbor faces
                     {   FaceData{ 0, {0,2,4,6}, {2,4,6,8},   {6,2,0,2}, {2,3,4,5} }   //0
                     ,   FaceData{ 1, {1,3,5,7}, {1,5,9,11},  {5,1,3,1}, {2,3,4,5} }   //1
                     ,   FaceData{ 2, {0,1,2,3}, {0,1,2,3},   {1,0,2,0}, {0,1,4,5} }   //2
@@ -372,8 +355,16 @@ struct Box : Polytope {
                     ,   FaceData{ 4, {0,1,4,5}, {0,4,8,9},   {4,0,1,0}, {0,1,2,3} }   //4
                     ,   FaceData{ 5, {2,3,6,7}, {3,7,10,11}, {7,3,2,3}, {0,1,2,3} }   //5
                     };
+            }
+        } _initializer;
 
-        for( auto& data : m_faces_data ) m_faces.push_back(  { this, data } );
+    Box( vec3 pos = vec3(0.0f, 0.0f, 0.0f), mat3 matRS = mat3(1.0f) )  : Polytope( pos, matRS ) {
+	    m_points = {    vec3(-0.5f, -0.5f, -0.5f), vec3(0.5f, -0.5f, -0.5f), vec3(-0.5f, -0.5f, 0.5f), vec3(0.5f, -0.5f, 0.5f),
+                        vec3(-0.5f,  0.5f, -0.5f), vec3(0.5f,  0.5f, -0.5f), vec3(-0.5f,  0.5f, 0.5f), vec3(0.5f,  0.5f, 0.5f)};
+
+        for( auto& data : m_vertices_data ) m_vertices.emplace_back(  this, data );
+        for( auto& data : m_edges_data ) m_edges.emplace_back( this, data );
+        for( auto& data : m_faces_data ) m_faces.emplace_back( this, data );
     };
 };
 
