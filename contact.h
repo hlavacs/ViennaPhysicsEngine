@@ -5,7 +5,8 @@
 #include "glm/glm/glm.hpp"
 #include "glm/glm/ext.hpp"
 
-
+#define _USE_MATH_DEFINES
+#include <cmath>
 
 #include "hash.h"
 #include <random>
@@ -21,10 +22,10 @@ struct face_contact {
     Polytope *obj1;
     Polytope *obj2;
     int f;
-    Polygon polygon;
+    ICollider *collider;
 
-    face_contact(Polytope *o1, Polytope *o2, int fi, Polygon p) 
-    : obj1(o1), obj2(o2), f(fi), polygon(p) {};
+    face_contact(Polytope *o1, Polytope *o2, int fi, ICollider *c) 
+    : obj1(o1), obj2(o2), f(fi), collider(c) {};
 };
 
  template<>
@@ -45,15 +46,15 @@ void neighboring_faces( Polytope *obj1, Polytope *obj2, vec3 *dir, std::set<vec3
     std::vector<face_contact> face_contacts;
 
     for( int f = 0; f < obj1->m_faces.size(); ++f ) {
-        Polygon polygon = obj1->face_to_polygon(f);
-        if( sat( &polygon, obj2, dir ) ) {
-            face_contacts.emplace_back( obj1, obj2, f, polygon );
+        ICollider *collider = &obj1->m_faces[f];
+        if( sat( collider, obj2, dir ) ) {
+            face_contacts.emplace_back( obj1, obj2, f, collider );
         }
     }
     for( int f = 0; f < obj2->m_faces.size(); ++f ) {
-        Polygon polygon = obj2->face_to_polygon(f);
-        if( sat( &polygon, obj1, dir ) ) {
-            face_contacts.emplace_back( obj2, obj1, f, polygon );
+        ICollider *collider = &obj1->m_faces[f];
+        if( sat( collider, obj1, dir ) ) {
+            face_contacts.emplace_back( obj2, obj1, f, collider );
         }
     }
     process_face_contacts( face_contacts, contacts);

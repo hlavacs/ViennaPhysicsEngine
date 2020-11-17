@@ -14,11 +14,10 @@
 
 int main() {
 
-	Line line{ {0.f,0.f, -1.f}, {0.f,0.0f,1.f} };
+	Line3D line{ {0.f,0.f, -1.f}, {0.f,0.0f,1.f} };
 
 	Tetrahedron tet{ {-1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.5f} };
 	Triangle tri{ {-1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f} };
-
 
 	Box ground{ {0.0f, -50.0f, 0.0f}, scale( mat4(1.0f), vec3(100.0f, 100.0f, 100.0f)) };
 	Box box{ {0.0f, 0.5001f, 0.0f} };
@@ -34,13 +33,13 @@ int main() {
 
 	auto hit2 = sat( (Collider*)&box, (Collider*)&ground, &mtv);
 
-	Point point{ {0,-10,0} };
+	Point3D point{ {0,-10,0} };
 	auto hit3 = gjk(&point, &ground, &mtv);
 
 	Triangle triangle{ {-1,0,0}, {1,0,0}, {0,1,0} };
 	auto hit4 = gjk(&triangle, &ground, &mtv);
 
-	Quad quad{ {-1,0,-1}, {1,0,-1}, {1,0,1}, {-1,0,1} };
+	Quad3D quad{ {-1,0,-1}, {1,0,-1}, {1,0,1}, {-1,0,1} };
 	auto hit5 = gjk(&quad, &ground, &mtv);
 
 	auto hit7 = gjk(&triangle, &quad, &mtv);
