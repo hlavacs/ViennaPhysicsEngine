@@ -79,11 +79,9 @@ struct Cylinder : Collider {
 
     vec3 support(vec3 dir){
         dir = m_matRS_inverse*dir; //find support in model space
-
         vec3 dir_xz = vec3(dir.x, 0, dir.z);
         vec3 result = normalize(dir_xz)*m_r;
         result.y = (dir.y>0) ? m_y_cap : m_y_base;
-
         return m_matRS*result + m_pos; //convert support to world space
     }
 };
@@ -95,14 +93,12 @@ struct Capsule : Collider {
 
     Capsule(    vec3 pos = vec3{0.0f, 0.0f, 0.0f}, mat3 matRS = mat3(1.0f)
             ,   float radius = 0.2f, float yb = -0.5f, float yc = 0.5 ) 
-                : Collider( pos, matRS ), m_r(radius), m_y_base(yb), m_y_cap(yc)  {}
+                    : Collider( pos, matRS ), m_r(radius), m_y_base(yb), m_y_cap(yc)  {}
 
     vec3 support(vec3 dir){
         dir = m_matRS_inverse*dir; //find support in model space
-
         vec3 result = normalize(dir)*m_r;
         result.y += (dir.y>0) ? m_y_cap : m_y_base;
-
         return m_matRS*result + m_pos; //convert support to world space
     }
 };
@@ -141,7 +137,7 @@ struct Line : Collider {
 
     vec3 support(vec3 dir) {
         dir = m_matRS_inverse*dir; //find support in model space
-        vec3 result = 0.0f > dot( dir, m_p1 ) ?  vec3(0,0,0) : m_p1;
+        vec3 result = dot( dir, m_p1 ) < 0.0f ?  vec3(0,0,0) : m_p1;
         return result + m_pos; //convert support to world space
     }
 };

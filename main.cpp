@@ -23,11 +23,11 @@ int main() {
 	Box ground{ {0.0f, -50.0f, 0.0f}, scale( mat4(1.0f), vec3(100.0f, 100.0f, 100.0f)) };
 	Box box{ {0.0f, 0.41f, 0.0f} };
 	vec3 mtv(0,1,0); //minimum translation vector
-	auto hit1 = gjk(&box, &ground, &mtv);
+	auto hit1 = gjk( &box, &ground, &mtv);
 
 	box.m_pos += mtv;
 	std::set<contact> ct;
-	contacts( &box, &ground, &mtv, ct);
+	contacts( box, ground, mtv, ct);
 
 	
 	auto n0 = box.get_face_normal(0);
@@ -37,7 +37,7 @@ int main() {
 	auto n4 = box.get_face_normal(4);
 	auto n5 = box.get_face_normal(5);
 
-	auto hit2 = sat( (Collider*)&box, (Collider*)&ground, &mtv);
+	auto hit2 = sat( box, ground, mtv);
 
 	Point3D point{ {0,-10,0} };
 	auto hit3 = gjk(&point, &ground, &mtv);
