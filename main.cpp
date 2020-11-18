@@ -54,20 +54,9 @@ int main() {
 
 	//get all vertex neighbors of vertex 0
 	int v = 0;
-	std::set<int> neighbors;
-	box.get_vertex_neighbors( v, neighbors);
+	const std::vector<int>& neighbors = box.get_vertex_neighbors( v );
 
-	//get all edges of face 0
 	int f = 0;
-	auto edges  = box.get_face_edges( f );
-	auto &edges2 = box.get_face_edges( f );
-
-	//get the faces that contain a given edge
-	int e = 0;
-	std::set<int> faces;
-	box.get_edge_faces( e, faces);
-
-	//get the neighboring faces of a given face
 	const std::vector<int>& faces2 = box.get_face_neighbors(f);
 
 

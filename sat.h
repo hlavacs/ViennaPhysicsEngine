@@ -91,17 +91,15 @@ bool sat_faces_test( Face *face1, Face *face2, vec3 *dir ) {
 //SAT using the normals of polytope faces
 //returns true if a separating axis was found (i.e. objects are NOT in contact), else false
 bool sat_faces_test( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
-    auto &faces = obj1->m_faces;
     vec3 r;
     float d;
-    for( int i=0; i<faces.size(); ++i) {
-        *dir = obj1->get_face_normal(i);
+    for( auto& face : obj1->m_faces ) {
+        *dir = face.get_face_normal();
         if( sat_axis_test(obj1, obj2, dir, &r, &d) ) return true;
     }
 
-    faces = obj2->m_faces;
-    for( int i=0; i<faces.size(); ++i) {
-        *dir = obj1->get_face_normal(i);
+    for( auto& face : obj2->m_faces ) {
+        *dir = face.get_face_normal();
         if( sat_axis_test(obj1, obj2, dir, &r, &d) ) return true;
     }
 
@@ -111,44 +109,19 @@ bool sat_faces_test( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
 
 //SAT using the cross products of edge pairs from two polytopes
 //returns true if a separating axis was found (i.e. objects are NOT in contact), else false
-bool sat_edges_test( Face *face1, Face *face2, vec3 *dir ) {
-    std::vector<vec3> edges1;
-    face1->get_edge_vectors( edges1 );
-
-    std::vector<vec3> edges2;
-    face2->get_edge_vectors( edges2 );
-
-    vec3 r;
-    float d;
-    for( int i=0; i<edges1.size(); ++i) {
-        for( int j=0; i<edges2.size(); ++j) {
-            vec3 axis = cross( edges1[i], edges2[j] );
-            *dir = axis;
-            if( sat_axis_test(face1, face2, dir, &r, &d) ) return true;       //can do this better???
-            *dir = -1.0f * axis;
-            if( sat_axis_test(face1, face2, dir, &r, &d) ) return true;
-        }
-    }
-    return false;
-}
-
-//SAT using the cross products of edge pairs from two polytopes
-//returns true if a separating axis was found (i.e. objects are NOT in contact), else false
-bool sat_edges_test( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
+template<typename T>
+bool sat_edges_test( T *obj1, T *obj2, vec3 *dir ) {
     std::vector<vec3> edges1;
     std::vector<vec3> edges2;
-
     obj1->get_edge_vectors( edges1 );
     obj2->get_edge_vectors( edges2 );
 
     vec3 r;
     float d;
-    for( int i=0; i<edges1.size(); ++i) {
-        for( int j=0; i<edges2.size(); ++j) {
-            vec3 axis = cross( edges1[i], edges2[j] );
+    for( auto& v1 : edges1 )  {
+        for( auto& v2: edges2 ) {
+            vec3 axis = cross( v1, v2 );
             *dir = axis;
-            if( sat_axis_test(obj1, obj2, dir, &r, &d) ) return true;       //can do this better???
-            *dir = -1.0f * axis;
             if( sat_axis_test(obj1, obj2, dir, &r, &d) ) return true;
         }
     }
@@ -176,10 +149,7 @@ bool sat( Face *face1, Face *face2, vec3 *dir ) {
 bool sat( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
     if( dot(*dir, *dir) < 1.0e-6 ) *dir = vec3(0.0f, 1.0f, 0.0f);
     if( sat_faces_test( obj1, obj2, dir ) ) return false;
-
-    if( obj1->m_edges.size() * obj2->m_edges.size() > NUM_RANDOM_DIR ) {
-        if( sat_random_test( obj1, obj2, dir ) ) return false;
-    }
+    if( sat_random_test( obj1, obj2, dir ) ) return false;
     if( sat_edges_test( obj1, obj2, dir ) ) return false;
     return true;
 }
