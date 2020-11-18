@@ -11,6 +11,7 @@
 
 #include "sat.h"
 #include "GJK.h"
+#include "contact.h"
 
 int main() {
 
@@ -23,6 +24,11 @@ int main() {
 	Box box{ {0.0f, 0.41f, 0.0f} };
 	vec3 mtv(0,1,0); //minimum translation vector
 	auto hit1 = gjk(&box, &ground, &mtv);
+
+	box.pos += mtv;
+	std::set<contact> ct;
+	contacts( &box, &ground, &mtv, ct);
+
 	
 	auto n0 = box.get_face_normal(0);
 	auto n1 = box.get_face_normal(1);
