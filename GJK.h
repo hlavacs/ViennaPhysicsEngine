@@ -29,26 +29,33 @@
 
 //Returns true if two colliders are intersecting. Has optional Minimum Translation Vector output param;
 //If supplied the EPA will be used to find the vector to separate coll1 from coll2
-bool gjk(Collider* coll1, Collider* coll2, vec3* mtv=NULL);
+bool gjk(Collider& coll1, Collider& coll2, vec3& mtv, bool epa = true);
+bool gjk(Collider& coll1, Collider& coll2 );
+
 //Internal functions used in the GJK algorithm
 void update_simplex3(vec3 &a, vec3 &b, vec3 &c, vec3 &d, int &simp_dim, vec3 &search_dir);
 bool update_simplex4(vec3 &a, vec3 &b, vec3 &c, vec3 &d, int &simp_dim, vec3 &search_dir);
 //Expanding Polytope Algorithm. Used to find the mtv of two intersecting 
 //colliders using the final simplex obtained with the GJK algorithm
-vec3 EPA(vec3 a, vec3 b, vec3 c, vec3 d, Collider* coll1, Collider* coll2);
+vec3 EPA(vec3 a, vec3 b, vec3 c, vec3 d, Collider& coll1, Collider& coll2);
 
 #define GJK_MAX_NUM_ITERATIONS 64
 
-bool gjk(Collider* coll1, Collider* coll2, vec3* mtv){
+bool gjk(Collider& coll1, Collider& coll2 ) {
+    vec3 mtv;
+    return gjk( coll1, coll2, mtv, false );
+}
+
+bool gjk(Collider& coll1, Collider& coll2, vec3& mtv, bool epa ) {
     vec3 a, b, c, d; //Simplex: just a set of points (a is always most recently added)
-    vec3 search_dir = coll1->m_pos - coll2->m_pos; //initial search direction between colliders
+    vec3 search_dir = coll1.m_pos - coll2.m_pos; //initial search direction between colliders
 
     //Get initial point for simplex
-    c = coll2->support(search_dir) - coll1->support(-search_dir);
+    c = coll2.support(search_dir) - coll1.support(-search_dir);
     search_dir = -c; //search in direction of origin
 
     //Get second point for a line segment simplex
-    b = coll2->support(search_dir) - coll1->support(-search_dir);
+    b = coll2.support(search_dir) - coll1.support(-search_dir);
 
     if(dot(b, search_dir)<0) { return false; }//we didn't reach the origin, won't enclose it
 
@@ -62,7 +69,7 @@ bool gjk(Collider* coll1, Collider* coll2, vec3* mtv){
     
     for(int iterations=0; iterations<GJK_MAX_NUM_ITERATIONS; iterations++)
     {
-        a = coll2->support(search_dir) - coll1->support(-search_dir);
+        a = coll2.support(search_dir) - coll1.support(-search_dir);
         if(dot(a, search_dir)<0) { return false; }//we didn't reach the origin, won't enclose it
     
         simp_dim++;
@@ -70,7 +77,7 @@ bool gjk(Collider* coll1, Collider* coll2, vec3* mtv){
             update_simplex3(a,b,c,d,simp_dim,search_dir);
         }
         else if(update_simplex4(a,b,c,d,simp_dim,search_dir)) {
-            if(mtv) *mtv = EPA(a,b,c,d,coll1,coll2);
+            if(epa) mtv = EPA(a,b,c,d,coll1,coll2);
             return true;
         }
     }//endfor
@@ -179,7 +186,7 @@ bool update_simplex4(vec3 &a, vec3 &b, vec3 &c, vec3 &d, int &simp_dim, vec3 &se
 #define EPA_MAX_NUM_FACES 64
 #define EPA_MAX_NUM_LOOSE_EDGES 32
 #define EPA_MAX_NUM_ITERATIONS 64
-vec3 EPA(vec3 a, vec3 b, vec3 c, vec3 d, Collider* coll1, Collider* coll2){
+vec3 EPA(vec3 a, vec3 b, vec3 c, vec3 d, Collider& coll1, Collider& coll2){
     vec3 faces[EPA_MAX_NUM_FACES][4]; //Array of faces, each with 3 verts and a normal
     
     //Init with final simplex from GJK
@@ -217,7 +224,7 @@ vec3 EPA(vec3 a, vec3 b, vec3 c, vec3 d, Collider* coll1, Collider* coll2){
 
         //search normal to face that's closest to origin
         vec3 search_dir = faces[closest_face][3]; 
-        vec3 p = coll2->support(search_dir) - coll1->support(-search_dir);
+        vec3 p = coll2.support(search_dir) - coll1.support(-search_dir);
 
         if(dot(p, search_dir)-min_dist<EPA_TOLERANCE){
             //Convergence (new point is not significantly further from origin)

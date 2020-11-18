@@ -23,7 +23,7 @@ int main() {
 	Box ground{ {0.0f, -50.0f, 0.0f}, scale( mat4(1.0f), vec3(100.0f, 100.0f, 100.0f)) };
 	Box box{ {0.0f, 0.41f, 0.0f} };
 	vec3 mtv(0,1,0); //minimum translation vector
-	auto hit1 = gjk( &box, &ground, &mtv);
+	auto hit1 = gjk( box, ground, mtv);
 
 	box.m_pos += mtv;
 	std::set<contact> ct;
@@ -40,15 +40,15 @@ int main() {
 	auto hit2 = sat( box, ground, mtv);
 
 	Point3D point{ {0,-10,0} };
-	auto hit3 = gjk(&point, &ground, &mtv);
+	auto hit3 = gjk( point, ground, mtv);
 
 	Triangle3D triangle{ {-1,0,0}, {1,0,0}, {0,1,0} };
-	auto hit4 = gjk(&triangle, &ground, &mtv);
+	auto hit4 = gjk( triangle, ground, mtv);
 
 	Quad3D quad{ {-1,0,-1}, {1,0,-1}, {1,0,1}, {-1,0,1} };
-	auto hit5 = gjk(&quad, &ground, &mtv);
+	auto hit5 = gjk( quad, ground, mtv);
 
-	auto hit7 = gjk(&triangle, &quad, &mtv);
+	auto hit7 = gjk( triangle, quad, mtv);
 
 	//--------------------------------------------------------------------
 
