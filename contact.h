@@ -38,7 +38,7 @@ void process_vertex_face_contact( Polytope *obj1, Polytope *obj2, int v1, int f2
 
 }
 
-void process_edge_edge_contact( Polytope *obj1, Polytope *obj2, int e1, int e2, std::set<contact> & contacts) {
+void process_edge_edge_contact( Line *edge1, Line *edge2, std::set<contact> & contacts) {
 
 }
 
@@ -51,22 +51,27 @@ void process_face_face_contact(    Polytope *obj1, Polytope *obj2, vec3 *dir
     Face &face1 = obj1->m_faces[f1];
     Face &face2 = obj1->m_faces[f2];
 
-    for( int v1 : face1.data->vertices ) {      //go through all vertices of face 1
+    for( int v1 : face1.m_data->m_vertices ) {      //go through all vertices of face 1
         if( sat( &obj1->m_vertices[v1], &face2, dir) ) {
             process_vertex_face_contact( obj1, obj2, v1, f2, contacts );
         }
     }
 
-    for( int v2 : face2.data->vertices ) {      //go through all vertices of face 2
+    for( int v2 : face2.m_data->m_vertices ) {      //go through all vertices of face 2
         if( sat( &obj2->m_vertices[v2], &face1, dir) ) {
             process_vertex_face_contact( obj2, obj1, v2, f1, contacts );
         }
     }
 
-    for( int e1 : face1.data->edges ) {      //go through all edge pairs
-        for( int e2 : face2.data->edges) {
-            if( sat( &obj1->m_edges[e1], &obj2->m_edges[e2], dir) ) {
-                process_edge_edge_contact( obj1, obj2, e1, e2, contacts );
+    std::vector<Line> edges1;
+    std::vector<Line> edges2;
+    face1.get_edges( edges1 );
+    face2.get_edges( edges2 );
+
+    for( auto& edge1 : edges1 ) {      //go through all edge pairs
+        for( auto& edge2 : edges2 ) {
+            if( sat( &edge1, &edge2, dir) ) {
+                process_edge_edge_contact( &edge1, &edge2, contacts );
             }
         }
     }

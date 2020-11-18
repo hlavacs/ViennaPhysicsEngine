@@ -107,7 +107,7 @@ bool sat_faces_test( Polytope *obj1, Polytope *obj2, vec3 *dir ) {
 }
 
 
-//SAT using the cross products of edge pairs from two polytopes
+//SAT using the cross products of edge pairs from two Faces/polytopes
 //returns true if a separating axis was found (i.e. objects are NOT in contact), else false
 template<typename T>
 bool sat_edges_test( T *obj1, T *obj2, vec3 *dir ) {

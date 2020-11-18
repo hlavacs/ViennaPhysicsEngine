@@ -41,7 +41,7 @@ vec3 EPA(vec3 a, vec3 b, vec3 c, vec3 d, Collider* coll1, Collider* coll2);
 
 bool gjk(Collider* coll1, Collider* coll2, vec3* mtv){
     vec3 a, b, c, d; //Simplex: just a set of points (a is always most recently added)
-    vec3 search_dir = coll1->pos - coll2->pos; //initial search direction between colliders
+    vec3 search_dir = coll1->m_pos - coll2->m_pos; //initial search direction between colliders
 
     //Get initial point for simplex
     c = coll2->support(search_dir) - coll1->support(-search_dir);
