@@ -268,17 +268,17 @@ struct Tetrahedron : Polytope {
     const static inline std::vector<EdgeData> m_edges_data =  //6 edges, each having 2 vertices
 	                {   EdgeData{ 0, {0,1} }  //0
                     ,   EdgeData{ 1, {1,2} }  //1
-                    ,   EdgeData{ 2, {2,0} }  //2
+                    ,   EdgeData{ 2, {0,2} }  //2
                     ,   EdgeData{ 3, {0,3} }  //3
                     ,   EdgeData{ 4, {1,3} }  //4
                     ,   EdgeData{ 5, {2,3} }  //5
                     }; 
 
-	const static inline std::vector<FaceData> m_faces_data =      //4 faces, each has 3 vertices, 3 edges, 4 vertices for computing normals, 3 neighbor faces
+	const static inline std::vector<FaceData> m_faces_data =  //4 faces, each has 3 vertices, 3 edges, 4 vertices for computing normals, 3 neighbor faces
                     {       FaceData{ 0, {0,1,2}, {0,1,2}, {1,0,2,0}, {1,2,3} }  //0
                         ,   FaceData{ 1, {0,3,1}, {0,3,4}, {3,0,1,0}, {0,2,3} }  //1
                         ,   FaceData{ 2, {1,3,2}, {1,4,5}, {3,1,2,1}, {0,1,3} }  //2
-                        ,   FaceData{ 3, {2,3,0}, {2,3,5}, {3,2,0,2}, {0,1,2} }  //3
+                        ,   FaceData{ 3, {2,3,0}, {2,5,3}, {3,2,0,2}, {0,1,2} }  //3
                     };
 
     Tetrahedron( vec3 p0, vec3 p1, vec3 p2, vec3 p3 )  : Polytope() {
@@ -317,7 +317,7 @@ struct Box : Polytope {
 
 	const static inline std::vector<EdgeData> m_edges_data = {    //every edge has 2 vertices
                             EdgeData{  0, {0,1} } //0
-                        ,   EdgeData{  1, {1,2} } //1
+                        ,   EdgeData{  1, {1,3} } //1
                         ,   EdgeData{  2, {0,2} } //2
                         ,   EdgeData{  3, {2,3} } //3
                         ,   EdgeData{  4, {4,5} } //4
@@ -330,13 +330,13 @@ struct Box : Polytope {
                         ,   EdgeData{ 11, {3,7} } //11
                         };           
 
-    const static inline std::vector<FaceData> m_faces_data =  //6 faces, each having 4 vertices, 4 edges, 4 vertices for computing normals, 4 neighbor faces
-                    {   FaceData{ 0, {0,2,4,6}, {2,4,6,8},   {6,2,0,2}, {2,3,4,5} }   //0
-                    ,   FaceData{ 1, {1,3,5,7}, {1,5,9,11},  {5,1,3,1}, {2,3,4,5} }   //1
-                    ,   FaceData{ 2, {0,1,2,3}, {0,1,2,3},   {1,0,2,0}, {0,1,4,5} }   //2
-                    ,   FaceData{ 3, {4,5,6,7}, {4,5,6,7},   {6,4,5,4}, {0,1,4,5} }   //3
-                    ,   FaceData{ 4, {0,1,4,5}, {0,4,8,9},   {4,0,1,0}, {0,1,2,3} }   //4
-                    ,   FaceData{ 5, {2,3,6,7}, {3,7,10,11}, {7,3,2,3}, {0,1,2,3} }   //5
+    const static inline std::vector<FaceData> m_faces_data =  //6 faces, each having 4 vertices, 4 edges (clockwise), 4 vertices for computing normals, 4 neighbor faces
+                    {   FaceData{ 0, {0,2,4,6}, {2,10,6,8},  {6,2,0,2}, {2,3,4,5} }   //0
+                    ,   FaceData{ 1, {1,3,5,7}, {1,9,5,11},  {5,1,3,1}, {2,3,4,5} }   //1
+                    ,   FaceData{ 2, {0,1,2,3}, {0,1,3,2},   {1,0,2,0}, {0,1,4,5} }   //2
+                    ,   FaceData{ 3, {4,5,6,7}, {4,6,7,5},   {6,4,5,4}, {0,1,4,5} }   //3
+                    ,   FaceData{ 4, {0,1,4,5}, {0,8,4,9},   {4,0,1,0}, {0,1,2,3} }   //4
+                    ,   FaceData{ 5, {2,3,6,7}, {3,11,7,10}, {7,3,2,3}, {0,1,2,3} }   //5
                     };
 
     Box( vec3 pos = vec3(0.0f, 0.0f, 0.0f), mat3 matRS = mat3(1.0f) )  : Polytope( pos, matRS ) {
@@ -413,9 +413,9 @@ vec3 Face::support(vec3 dir) {
     vec3 maxp = polytope->m_points[0];
     float max = dot( dir, maxp );
     for( auto i : data->vertices ) {
-        float d = dot( dir, polytope->m_points[data->vertices[i]] );
+        float d = dot( dir, polytope->m_points[i] );
         if( d > max ) {
-            maxp = polytope->m_points[data->vertices[i]];
+            maxp = polytope->m_points[i];
             max = d;
         }
     }
