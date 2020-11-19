@@ -5,11 +5,21 @@
 
 using namespace glm;
 
-constexpr float SMALL_LENGTH = 1.0e-6f;
+constexpr float EPS = 1.0e-6f;
 
 struct ICollider {
     ICollider(){};
     virtual vec3 support(vec3 dir) = 0;
+};
+
+
+//Pluecker coordinates for point, line and plane (Eric Lengyel, Foundations of Game Engine Development, Vol 1: Mathematics, 2016)
+using pluecker_point = vec4;    // homogeneous 4D coordinates (p | w) where the original point q is 1/w p
+using pluecker_plane = vec4;    // 4D plane coordinates [normal | d] where d = -dot(normal,q) for q point on the plane
+ 
+struct pluecker_line {          // 6D line coordinates { direction vector | p0 x p1 }, where p0 and p1 are points on the line
+    vec3 dir;
+    vec3 moment;
 };
 
 
@@ -57,7 +67,8 @@ struct Sphere : Collider {
 //a Point3D is a sphere with tiny radius
 //can be used with GJK
 struct Point3D : Sphere {
-    Point3D( vec3 pos = vec3(0.0f, 0.0f, 0.0f) ) : Sphere(pos, SMALL_LENGTH) {}
+    Point3D( vec3 pos = vec3(0.0f, 0.0f, 0.0f) ) : Sphere(pos, EPS) {}
+    pluecker_point pluecker() { return { m_pos, 1}; };
 };
 
 
@@ -65,6 +76,7 @@ struct Point3D : Sphere {
 struct Point : Collider {
     Point( vec3 p ) : Collider(p) {}
     Point & operator=(const Point & l) = default;
+    pluecker_point pluecker() { return { m_pos, 1}; };
 
     vec3 support(vec3 dir) {
         return m_pos; 
@@ -126,19 +138,30 @@ struct Line3D : Capsule {
         m_matRS = m_matRS * mat3( scale( mat4(1.0f), vec3(1.0f, length( vector ), 1.0f) ) );
         m_matRS_inverse = inverse( m_matRS );
     }
+
+    pluecker_line pluecker() { 
+        vec3 dir = m_matRS*vec3(0,1,0);  //capsule in local space along y axis
+        return { dir, cross( m_pos, m_pos + dir) }; 
+    };
+
 };
 
 //a 1d line segment, do not use ith GJK
 struct Line : Collider {
-    vec3 m_p1;
+    vec3 m_dir;  //
 
-    Line( vec3 p0, vec3 p1 ) : Collider(p0), m_p1(p1 - p0) {}
+    Line( vec3 p0, vec3 p1 ) : Collider(p0), m_dir(p1 - p0) {}
     Line & operator=(const Line & l) = default;
+
+    pluecker_line pluecker() {
+        vec3 dir = m_matRS*m_dir;
+        return { dir, cross( m_pos, m_pos + dir) }; 
+    };
 
     vec3 support(vec3 dir) {
         dir = m_matRS_inverse*dir; //find support in model space
-        vec3 result = dot( dir, m_p1 ) < 0.0f ?  vec3(0,0,0) : m_p1;
-        return result + m_pos; //convert support to world space
+        vec3 result = dot( dir, m_dir ) < 0.0f ?  vec3{0,0,0} : m_dir;
+        return m_matRS*result + m_pos; //convert support to world space
     }
 };
 
@@ -171,6 +194,7 @@ struct Vertex : PolytopePart {
 
     Vertex(Polytope* p, const VertexData *d ) : PolytopePart(), m_polytope(p), m_data(d) {}
     Vertex & operator=(const Vertex & v) = default;
+    pluecker_point pluecker();
     vec3 support(vec3 dir);
 };
 
@@ -203,6 +227,7 @@ struct Face  : PolytopePart {
     void get_face_points( std::vector<vec3> &points ) const;
     void get_edge_vectors( std::vector<vec3> & vectors ) const ;
     void get_edges( std::vector<Line> & edges );
+    pluecker_plane pluecker();
     vec3 support(vec3 dir);
 };
 
@@ -280,7 +305,7 @@ struct Triangle3D : Tetrahedron {
     Triangle3D( vec3 p0, vec3 p1, vec3 p2 )  : Tetrahedron( p0, p1, p2, {0,0,0} ) {
         vec3 d0 = p2 - p0;
         vec3 d1 = p1 - p0;
-        vec3 up = SMALL_LENGTH * normalize( cross( d0,  d1) );
+        vec3 up = EPS * normalize( cross( d0,  d1) );
         m_points[3] = (p0 + p1 + p2)*0.33333f + up;
     };
 };
@@ -323,7 +348,7 @@ struct Quad3D : Box {
     Quad3D( vec3 p0, vec3 p1, vec3 p2, vec3 p3 )  : Box() {   //points should lie in the same plane
         vec3 d0 = p2 - p0;
         vec3 d1 = p1 - p0;
-        vec3 up = SMALL_LENGTH * normalize( cross( d0,  d1) );
+        vec3 up = EPS * normalize( cross( d0,  d1) );
 	    m_points = { p0, p1, p2, p3, p0 + up, p1 + up, p2 + up, p3 + up };
     };
 };
@@ -335,7 +360,7 @@ struct Polygon3D : Polytope {
     Polygon3D( std::vector<vec3>& points ) : Polytope() {
         vec3 d0 = points[2] - points[0];
         vec3 d1 = points[1] - points[0];
-        vec3 up = SMALL_LENGTH * normalize( cross( d0,  d1) );
+        vec3 up = EPS * normalize( cross( d0,  d1) );
 
 	    m_points = points;
         for( int i=0; i<points.size(); ++i ) {
@@ -348,6 +373,10 @@ struct Polygon3D : Polytope {
 //-------------------------------------------------------------------------------------
 
 //Polytope parts
+
+pluecker_point Vertex::pluecker() { 
+    return { m_polytope->m_points[m_data->m_index], 1.0f}; 
+};
 
 vec3 Vertex::support(vec3 dir) {
     vec3 result = m_polytope->m_points[m_data->m_index];
@@ -384,7 +413,11 @@ void Face::get_edges( std::vector<Line> & edges ) {
         edges.emplace_back( m_polytope->m_matRS * m_polytope->m_points[v0], m_polytope->m_matRS * m_polytope->m_points[v] );
         v0 = v;
     }
-    
+}
+
+pluecker_plane Face::pluecker() {
+    vec3 normal = get_face_normal();
+    return { normal, -1.0f * dot( normal, m_polytope->m_points[m_data->m_vertices[0]])};
 }
 
 vec3 Face::support(vec3 dir) {
