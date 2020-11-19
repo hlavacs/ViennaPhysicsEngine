@@ -34,6 +34,9 @@ struct contact {
  };*/
 
 
+//point contacts face if the distance point-plane is smaller than EPS AND
+//the point is inside the face Voronoi region, i.e. it lies on the left of all planes
+//defined by a face edge and the face normal vector
 void process_vertex_face_contact( Polytope &obj1, Polytope &obj2, int v1, int f2, std::set<contact> & contacts) {
 
 }

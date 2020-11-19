@@ -4,22 +4,13 @@
 #include <cmath>
 
 using namespace glm;
+#include "pluecker.h"
 
 constexpr float EPS = 1.0e-6f;
 
 struct ICollider {
     ICollider(){};
     virtual vec3 support(vec3 dir) = 0;
-};
-
-
-//Pluecker coordinates for point, line and plane (Eric Lengyel, Foundations of Game Engine Development, Vol 1: Mathematics, 2016)
-using pluecker_point = vec4;    // homogeneous 4D coordinates (p | w) where the original point q is 1/w p
-using pluecker_plane = vec4;    // 4D plane coordinates [normal | d] where d = -dot(normal,q) for q point on the plane
- 
-struct pluecker_line {          // 6D line coordinates { direction vector | p0 x p1 }, where p0 and p1 are points on the line
-    vec3 dir;
-    vec3 moment;
 };
 
 
