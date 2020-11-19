@@ -11,7 +11,7 @@ struct ICollider {
     ICollider(){};
     virtual vec3 support(vec3 dir) = 0;
 };
-
+ 
 
 //Pluecker coordinates for point, line and plane (Eric Lengyel, Foundations of Game Engine Development, Vol 1: Mathematics, 2016)
 using pluecker_point = vec4;    // homogeneous 4D coordinates (p | w) where the original point q is 1/w p
