@@ -4,7 +4,7 @@
 #include "glm/glm/glm.hpp"
 #include "glm/glm/ext.hpp"
 
-#include "Collider.h"
+#include "collider.h"
 
 //Kevin's implementation of the Gilbert-Johnson-Keerthi intersection algorithm
 //and the Expanding Polytope Algorithm

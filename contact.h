@@ -12,7 +12,7 @@
 #include <random>
 #include <set>
 
-#include "Collider.h"
+#include "collider.h"
 #include "sat.h"
 
 using vec3pair = std::pair<vec3,vec3>;

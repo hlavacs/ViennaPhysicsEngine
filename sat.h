@@ -8,7 +8,7 @@
 #include "glm/glm/glm.hpp"
 #include "glm/glm/ext.hpp"
 
-#include "Collider.h"
+#include "collider.h"
 #include <random>
 
 
