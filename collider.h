@@ -59,7 +59,7 @@ struct Sphere : Collider {
 //can be used with GJK
 struct Point3D : Sphere {
     Point3D( vec3 pos = vec3(0.0f, 0.0f, 0.0f) ) : Sphere(pos, EPS) {}
-    pluecker_point pluecker() { return { m_pos, 1}; };
+    pluecker_point pluecker() { return vec4{ m_pos, 1}; };
 };
 
 
@@ -67,7 +67,7 @@ struct Point3D : Sphere {
 struct Point : Collider {
     Point( vec3 p ) : Collider(p) {}
     Point & operator=(const Point & l) = default;
-    pluecker_point pluecker() { return { m_pos, 1}; };
+    pluecker_point pluecker() { return vec4{ m_pos, 1}; };
 
     vec3 support(vec3 dir) {
         return m_pos; 
@@ -366,7 +366,7 @@ struct Polygon3D : Polytope {
 //Polytope parts
 
 pluecker_point Vertex::pluecker() { 
-    return { m_polytope->m_points[m_data->m_index], 1.0f}; 
+    return vec4{ m_polytope->m_points[m_data->m_index], 1.0f}; 
 };
 
 vec3 Vertex::support(vec3 dir) {

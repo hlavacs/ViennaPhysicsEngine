@@ -29,7 +29,12 @@ int main() {
 	std::set<contact> ct;
 	contacts( box, ground, mtv, ct);
 
-	
+	vec3 p0{0,1,2};
+	vec3 p1{3,4,5};
+	auto pp = pluecker_point( {7,8,9} );
+	auto pl = pluecker_line( {7,8,9}, p1 );
+	auto ppl = pluecker_plane( {7,8,9}, 3 );
+
 	auto n0 = box.get_face_normal(0);
 	auto n1 = box.get_face_normal(1);
 	auto n2 = box.get_face_normal(2);
