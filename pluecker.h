@@ -16,7 +16,7 @@ struct pluecker_point {
     vec4 m_o;
 
     public:
-    pluecker_point( vec3 p, float w = 1.0f ) : m_o( vec4{p,w}*(1.0f / w) ) {};
+    pluecker_point( vec3 p, float w = 1.0f ) : m_o( vec4{p,w} ) {};
     operator vec4 () { return m_o; } 
     vec3  p3D() const { return { m_o*(1.0f / m_o.w) }; }
     vec3  p() const { return { m_o }; }
@@ -82,7 +82,7 @@ float distance_line_line(pluecker_line line1, pluecker_line line2) {
 }
 
 float distance_point_plane( vec3 p, pluecker_plane plane ) {
-    vec3 n = plane.n();
+    vec3  n = plane.n();
     float d = plane.d();
     return std::abs(dot(n,p) + d) / length(n);
 }
@@ -90,11 +90,11 @@ float distance_point_plane( vec3 p, pluecker_plane plane ) {
 //--------------------------------------------------------------------------
 
 pluecker_point intersect_line_plane( pluecker_line line, pluecker_plane plane ) {
-    vec3 v = line.v();
-    vec3 m = line.m();
-    vec3 n = plane.n();
+    vec3  v = line.v();
+    vec3  m = line.m();
+    vec3  n = plane.n();
     float d = plane.d();
-    return { {cross( m, n ) + d*v}, -1.0f*dot(n,v) };
+    return { {cross(m,n) + d*v}, -1.0f*dot(n,v) };
 }
 
 
