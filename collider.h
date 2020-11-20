@@ -209,11 +209,12 @@ struct Face  : PolytopePart {
         return std::find( std::begin(dm), std::end(dm), v) != std::end(dm);
     }
 
+    const vint &    vertices() const { return m_data->m_vertices; }
+    const vint &    neighbors() const { return m_data->m_neighbors; }
     vec3            normalW() const;
     void            pointsW( vvec3 &points ) const;
     void            edge_vectorsW( vvec3 &vectors ) const;
     void            edgesW( std::vector<Line> & edges ) const;
-    const vint &    neighbors() const { return m_data->m_neighbors; }
     pluecker_plane  plueckerW() const;
     vec3            support(vec3 dir);
 };
@@ -240,6 +241,8 @@ struct Polytope : Collider {
         for( auto &f : face_data )   m_faces.emplace_back( this, &f );
     }
 
+    std::vector<Vertex>&   vertices() { return m_vertices; };
+    std::vector<Face>&     faces() { return m_faces; };
     Vertex & vertex( int v) { return m_vertices[v]; }
     Face &   face( int f ) { return m_faces[f]; }
 
