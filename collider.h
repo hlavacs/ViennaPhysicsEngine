@@ -174,13 +174,16 @@ struct VertexData {
 
 //Vertex of a polytope
 struct Vertex : PolytopePart {
+    protected:
     Polytope*           m_polytope;
     const VertexData*   m_data;
     vec3                m_pointL;
 
+    public:
     Vertex(Polytope* p, const VertexData *d, vec3 pointL ) : PolytopePart(), m_polytope(p), m_data(d), m_pointL(pointL) {}
     
-    vec3            pointL() { return m_pointL; };
+    Polytope*       polytope() const { return m_polytope; };
+    vec3 &          pointL() { return m_pointL; };
     vec3            pointW();
     const vint &    neighbors() const { assert(m_data!=nullptr); return m_data->m_neighbors;};
     pluecker_point  plueckerW() { return { pointW(), 1.0f}; };
@@ -209,6 +212,7 @@ struct Face  : PolytopePart {
         return std::find( std::begin(dm), std::end(dm), v) != std::end(dm);
     }
 
+    Polytope*       polytope() const { return m_polytope; };
     const vint &    vertices() const { return m_data->m_vertices; }
     const vint &    neighbors() const { return m_data->m_neighbors; }
     vec3            normalW() const;
@@ -304,10 +308,10 @@ struct Tetrahedron : Polytope {
     Tetrahedron()  : Polytope( m_points_data, m_vertices_data, m_faces_data ) {}
 
     Tetrahedron( vec3 p0, vec3 p1, vec3 p2, vec3 p3 )  : Polytope( m_points_data, m_vertices_data, m_faces_data ) {
-        m_vertices[0].m_pointL = p0;
-        m_vertices[1].m_pointL = p1;
-        m_vertices[2].m_pointL = p2;
-        m_vertices[3].m_pointL = p3;
+        m_vertices[0].pointL() = p0;
+        m_vertices[1].pointL() = p1;
+        m_vertices[2].pointL() = p2;
+        m_vertices[3].pointL() = p3;
     };
 };
 
@@ -318,7 +322,7 @@ struct Triangle3D : Tetrahedron {
         vec3 d0 = p2 - p0;
         vec3 d1 = p1 - p0;
         vec3 up = EPS * normalize( cross( d0,  d1) );
-        m_vertices[3].m_pointL = (p0 + p1 + p2)*0.33333f + up;
+        m_vertices[3].pointL() = (p0 + p1 + p2)*0.33333f + up;
     };
 };
 
@@ -367,7 +371,7 @@ struct Quad3D : Box {
         vec3 up = EPS * normalize( cross( d0,  d1) );
         vvec3 points = {p0, p1, p2, p3, p0 + up, p1 + up, p2 + up, p3 + up};
         int i = 0;
-        for( auto& vertex : m_vertices ) vertex.m_pointL = points[i++];
+        for( auto& vertex : m_vertices ) vertex.pointL() = points[i++];
     };
 };
 
@@ -390,7 +394,7 @@ struct Polygon3D : Polytope {
 //Polytope parts
 
 vec3 Vertex::pointW() {
-    return m_polytope->m_matRS * pointL() + m_polytope->m_pos;
+    return m_polytope->m_matRS * pointL() + m_polytope->m_pos ;
 }
 
 //get the normal of the face

@@ -18,7 +18,7 @@ int main() {
 	Line3D line{ {0.f,0.f, -1.f}, {0.f,0.0f,1.f} };
 
 	Tetrahedron tet( {-1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.5f}  );
-	Tetrahedron tet2();
+	Tetrahedron tet2{};
 
 	Triangle3D tri{ {-1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f} };
 

@@ -24,25 +24,42 @@ struct contact {
     Polytope *obj2;    
     vec3 pos;
     vec3 normal;
+
+    bool operator <(const contact& c) const;
 };
 
-
- /*template<>
- struct std::hash<face_contact> {
-    size_t operator()(const face_contact& c) {
-        return std::hash<std::pair<int,int>>()( std::make_pair(c.f1, c.f2));
+ template<>
+ struct std::hash<contact> {
+    size_t operator()(const contact& c) {
+        return std::hash<std::tuple<Polytope*,Polytope*,vec3,vec3>>()( 
+            std::make_tuple( c.obj1, c.obj2, c.pos, c.normal) );
     }
- };*/
+ };
+
+
+bool contact::operator <(const contact& c) const {
+    return std::hash<contact>()(*this) < std::hash<contact>()(c);
+}
 
 
 //point contacts face if the distance point-plane is smaller than EPS AND
 //the point is inside the face Voronoi region, i.e. it lies on the left of all planes
 //defined by a face edge and the face normal vector
 void process_vertex_face_contact( Vertex &vertex, Face &face, std::set<contact> & contacts) {
-
+    if( distance_point_plane( vertex.pointW(), face.plueckerW() ) < EPS ) {
+        std::vector<Line> edges;
+        face.edgesW( edges );
+        for( auto &edge : edges ) {
+            auto pp = vertex.plueckerW();
+            pluecker_plane plane( pp, edge.plueckerW() );
+            if( dot( vec4{pp}, vec4{plane}) <= 0.0f ) return;
+        }
+    }
+    contacts.insert( { vertex.polytope(), face.polytope(), vertex.pointW(), face.normalW() }  );
 }
 
 void process_edge_edge_contact( Line &edge1, Line &edge2, std::set<contact> & contacts) {
+
 }
 
 //test a pair of faces against each other.
