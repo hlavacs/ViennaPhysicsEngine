@@ -62,7 +62,6 @@ struct pluecker_plane {
     float d() const { return m_p.w; }
 };
 
-
 //--------------------------------------------------------------------------
 
 float distance_point_line( vec3 p, pluecker_line line ) {

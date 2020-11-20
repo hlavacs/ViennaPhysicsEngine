@@ -60,7 +60,6 @@ struct Sphere : Collider {
     }
 };
 
-
 //a Point3D is a sphere with tiny radius
 //can be used with GJK
 struct Point3D : Sphere {
@@ -68,8 +67,7 @@ struct Point3D : Sphere {
     pluecker_point pluecker() { return { m_pos, 1}; };
 };
 
-
-//a 1d line segment, do not use ith GJK
+//a 0D point - do not use in GJK
 struct Point : Collider {
     Point( vec3 p ) : Collider(p) {}
     Point & operator=(const Point & l) = default;
@@ -79,8 +77,6 @@ struct Point : Collider {
         return m_pos; 
     }
 };
-
-
 
 //Cylinder: Height-aligned with y-axis (rotate using matRS)
 struct Cylinder : Collider {
@@ -94,7 +90,6 @@ struct Cylinder : Collider {
         return m_matRS*result + m_pos; //convert support to world space
     }
 };
-
 
 //Capsule: Height-aligned with y-axis
 struct Capsule : Collider {
@@ -111,7 +106,6 @@ struct Capsule : Collider {
         return m_matRS*result + m_pos; //convert support to world space
     }
 };
-
 
 //a Line3D is a capsule with tiny radius
 //can be used with GJK
@@ -162,8 +156,6 @@ struct Line : Collider {
     }
 };
 
-
-
 //--------------------------------------------------------------------------------------
 
 struct Polytope; 
@@ -172,17 +164,15 @@ struct PolytopePart : ICollider {
     PolytopePart() : ICollider() {};
 };
 
-
 struct VertexData {
     int  m_index;       //index of this vertex
     vint m_neighbors;   //indices of all vertex neighbors of this vertex
+
     VertexData(int i, vint& ne) : m_index(i), m_neighbors(ne) {}
     VertexData(int i, vint&& ne) : m_index(i), m_neighbors(ne) {}
 };
 
-
 //Vertex of a polytope
-//constexpr int MAX_NEIGHBORS = 8;   //adapt the max if you need more neighbors
 struct Vertex : PolytopePart {
     Polytope*           m_polytope;
     const VertexData*   m_data;
@@ -197,7 +187,6 @@ struct Vertex : PolytopePart {
     vec3            support(vec3 dir) { return pointW(); }
 };
 
-
 struct FaceData {
     int  m_index;
     vint m_vertices;          //indices of all vertices of this face
@@ -207,7 +196,6 @@ struct FaceData {
     FaceData(int i, vint& v, vint& n, vint& ne ) : m_index(i), m_vertices(v), m_normal_vertices(n), m_neighbors(ne) {}
     FaceData(int i, vint&& v, vint&& n, vint&& ne ) : m_index(i), m_vertices(v), m_normal_vertices(n), m_neighbors(ne) {}
 };
-
 
 //Face of a polytope
 struct Face  : PolytopePart {
@@ -230,7 +218,6 @@ struct Face  : PolytopePart {
     vec3            support(vec3 dir);
 };
 
-
 //Polytope: Just a set of points plus adjencency information
 struct Polytope : Collider {
     std::vector<Vertex>   m_vertices;
@@ -245,7 +232,9 @@ struct Polytope : Collider {
     Polytope(     const vvec3& points
                 , const std::vector<VertexData>& vertex_data
                 , const std::vector<FaceData>& face_data 
-                , vec3 pos = {0,0,0}, mat3 matRS = mat3(1.0f) ) : Collider(pos, matRS) {
+                , vec3 pos = {0,0,0}
+                , mat3 matRS = mat3(1.0f) )
+                     : Collider(pos, matRS) {
         int i=0;
         for( auto &v : vertex_data ) m_vertices.emplace_back( this, &v, points[i++] );
         for( auto &f : face_data )   m_faces.emplace_back( this, &f );
@@ -291,7 +280,6 @@ struct Polytope : Collider {
     }
 };
 
-
 struct Tetrahedron : Polytope {
 
     const static inline std::vector<VertexData> m_vertices_data =  //4 vertices, each is member of 3 faces and has 3 neighbors
@@ -320,7 +308,6 @@ struct Tetrahedron : Polytope {
     };
 };
 
-
 //a triangle is a tertrahedron with tiny height
 //can be used with GJK
 struct Triangle3D : Tetrahedron {
@@ -331,7 +318,6 @@ struct Triangle3D : Tetrahedron {
         m_vertices[3].m_pointL = (p0 + p1 + p2)*0.33333f + up;
     };
 };
-
 
 //a box is a polytope with 8 vertices
 struct Box : Polytope {
@@ -369,7 +355,6 @@ struct Box : Polytope {
         : Polytope( m_points_data, m_vertices_data, m_faces_data, pos, matRS ) {};
 };
 
-
 //a quad is a box with tiny height
 //can be used with GJK
 struct Quad3D : Box {
@@ -382,7 +367,6 @@ struct Quad3D : Box {
         for( auto& vertex : m_vertices ) vertex.m_pointL = points[i++];
     };
 };
-
 
 //a Polygon3D with N vertices, all vertices must lie in the same plane
 //the polgon has a 3D body but is infinitely thin
@@ -397,7 +381,6 @@ struct Polygon3D : Polytope {
         for( auto &p : points ) m_vertices.emplace_back( this, nullptr, p + up );
     }
 };
-
 
 //-------------------------------------------------------------------------------------
 
