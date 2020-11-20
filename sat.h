@@ -97,12 +97,12 @@ bool sat_faces_test( Face &face1, Face &face2, vec3 &dir ) {
 //SAT using the normals of polytope faces
 //returns true if a separating axis was found (i.e. objects are NOT in contact), else false
 bool sat_faces_test( Polytope &obj1, Polytope &obj2, vec3 &dir ) {
-    for( auto& face : obj1.m_faces ) {
+    for( auto& face : obj1.faces() ) {
         dir = face.normalW();
         if( sat_axis_test(obj1, obj2, dir) ) return true;
     }
 
-    for( auto& face : obj2.m_faces ) {
+    for( auto& face : obj2.faces() ) {
         dir = face.normalW();
         if( sat_axis_test(obj1, obj2, dir) ) return true;
     }
@@ -150,7 +150,7 @@ bool sat( Face &face1, Face &face2, vec3 &dir ) {
 bool sat( Polytope &obj1, Polytope &obj2, vec3 &dir ) {
     if( dot(dir, dir) < EPS ) dir = vec3(0.0f, 1.0f, 0.0f);
     if( sat_faces_test( obj1, obj2, dir ) ) return false;
-    if( sat_random_test( obj1, obj2, dir ) ) return false;
+    if( sat_chung_wang_test( obj1, obj2, dir ) ) return false;
     if( sat_edges_test( obj1, obj2, dir ) ) return false;
     return true;
 }
