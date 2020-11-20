@@ -37,12 +37,11 @@ struct contact {
 //point contacts face if the distance point-plane is smaller than EPS AND
 //the point is inside the face Voronoi region, i.e. it lies on the left of all planes
 //defined by a face edge and the face normal vector
-void process_vertex_face_contact( Polytope &obj1, Polytope &obj2, int v1, int f2, std::set<contact> & contacts) {
+void process_vertex_face_contact( Vertex &vertex, Face &face, std::set<contact> & contacts) {
 
 }
 
 void process_edge_edge_contact( Line &edge1, Line &edge2, std::set<contact> & contacts) {
-
 }
 
 //test a pair of faces against each other.
@@ -56,20 +55,20 @@ void process_face_face_contact(    Polytope &obj1, Polytope &obj2, vec3 &dir
 
     for( int v1 : face1.m_data->m_vertices ) {      //go through all vertices of face 1
         if( sat( obj1.m_vertices[v1], face2, dir) ) {
-            process_vertex_face_contact( obj1, obj2, v1, f2, contacts );
+            process_vertex_face_contact( obj1.m_vertices[v1], face1, contacts );
         }
     }
 
     for( int v2 : face2.m_data->m_vertices ) {      //go through all vertices of face 2
         if( sat( obj2.m_vertices[v2], face1, dir) ) {
-            process_vertex_face_contact( obj2, obj1, v2, f1, contacts );
+            process_vertex_face_contact( obj2.m_vertices[v2], face2, contacts );
         }
     }
 
     std::vector<Line> edges1;
     std::vector<Line> edges2;
-    face1.get_edges( edges1 );
-    face2.get_edges( edges2 );
+    face1.get_edgesW( edges1 );
+    face2.get_edgesW( edges2 );
 
     for( auto& edge1 : edges1 ) {      //go through all edge pairs
         for( auto& edge2 : edges2 ) {

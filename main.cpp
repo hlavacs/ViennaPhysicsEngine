@@ -35,12 +35,12 @@ int main() {
 	auto pl = pluecker_line( {7,8,9}, p1 );
 	auto ppl = pluecker_plane( {7,8,9}, 3 );
 
-	auto n0 = box.get_face_normal(0);
-	auto n1 = box.get_face_normal(1);
-	auto n2 = box.get_face_normal(2);
-	auto n3 = box.get_face_normal(3);
-	auto n4 = box.get_face_normal(4);
-	auto n5 = box.get_face_normal(5);
+	auto n0 = box.get_face_normalW(0);
+	auto n1 = box.get_face_normalW(1);
+	auto n2 = box.get_face_normalW(2);
+	auto n3 = box.get_face_normalW(3);
+	auto n4 = box.get_face_normalW(4);
+	auto n5 = box.get_face_normalW(5);
 
 	auto hit2 = sat( box, ground, mtv);
 
