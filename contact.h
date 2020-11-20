@@ -12,6 +12,7 @@
 #include <random>
 #include <set>
 
+#include "define.h"
 #include "collider.h"
 #include "sat.h"
 
@@ -67,8 +68,8 @@ void process_face_face_contact(    Polytope &obj1, Polytope &obj2, vec3 &dir
 
     std::vector<Line> edges1;
     std::vector<Line> edges2;
-    face1.get_edgesW( edges1 );
-    face2.get_edgesW( edges2 );
+    face1.edgesW( edges1 );
+    face2.edgesW( edges2 );
 
     for( auto& edge1 : edges1 ) {      //go through all edge pairs
         for( auto& edge2 : edges2 ) {
@@ -83,7 +84,7 @@ void process_face_face_contact(    Polytope &obj1, Polytope &obj2, vec3 &dir
 //find a list of face-pairs that touch each other
 //process these pairs by colliding a face agains vertices and edges of the other face
 void process_face_obj_contacts(     Polytope &obj1, Polytope &obj2, vec3 &dir
-                                ,   std::vector<int>& obj1_faces, std::vector<int>& obj2_faces
+                                ,   vint& obj1_faces, vint& obj2_faces
                                 ,   std::set<contact> & contacts ) {
     
     for( int f1 : obj1_faces) {             // go through all face-face pairs
@@ -98,7 +99,7 @@ void process_face_obj_contacts(     Polytope &obj1, Polytope &obj2, vec3 &dir
 
 //find a face of obj1 that touches obj2
 //return it and its neighbors by adding their indices to a list
-void get_face_obj_contacts( Polytope &obj1, Polytope &obj2, vec3 &dir, std::vector<int>& obj_faces ) {
+void get_face_obj_contacts( Polytope &obj1, Polytope &obj2, vec3 &dir, vint& obj_faces ) {
     for( int f = 0; f < obj1.m_faces.size(); ++f ) {
         Face &face = obj1.m_faces[f];
         if( sat( face, obj2, dir ) ) {              //find the first face from obj1 that touches obj2
@@ -113,8 +114,8 @@ void get_face_obj_contacts( Polytope &obj1, Polytope &obj2, vec3 &dir, std::vect
 
 //neighboring faces algorithm
 void neighboring_faces( Polytope &obj1, Polytope &obj2, vec3 &dir, std::set<contact> & contacts ) {
-    std::vector<int> obj1_faces;
-    std::vector<int> obj2_faces;
+    vint obj1_faces;
+    vint obj2_faces;
 
     get_face_obj_contacts(obj1, obj2, dir, obj1_faces );    //get list of faces from obj1 that touch obj2
     get_face_obj_contacts(obj2, obj1, dir, obj2_faces );    //get list of faces from obj2 that touch obj1

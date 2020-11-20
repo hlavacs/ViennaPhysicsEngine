@@ -36,7 +36,7 @@ bool sat_axis_test( ICollider &obj1, ICollider &obj2, vec3 &dir ) {
 //choose N random directions to find SA
 //returns true if a separating axis was found (i.e. objects are NOT in contact), else false
 bool sat_random_test( ICollider &obj1, ICollider &obj2, vec3 &dir) {
-    static std::vector<vec3> random_axes;   //Fibonacci sphere
+    static vvec3 random_axes;   //Fibonacci sphere
     if( random_axes.empty()) {
         float phi = (float)(M_PI * (3. - std::sqrt(5.)));  // golden angle in radians
 
@@ -115,8 +115,8 @@ bool sat_faces_test( Polytope &obj1, Polytope &obj2, vec3 &dir ) {
 //returns true if a separating axis was found (i.e. objects are NOT in contact), else false
 template<typename T>
 bool sat_edges_test( T &obj1, T &obj2, vec3 &dir ) {
-    std::vector<vec3> edges1;
-    std::vector<vec3> edges2;
+    vvec3 edges1;
+    vvec3 edges2;
     obj1.edge_vectorsW( edges1 );
     obj2.edge_vectorsW( edges2 );
 
