@@ -3,11 +3,15 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 
+#include "glm/glm/glm.hpp"
+#include "glm/glm/ext.hpp"
+
 using namespace glm;
+
+#include <vector>
 
 #include "define.h"
 #include "pluecker.h"
-
 
 
 struct ICollider {
@@ -170,12 +174,10 @@ struct PolytopePart : ICollider {
 
 
 struct VertexData {
-    int              m_index;       //index of this vertex
-    std::vector<int> m_faces;       //indices of all faces of this vertex
-    std::vector<int> m_neighbors;   //indices of all vertex neighbors of this vertex
-    VertexData(int i, std::vector<int> f, std::vector<int> ne) 
-        : m_index(i), m_faces(f), m_neighbors(ne) {}
-    VertexData & operator=(const VertexData & v) = default;
+    int  m_index;       //index of this vertex
+    vint m_neighbors;   //indices of all vertex neighbors of this vertex
+    VertexData(int i, vint& ne) : m_index(i), m_neighbors(ne) {}
+    VertexData(int i, vint&& ne) : m_index(i), m_neighbors(ne) {}
 };
 
 
@@ -187,24 +189,23 @@ struct Vertex : PolytopePart {
     vec3                m_pointL;
 
     Vertex(Polytope* p, const VertexData *d, vec3 pointL ) : PolytopePart(), m_polytope(p), m_data(d), m_pointL(pointL) {}
-    Vertex & operator=(const Vertex & v) = default;
-    vec3 pointL() { return m_pointL; };
-    vec3 pointW();
-    const std::vector<int> & get_vertex_neighbors() const { assert(m_data!=nullptr); return m_data->m_neighbors;};
-    pluecker_point plueckerW();
-    vec3 support(vec3 dir);
+    
+    vec3            pointL() { return m_pointL; };
+    vec3            pointW();
+    const vint &    neighbors() const { assert(m_data!=nullptr); return m_data->m_neighbors;};
+    pluecker_point  plueckerW() { return { pointW(), 1.0f}; };
+    vec3            support(vec3 dir) { return pointW(); }
 };
 
 
 struct FaceData {
-    int              m_index;
-    std::vector<int> m_vertices;          //indices of all vertices of this face
-    std::vector<int> m_normal_vertices;   //indices of the points to use to compute the normal of this face
-    std::vector<int> m_neighbors;         //indices of the faces that are neighbors of this face
+    int  m_index;
+    vint m_vertices;          //indices of all vertices of this face
+    vint m_normal_vertices;   //indices of the points to use to compute the normal of this face
+    vint m_neighbors;         //indices of the faces that are neighbors of this face
 
-    FaceData(int i, std::vector<int> v, std::vector<int> n, std::vector<int> ne )
-         : m_index(i), m_vertices(v), m_normal_vertices(n), m_neighbors(ne) {}
-    FaceData & operator=(const FaceData & v) = default;
+    FaceData(int i, vint& v, vint& n, vint& ne ) : m_index(i), m_vertices(v), m_normal_vertices(n), m_neighbors(ne) {}
+    FaceData(int i, vint&& v, vint&& n, vint&& ne ) : m_index(i), m_vertices(v), m_normal_vertices(n), m_neighbors(ne) {}
 };
 
 
@@ -220,13 +221,13 @@ struct Face  : PolytopePart {
         return std::find( std::begin(dm), std::end(dm), v) != std::end(dm);
     }
 
-    vec3 normalW() const;
-    void pointsW( std::vector<vec3> &points ) const;
-    void edge_vectorsW( std::vector<vec3> & vectors ) const ;
-    void get_edgesW( std::vector<Line> & edges );
-    const std::vector<int> & neighbors() const { return m_data->m_neighbors; }
-    pluecker_plane plueckerW();
-    vec3 support(vec3 dir);
+    vec3            normalW() const;
+    void            pointsW( vvec3 &points ) const;
+    void            edge_vectorsW( vvec3 &vectors ) const;
+    void            edgesW( std::vector<Line> & edges ) const;
+    const vint &    neighbors() const { return m_data->m_neighbors; }
+    pluecker_plane  plueckerW() const;
+    vec3            support(vec3 dir);
 };
 
 
@@ -237,17 +238,32 @@ struct Polytope : Collider {
 
     Polytope( vec3 pos = {0,0,0}, mat3 matRS = mat3(1.0f) ) : Collider(pos, matRS) {}
 
-    Polytope( std::vector<vec3>& points, vec3 pos = {0,0,0}, mat3 matRS = mat3(1.0f) ) : Collider(pos, matRS) {
+    Polytope( vvec3& points, vec3 pos = {0,0,0}, mat3 matRS = mat3(1.0f) ) : Collider(pos, matRS) {
         for( const auto& p : points ) m_vertices.emplace_back(  this, nullptr, p );
     }
 
-    Polytope(     const std::vector<vec3>& points
+    Polytope(     const vvec3& points
                 , const std::vector<VertexData>& vertex_data
                 , const std::vector<FaceData>& face_data 
                 , vec3 pos = {0,0,0}, mat3 matRS = mat3(1.0f) ) : Collider(pos, matRS) {
         int i=0;
         for( auto &v : vertex_data ) m_vertices.emplace_back( this, &v, points[i++] );
         for( auto &f : face_data )   m_faces.emplace_back( this, &f );
+    }
+
+    Vertex & vertex( int v) { return m_vertices[v]; }
+    Face &   face( int f ) { return m_faces[f]; }
+
+    void edge_vectorsW( vvec3 & vectors) const {
+        for( auto & face : m_faces ) {
+            face.edge_vectorsW( vectors );
+        }
+    }
+
+    void edgesW( std::vector<Line> & edges ) {
+        for( auto & face : m_faces ) {
+            face.edgesW( edges );
+        }
     }
 
     vec3 support(vec3 dir) {
@@ -273,33 +289,16 @@ struct Polytope : Collider {
         vec3 result = m_matRS*furthest_point + m_pos; //convert support to world space
         return result;
     }
-
-    Vertex & vertex( int v) { return m_vertices[v]; }
-
-    Face & face( int f ) { return m_faces[f]; }
-
-    void edge_vectorsW( std::vector<vec3> & vectors) const {
-        for( auto & face : m_faces ) {
-            face.edge_vectorsW( vectors );
-        }
-    }
-
-    void edgesW( std::vector<Line> & edges ) {
-        for( auto & face : m_faces ) {
-            face.get_edgesW( edges );
-        }
-    }
-
 };
 
 
 struct Tetrahedron : Polytope {
 
     const static inline std::vector<VertexData> m_vertices_data =  //4 vertices, each is member of 3 faces and has 3 neighbors
-                        {       VertexData{ 0, {0,1,3}, {1,2,3} }  //0
-							, 	VertexData{ 1, {0,1,2}, {0,2,3} }  //1
-							, 	VertexData{ 2, {0,2,3}, {0,1,3} }  //2
-							, 	VertexData{ 3, {1,2,3}, {0,1,2} }  //3
+                        {       VertexData{ 0, {1,2,3} }  //0
+							, 	VertexData{ 1, {0,2,3} }  //1
+							, 	VertexData{ 2, {0,1,3} }  //2
+							, 	VertexData{ 3, {0,1,2} }  //3
                         };
 
 	const static inline std::vector<FaceData> m_faces_data =  //4 faces, each has 3 vertices (clockwise), 4 vertices for computing normals, 3 neighbor faces
@@ -309,7 +308,7 @@ struct Tetrahedron : Polytope {
                         ,   FaceData{ 3, {2,3,0}, {3,2,0,2}, {0,1,2} }  //3
                     };
 
-    const static inline std::vector<vec3> m_points_data = {{-1,0,0},{1,0,0},{0,0,1},{0,1,0.5}};
+    const static inline vvec3 m_points_data = {{-1,0,0},{1,0,0},{0,0,1},{0,1,0.5}};
 
     Tetrahedron()  : Polytope( m_points_data, m_vertices_data, m_faces_data ) {}
 
@@ -339,14 +338,14 @@ struct Box : Polytope {
                                 //every vertex is member of 3 faces and has 3 neighbors
     const static inline std::vector<VertexData> m_vertices_data = 
                         { 
-                                VertexData{ 0, {0,2,4}, {1,2,4} }   // 0  
-							, 	VertexData{ 1, {1,2,4}, {0,3,5} }   // 1
-							, 	VertexData{ 2, {0,2,5}, {0,3,6} }   // 2
-							, 	VertexData{ 3, {1,2,5}, {1,2,7} }   // 3
-                            ,   VertexData{ 4, {0,3,4}, {0,5,6} }   // 4
-							, 	VertexData{ 5, {1,3,4}, {1,4,7} }   // 5
-							, 	VertexData{ 6, {0,3,5}, {2,4,7} }   // 6
-							, 	VertexData{ 7, {1,3,5}, {3,5,6} }   // 7
+                                VertexData{ 0, {1,2,4} }   // 0  
+							, 	VertexData{ 1, {0,3,5} }   // 1
+							, 	VertexData{ 2, {0,3,6} }   // 2
+							, 	VertexData{ 3, {1,2,7} }   // 3
+                            ,   VertexData{ 4, {0,5,6} }   // 4
+							, 	VertexData{ 5, {1,4,7} }   // 5
+							, 	VertexData{ 6, {2,4,7} }   // 6
+							, 	VertexData{ 7, {3,5,6} }   // 7
 						};
 
                         //6 faces, each having 4 vertices (clockwise), 4 vertices for computing normals, 4 neighbor faces
@@ -359,11 +358,11 @@ struct Box : Polytope {
                     ,   FaceData{ 5, {2,3,6,7}, {7,3,2,3}, {0,1,2,3} }   //5
                     };
 
-    const static inline std::vector<vec3> m_points_data = //3D coordinates in local space
+    const static inline vvec3 m_points_data = //3D coordinates in local space
                     {   vec3(-0.5f, -0.5f, -0.5f), vec3(0.5f, -0.5f, -0.5f)
-                    ,   vec3(-0.5f, -0.5f, 0.5f), vec3(0.5f, -0.5f, 0.5f)
+                    ,   vec3(-0.5f, -0.5f, 0.5f),  vec3(0.5f, -0.5f, 0.5f)
                     ,   vec3(-0.5f,  0.5f, -0.5f), vec3(0.5f,  0.5f, -0.5f)
-                    ,   vec3(-0.5f,  0.5f, 0.5f), vec3(0.5f,  0.5f, 0.5f)
+                    ,   vec3(-0.5f,  0.5f, 0.5f),  vec3(0.5f,  0.5f, 0.5f)
                     };
 
     Box( vec3 pos = vec3(0.0f, 0.0f, 0.0f), mat3 matRS = mat3(1.0f) )  
@@ -378,7 +377,7 @@ struct Quad3D : Box {
         vec3 d0 = p2 - p0;
         vec3 d1 = p1 - p0;
         vec3 up = EPS * normalize( cross( d0,  d1) );
-        std::vector<vec3> points = {p0, p1, p2, p3, p0 + up, p1 + up, p2 + up, p3 + up};
+        vvec3 points = {p0, p1, p2, p3, p0 + up, p1 + up, p2 + up, p3 + up};
         int i = 0;
         for( auto& vertex : m_vertices ) vertex.m_pointL = points[i++];
     };
@@ -389,7 +388,7 @@ struct Quad3D : Box {
 //the polgon has a 3D body but is infinitely thin
 //can be used with GJK
 struct Polygon3D : Polytope {
-    Polygon3D( std::vector<vec3>& points ) : Polytope() {
+    Polygon3D( vvec3& points ) : Polytope() {
         vec3 d0 = points[2] - points[0];
         vec3 d1 = points[1] - points[0];
         vec3 up = EPS * normalize( cross( d0,  d1) );
@@ -408,14 +407,6 @@ vec3 Vertex::pointW() {
     return m_polytope->m_matRS * pointL() + m_polytope->m_pos;
 }
 
-pluecker_point Vertex::plueckerW() { 
-    return { pointW(), 1.0f}; 
-};
-
-vec3 Vertex::support(vec3 dir) {
-    return pointW(); //convert support to world space
-}
-
 //get the normal of the face
 vec3 Face::normalW() const {
     auto &n = m_data->m_normal_vertices;
@@ -427,14 +418,14 @@ vec3 Face::normalW() const {
 }
 
 //return a list with the coordinates of the vertices of a given face in world coordinates
-void Face::pointsW( std::vector<vec3> &points ) const {
+void Face::pointsW( vvec3 &points ) const {
     for( auto i : m_data->m_vertices) {
         points.push_back( m_polytope->m_vertices[i].pointW() );
     }
 }
 
 //return a list of vectors going along the edges of the face
-void Face::edge_vectorsW( std::vector<vec3> &vectors ) const {
+void Face::edge_vectorsW( vvec3 &vectors ) const {
     int v0 = m_data->m_vertices.back();
     for( int v : m_data->m_vertices ) {
         vectors.push_back( m_polytope->m_vertices[v].pointW() - m_polytope->m_vertices[v0].pointW() );
@@ -443,7 +434,7 @@ void Face::edge_vectorsW( std::vector<vec3> &vectors ) const {
 }
 
 //return a list of edges of this face
-void Face::get_edgesW( std::vector<Line> & edges ) {
+void Face::edgesW( std::vector<Line> & edges ) const {
     int v0 = m_data->m_vertices.back();
     for( int v : m_data->m_vertices ) {
         edges.emplace_back( m_polytope->m_vertices[v0].pointW(), m_polytope->m_vertices[v].pointW() );
@@ -451,7 +442,7 @@ void Face::get_edgesW( std::vector<Line> & edges ) {
     }
 }
 
-pluecker_plane Face::plueckerW() {
+pluecker_plane Face::plueckerW() const {
     vec3 q = m_polytope->m_vertices[m_data->m_vertices[0]].pointW();
     vec3 normal = normalW();
     return { normal, -1.0f * dot( normal, q)};
@@ -472,11 +463,5 @@ vec3 Face::support(vec3 dir) {
 }
 
 
-//Polytope functions
-
-
-
-
-//-------------------------------------------------------------------------------------
 
 
