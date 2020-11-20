@@ -17,7 +17,9 @@ int main() {
 
 	Line3D line{ {0.f,0.f, -1.f}, {0.f,0.0f,1.f} };
 
-	Tetrahedron tet{ {-1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.5f} };
+	Tetrahedron tet( {-1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.5f}  );
+	Tetrahedron tet2();
+
 	Triangle3D tri{ {-1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f} };
 
 	Box ground{ {0.0f, -50.0f, 0.0f}, scale( mat4(1.0f), vec3(100.0f, 100.0f, 100.0f)) };
@@ -35,12 +37,7 @@ int main() {
 	auto pl = pluecker_line( {7,8,9}, p1 );
 	auto ppl = pluecker_plane( {7,8,9}, 3 );
 
-	auto n0 = box.get_face_normalW(0);
-	auto n1 = box.get_face_normalW(1);
-	auto n2 = box.get_face_normalW(2);
-	auto n3 = box.get_face_normalW(3);
-	auto n4 = box.get_face_normalW(4);
-	auto n5 = box.get_face_normalW(5);
+	auto n0 = box.face(0).normalW();
 
 	auto hit2 = sat( box, ground, mtv);
 
@@ -55,14 +52,7 @@ int main() {
 
 	auto hit7 = gjk( triangle, quad, mtv);
 
-	//--------------------------------------------------------------------
 
-	//get all vertex neighbors of vertex 0
-	int v = 0;
-	const std::vector<int>& neighbors = box.get_vertex_neighbors( v );
-
-	int f = 0;
-	const std::vector<int>& faces2 = box.get_face_neighbors(f);
 
 
 

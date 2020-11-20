@@ -103,7 +103,7 @@ void get_face_obj_contacts( Polytope &obj1, Polytope &obj2, vec3 &dir, std::vect
         Face &face = obj1.m_faces[f];
         if( sat( face, obj2, dir ) ) {              //find the first face from obj1 that touches obj2
             obj_faces.push_back(f);                    //insert into result list
-            auto& neighbors = obj1.get_face_neighbors(f);
+            auto& neighbors = face.neighbors();
             std::copy( std::begin(neighbors), std::end(neighbors), std::back_inserter(obj_faces) );   //also insert its neighbors
             return;
         }

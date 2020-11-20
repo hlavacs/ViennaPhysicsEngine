@@ -86,9 +86,9 @@ bool sat_chung_wang_test( ICollider &obj1, ICollider &obj2, vec3 &dir, int max_l
 //SAT using the normals of 2 faces
 //returns true if a separating axis was found (i.e. objects are NOT in contact), else false
 bool sat_faces_test( Face &face1, Face &face2, vec3 &dir ) {
-    dir = face1.get_face_normalW();
+    dir = face1.normalW();
     if( sat_axis_test(face1, face2, dir ) ) return true;
-    dir = face2.get_face_normalW();
+    dir = face2.normalW();
     if( sat_axis_test(face1, face2, dir ) ) return true;
     return false;
 }
@@ -98,12 +98,12 @@ bool sat_faces_test( Face &face1, Face &face2, vec3 &dir ) {
 //returns true if a separating axis was found (i.e. objects are NOT in contact), else false
 bool sat_faces_test( Polytope &obj1, Polytope &obj2, vec3 &dir ) {
     for( auto& face : obj1.m_faces ) {
-        dir = face.get_face_normalW();
+        dir = face.normalW();
         if( sat_axis_test(obj1, obj2, dir) ) return true;
     }
 
     for( auto& face : obj2.m_faces ) {
-        dir = face.get_face_normalW();
+        dir = face.normalW();
         if( sat_axis_test(obj1, obj2, dir) ) return true;
     }
 
@@ -117,8 +117,8 @@ template<typename T>
 bool sat_edges_test( T &obj1, T &obj2, vec3 &dir ) {
     std::vector<vec3> edges1;
     std::vector<vec3> edges2;
-    obj1.get_edge_vectorsW( edges1 );
-    obj2.get_edge_vectorsW( edges2 );
+    obj1.edge_vectorsW( edges1 );
+    obj2.edge_vectorsW( edges2 );
 
     for( auto& v1 : edges1 )  {
         for( auto& v2: edges2 ) {
