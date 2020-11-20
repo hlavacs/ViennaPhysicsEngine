@@ -125,7 +125,7 @@ void neighboring_faces( Polytope &obj1, Polytope &obj2, vec3 &dir, std::set<cont
 
 //compute a list of contact points between two objects
 void  contacts( Polytope &obj1, Polytope &obj2, vec3 &dir, std::set<contact> & contacts ) {
-    if( dot(dir, dir) < 1.0e-6 ) dir = vec3(0.0f, 1.0f, 0.0f);
+    if( dot(dir, dir) < EPS ) dir = vec3(0.0f, 1.0f, 0.0f);
     neighboring_faces( obj1, obj2, dir, contacts);
 }
 

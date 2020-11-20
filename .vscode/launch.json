@@ -14,7 +14,7 @@
             "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,
-            "preLaunchTask": "C/C++: cl.exe build debug version"
+            "preLaunchTask": "C/C++: cl.exe build all debug version"
         }
     ]
 }

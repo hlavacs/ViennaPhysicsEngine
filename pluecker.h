@@ -6,6 +6,8 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 
+#include "pluecker.h"
+
 using namespace glm;
 
 //Pluecker coordinates for point, line and plane (Eric Lengyel, Foundations of Game Engine Development, Vol 1: Mathematics, 2016)
@@ -96,5 +98,7 @@ pluecker_point intersect_line_plane( pluecker_line line, pluecker_plane plane ) 
     float d = plane.d();
     return { {cross(m,n) + d*v}, -1.0f*dot(n,v) };
 }
+
+
 
 

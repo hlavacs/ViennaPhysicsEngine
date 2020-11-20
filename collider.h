@@ -4,9 +4,11 @@
 #include <cmath>
 
 using namespace glm;
+
+#include "define.h"
 #include "pluecker.h"
 
-constexpr float EPS = 1.0e-6f;
+
 
 struct ICollider {
     ICollider(){};
@@ -59,7 +61,7 @@ struct Sphere : Collider {
 //can be used with GJK
 struct Point3D : Sphere {
     Point3D( vec3 pos = vec3(0.0f, 0.0f, 0.0f) ) : Sphere(pos, EPS) {}
-    pluecker_point pluecker() { return vec4{ m_pos, 1}; };
+    pluecker_point pluecker() { return { m_pos, 1}; };
 };
 
 
@@ -67,7 +69,7 @@ struct Point3D : Sphere {
 struct Point : Collider {
     Point( vec3 p ) : Collider(p) {}
     Point & operator=(const Point & l) = default;
-    pluecker_point pluecker() { return vec4{ m_pos, 1}; };
+    pluecker_point pluecker() { return { m_pos, 1}; };
 
     vec3 support(vec3 dir) {
         return m_pos; 
@@ -111,14 +113,14 @@ struct Capsule : Collider {
 //can be used with GJK
 struct Line3D : Capsule {
     Line3D( vec3 start = vec3{0.0f, -0.5f, 0.0f}, vec3 end = vec3{0.0f, 0.5f, 0.0f}  ) 
-            : Capsule( (start + end)*0.5f, mat3(1.0), 1.0e-6f ) {
+            : Capsule( (start + end)*0.5f, mat3(1.0), EPS ) {
         vec3 vector = end - start;
         vec3 dir = normalize( vector );
         if( length(dir) < 0.9f ) return;
 
         vec3 up = {0.0f, 1.0f, 0.0f};
         vec3 naxis = cross( up, dir );
-        if( length( naxis ) < 1.0e-9 )  {
+        if( length( naxis ) < EPS )  {
             up = {1.0f, 0.0f, 0.0f};
             naxis = cross( up, dir );
         }
@@ -366,7 +368,7 @@ struct Polygon3D : Polytope {
 //Polytope parts
 
 pluecker_point Vertex::pluecker() { 
-    return vec4{ m_polytope->m_points[m_data->m_index], 1.0f}; 
+    return { m_polytope->m_points[m_data->m_index], 1.0f}; 
 };
 
 vec3 Vertex::support(vec3 dir) {

@@ -3,7 +3,7 @@
 	"tasks": [
 		{
 			"type": "cppbuild",
-			"label": "C/C++: cl.exe build release version",
+			"label": "C/C++: cl.exe build all release version",
 			"command": "cl.exe",
 			"args": [
 				"/W4",
@@ -27,7 +27,7 @@
 		},
 		{
 			"type": "cppbuild",
-			"label": "C/C++: cl.exe build debug version",
+			"label": "C/C++: cl.exe build all debug version",
 			"command": "cl.exe",
 			"args": [
 				"/MDd",

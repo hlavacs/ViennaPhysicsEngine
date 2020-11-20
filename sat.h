@@ -4,12 +4,12 @@
 
 #define _USE_MATH_DEFINES
 #include <cmath>
+#include <random>
 
 #include "glm/glm/glm.hpp"
 #include "glm/glm/ext.hpp"
 
 #include "collider.h"
-#include <random>
 
 
 constexpr int NUM_RANDOM_DIR = 32;
@@ -22,7 +22,7 @@ bool sat_axis_test( ICollider &obj1, ICollider &obj2, vec3 &dir, vec3 &r, float 
     vec3 q = obj2.support( -1.0f* (dir) );
     r = normalize(q - p); 
     d = dot( r, dir );
-    return  d > 1.0e-6f;       //allow for numerical inaccuracies
+    return  d > EPS;       //allow for numerical inaccuracies
 }
 
 bool sat_axis_test( ICollider &obj1, ICollider &obj2, vec3 &dir ) {
@@ -137,7 +137,7 @@ bool sat_edges_test( T &obj1, T &obj2, vec3 &dir ) {
 //returns true of the objects are in contact
 //else false
 bool sat( Face &face1, Face &face2, vec3 &dir ) {
-    if( dot(dir, dir) < 1.0e-6 ) dir = vec3(0.0f, 1.0f, 0.0f);
+    if( dot(dir, dir) < EPS ) dir = vec3(0.0f, 1.0f, 0.0f);
     if( sat_faces_test( face1, face2, dir ) ) return false;
     if( sat_edges_test( face1, face2, dir ) ) return false;
     return true;
@@ -148,7 +148,7 @@ bool sat( Face &face1, Face &face2, vec3 &dir ) {
 //returns true of the objects are in contact
 //else false
 bool sat( Polytope &obj1, Polytope &obj2, vec3 &dir ) {
-    if( dot(dir, dir) < 1.0e-6 ) dir = vec3(0.0f, 1.0f, 0.0f);
+    if( dot(dir, dir) < EPS ) dir = vec3(0.0f, 1.0f, 0.0f);
     if( sat_faces_test( obj1, obj2, dir ) ) return false;
     if( sat_random_test( obj1, obj2, dir ) ) return false;
     if( sat_edges_test( obj1, obj2, dir ) ) return false;
@@ -159,7 +159,7 @@ bool sat( Polytope &obj1, Polytope &obj2, vec3 &dir ) {
 //returns true of the objects are in contact
 //else false
 bool sat( ICollider &obj1, ICollider &obj2, vec3 &dir ) {
-    if( dot(dir, dir) < 1.0e-6 ) dir = vec3(0.0f, 1.0f, 0.0f);
+    if( dot(dir, dir) < EPS ) dir = vec3(0.0f, 1.0f, 0.0f);
     if( sat_chung_wang_test( obj1, obj2, dir ) ) return false;
     return true;
 }
