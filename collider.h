@@ -212,11 +212,10 @@ struct Vertex : PolytopePart {
 struct FaceData {
     int  m_index;
     vint m_vertices;          //indices of all vertices of this face
-    vint m_normal_vertices;   //indices of the points to use to compute the normal of this face
     vint m_neighbors;         //indices of the faces that are neighbors of this face
 
-    FaceData(int i, vint& v, vint& n, vint& ne ) : m_index(i), m_vertices(v), m_normal_vertices(n), m_neighbors(ne) {}
-    FaceData(int i, vint&& v, vint&& n, vint&& ne ) : m_index(i), m_vertices(v), m_normal_vertices(n), m_neighbors(ne) {}
+    FaceData(int i, vint& v, vint& ne )    : m_index(i), m_vertices(v), m_neighbors(ne) {}
+    FaceData(int i, vint&& v, vint&& ne ) : m_index(i), m_vertices(v), m_neighbors(ne) {}
 };
 
 //Face of a polytope
@@ -332,11 +331,11 @@ struct Tetrahedron : Polytope {
 							, 	VertexData{ 3, {0,1,2} }  //3
                         };
 
-	const static inline std::vector<FaceData> m_faces_data =  //4 faces, each has 3 vertices (clockwise), 4 vertices for computing normals, 3 neighbor faces
-                    {       FaceData{ 0, {0,1,2}, {1,0,2,0}, {1,2,3} }  //0
-                        ,   FaceData{ 1, {0,3,1}, {3,0,1,0}, {0,2,3} }  //1
-                        ,   FaceData{ 2, {1,3,2}, {3,1,2,1}, {0,1,3} }  //2
-                        ,   FaceData{ 3, {2,3,0}, {3,2,0,2}, {0,1,2} }  //3
+	const static inline std::vector<FaceData> m_faces_data =  //4 faces, each has 3 vertices (clockwise), 3 neighbor faces
+                    {       FaceData{ 0, {0,1,2}, {1,2,3} }  //0
+                        ,   FaceData{ 1, {0,3,1}, {0,2,3} }  //1
+                        ,   FaceData{ 2, {1,3,2}, {0,1,3} }  //2
+                        ,   FaceData{ 3, {2,3,0}, {0,1,2} }  //3
                     };
 
     const static inline vvec3 m_points_data = {{-1,0,0},{1,0,0},{0,0,1},{0,1,0.5}};
@@ -364,7 +363,7 @@ struct Triangle3D : Tetrahedron {
 
 //a box is a polytope with 8 vertices
 struct Box : Polytope {
-                                //every vertex is member of 3 faces and has 3 neighbors
+                                //every vertex has 3 neighbors
     const static inline std::vector<VertexData> m_vertices_data = 
                         { 
                                 VertexData{ 0, {1,2,4} }   // 0  
@@ -377,14 +376,14 @@ struct Box : Polytope {
 							, 	VertexData{ 7, {3,5,6} }   // 7
 						};
 
-                        //6 faces, each having 4 vertices (clockwise), 4 vertices for computing normals, 4 neighbor faces
+                        //6 faces, each having 4 vertices (clockwise), 4 neighbor faces
     const static inline std::vector<FaceData> m_faces_data =  
-                    {   FaceData{ 0, {0,2,4,6}, {6,2,0,2}, {2,3,4,5} }   //0
-                    ,   FaceData{ 1, {1,3,5,7}, {5,1,3,1}, {2,3,4,5} }   //1
-                    ,   FaceData{ 2, {0,1,2,3}, {1,0,2,0}, {0,1,4,5} }   //2
-                    ,   FaceData{ 3, {4,5,6,7}, {6,4,5,4}, {0,1,4,5} }   //3
-                    ,   FaceData{ 4, {0,1,4,5}, {4,0,1,0}, {0,1,2,3} }   //4
-                    ,   FaceData{ 5, {2,3,6,7}, {7,3,2,3}, {0,1,2,3} }   //5
+                    {   FaceData{ 0, {0,2,4,6}, {2,3,4,5} }   //0
+                    ,   FaceData{ 1, {1,3,5,7}, {2,3,4,5} }   //1
+                    ,   FaceData{ 2, {0,1,2,3}, {0,1,4,5} }   //2
+                    ,   FaceData{ 3, {4,5,6,7}, {0,1,4,5} }   //3
+                    ,   FaceData{ 4, {0,1,4,5}, {0,1,2,3} }   //4
+                    ,   FaceData{ 5, {2,3,6,7}, {0,1,2,3} }   //5
                     };
 
     const static inline vvec3 m_points_data = //3D coordinates in local space
@@ -436,12 +435,10 @@ vec3 Vertex::pointW() {
 
 //get the normal of the face
 vec3 Face::normalW() const {
-    auto &n = m_data->m_normal_vertices;
-    Vertex v0 = m_polytope->vertices()[n[0]];
-    Vertex v1 = m_polytope->vertices()[n[1]];
-    Vertex v2 = m_polytope->vertices()[n[2]];
-    Vertex v3 = m_polytope->vertices()[n[3]];
-    return cross( v0.pointW() - v1.pointW(), v2.pointW() - v3.pointW());
+    Vertex v0 = m_polytope->vertices()[0];
+    Vertex v1 = m_polytope->vertices()[1];
+    Vertex v2 = m_polytope->vertices().back();
+    return cross( v1.pointW() - v0.pointW(), v2.pointW() - v0.pointW());
 }
 
 //return a list with the coordinates of the vertices of a given face in world coordinates
