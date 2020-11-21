@@ -248,6 +248,7 @@ struct Polytope : Collider {
     protected:
     std::vector<Vertex>   m_vertices;
     std::vector<Face>     m_faces;
+    int                   m_supporting_point = -1;
 
     public:
     Polytope( vec3 pos = {0,0,0}, mat3 matRS = mat3(1.0f) ) : Collider(pos, matRS) {}
@@ -284,10 +285,12 @@ struct Polytope : Collider {
         if( m_vertices.empty()) return {0,0,0};
 
         auto dirL = dirW2L(dirW);
-        vec3 furthest_point = m_vertices[0].pointL(); 
-        float max_dot = dot(furthest_point, dirL);
+        vec3 furthest_point; 
+        float max_dot;
 
-        if( true ) {
+        if( m_vertices[0].neighbors().empty() ) {
+            furthest_point = m_vertices[0].pointL();
+            max_dot = dot(furthest_point, dirL);
             std::for_each(  std::begin(m_vertices), std::end(m_vertices), 
                             [&]( auto &vertex) {
                                 float d = dot(vertex.pointL(), dirL);
@@ -298,6 +301,22 @@ struct Polytope : Collider {
                             } );
         } else {
             //ADD YOUR CODE HERE TO ITERATE THROUGH NEIGHBORS rather than iterate through all points
+            m_supporting_point = m_supporting_point>=0 ? m_supporting_point : 0;
+            furthest_point = m_vertices[m_supporting_point].pointL(); 
+            max_dot = dot(furthest_point, dirL);
+            int maxi = m_supporting_point;
+
+            do {
+                m_supporting_point = maxi;
+                for( auto& nei : m_vertices[m_supporting_point].neighbors() ) {
+                    float d = dot(m_vertices[nei].pointL(), dirL);
+                    if(d>max_dot){
+                        max_dot = d;
+                        furthest_point = m_vertices[nei].pointL();
+                        maxi = nei;
+                    }
+                }
+            } while( maxi != m_supporting_point );
         }
 
         return posL2W(furthest_point);
