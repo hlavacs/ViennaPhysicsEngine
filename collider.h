@@ -22,15 +22,20 @@ struct ICollider {
 
 //Base struct for all collision shapes
 struct Collider : ICollider {
+    protected:
     vec3    m_pos;            //origin in world space
     mat3    m_matRS;          //rotation/scale component of model matrix
     mat3    m_matRS_inverse; 
 
+    public:
     Collider( vec3 p = {0,0,0}, mat3 m = mat3(1.f) ) : ICollider() {
         m_pos = p;
         m_matRS = m;
         m_matRS_inverse = inverse( m );
     };
+    vec3 &pos(){ return m_pos; }
+    mat3 &matRS() { return m_matRS; };
+    mat3 &matRS_inverse() { return m_matRS_inverse; };
 };
 
 //BBox: AABB + Orientation matrix
@@ -263,6 +268,8 @@ struct Polytope : Collider {
     std::vector<Face>&     faces() { return m_faces; };
     Vertex & vertex( int v) { return m_vertices[v]; }
     Face &   face( int f ) { return m_faces[f]; }
+    vec3 toW( vec3 vL ){ return m_matRS * vL + m_pos; }
+    vec3 toL( vec3 vW ){ return m_matRS_inverse * ( vW - m_pos ); }
 
     //return the edges of this polytope, include each edge only once
     void edgesW( std::vector<Line> & edges ) {
@@ -405,7 +412,7 @@ struct Polygon3D : Polytope {
 
 //return the position of a vertex in world coordinates
 vec3 Vertex::pointW() {
-    return m_polytope->m_matRS * pointL() + m_polytope->m_pos ;
+    return m_polytope->matRS() * pointL() + m_polytope->pos() ;
 }
 
 //get the normal of the face
@@ -447,7 +454,7 @@ pluecker_plane Face::plueckerW() const {
 
 //suport function for the face
 vec3 Face::support(vec3 dir) {
-    dir = m_polytope->m_matRS_inverse*dir; //find support in model space
+    dir = m_polytope->matRS_inverse()*dir; //find support in model space
     vec3 maxL = m_polytope->vertices()[0].pointL();
     float max = dot( dir, maxL );
     for( auto i : m_data->m_vertices ) {
@@ -457,7 +464,7 @@ vec3 Face::support(vec3 dir) {
             max = d;
         }
     }
-    return m_polytope->m_matRS * maxL + m_polytope->m_pos; //convert support to world space
+    return m_polytope->matRS() * maxL + m_polytope->pos(); //convert support to world space
 }
 
 

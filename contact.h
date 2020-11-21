@@ -51,7 +51,7 @@ void process_vertex_face_contact( Vertex &vertex, Face &face, std::set<contact> 
         face.edgesW( edges );
         for( auto &edge : edges ) {
             auto pp = vertex.plueckerW();
-            pluecker_plane plane( edge.m_pos + face.normalW(), edge.plueckerW() );
+            pluecker_plane plane( edge.pos() + face.normalW(), edge.plueckerW() );
             if( dot( vec4{pp}, vec4{plane}) <= 0.0f ) return;
         }
     }

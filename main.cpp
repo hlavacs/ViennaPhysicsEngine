@@ -27,7 +27,7 @@ int main() {
 	vec3 mtv(0,1,0); //minimum translation vector
 	auto hit1 = gjk( box, ground, mtv);
 
-	box.m_pos += mtv;
+	box.pos() += mtv;
 	std::set<contact> ct;
 	contacts( box, ground, mtv, ct);
 
