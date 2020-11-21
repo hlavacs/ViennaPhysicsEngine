@@ -13,3 +13,6 @@ using vint = std::vector<int>;
 using vvec3 = std::vector<vec3>;
 using vvec4 = std::vector<vec4>;
 
+using ipair = std::pair<int,int>;
+
+

@@ -238,7 +238,7 @@ struct Face  : PolytopePart {
     const vint &    neighbors() const { return m_data->m_neighbors; }
     vec3            normalW() const;
     void            pointsW( vvec3 &points ) const;
-    void            edgesW( std::vector<Line> & edges, std::set<std::pair<int,int>> *pairs = nullptr ) const;
+    void            edgesW( std::vector<Line> & edges, std::set<ipair> *pairs = nullptr ) const;
     pluecker_plane  plueckerW() const;
     vec3            support(vec3 dir);
 };
@@ -274,7 +274,7 @@ struct Polytope : Collider {
 
     //return the edges of this polytope, include each edge only once
     void edgesW( std::vector<Line> & edges ) {
-        std::set<std::pair<int,int>> pairs;
+        std::set<ipair> pairs;
         for( auto & face : m_faces ) {
             face.edgesW( edges, &pairs );
         }
@@ -434,7 +434,7 @@ void Face::pointsW( vvec3 &points ) const {
 
 //return a list of edges of this face
 //if pairs ppoints to a set, make sure that each edge is included only once
-void Face::edgesW( std::vector<Line> & edges, std::set<std::pair<int,int>> *pairs  ) const {
+void Face::edgesW( std::vector<Line> & edges, std::set<ipair> *pairs  ) const {
     int v0 = vertices().back();
     for( int v : vertices() ) {
         if( pairs==nullptr || !pairs->contains(std::make_pair(v0, v)) ) {

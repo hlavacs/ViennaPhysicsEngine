@@ -16,18 +16,20 @@
 #include "collider.h"
 #include "sat.h"
 
-using vec3pair = std::pair<vec3,vec3>;
 
 
+//a contact stores a contact point between two objects
+//normal is the contact normal pointing away from obj2
 struct contact {
     Polytope *obj1;    
     Polytope *obj2;    
     vec3 pos;
     vec3 normal;
 
-    bool operator <(const contact& c) const;
+    bool operator <(const contact& c) const; //need this for std::set
 };
 
+//define a hash for struct contact
  template<>
  struct std::hash<contact> {
     size_t operator()(const contact& c) {
@@ -37,6 +39,7 @@ struct contact {
  };
 
 
+//operator< uses hash values for contacts
 bool contact::operator <(const contact& c) const {
     return std::hash<contact>()(*this) < std::hash<contact>()(c);
 }
@@ -58,14 +61,20 @@ void process_vertex_face_contact( Vertex &vertex, Face &face, std::set<contact> 
     contacts.insert( { vertex.polytope(), face.polytope(), vertex.pointW(), face.normalW() }  );
 }
 
+//process a possible edge-edge contact
+//first test whether both lines are in contact
+//then get the intersection between the edge face and the other edge line -> point
+//Finally test whether the contact point is inside both line segments
 void process_edge_edge_contact( Face &face1, Line &edge1, Face &face2, Line &edge2, std::set<contact> & contacts) {
     if( distance_line_line(edge1.plueckerW(), edge2.plueckerW()) < EPS ) {
-        auto point = intersect_line_plane( edge2.plueckerW(), face1.plueckerW()).p3D();
-        float t1 = edge1.t( point);
+        pluecker_point point = intersect_line_plane( edge2.plueckerW(), face1.plueckerW()).p3D();
+        if( std::abs(point.w()) < EPS ) return; // if 0 then both are parallel
+        vec3 p3D = point.p3D();
+        float t1 = edge1.t(p3D);
         if( 0.0f<=t1 && t1<=1.0f) {
-            float t2 = edge2.t( point);
+            float t2 = edge2.t(p3D);
             if( 0.0f<=t2 && t2<=1.0f) {
-                contacts.insert( { face1.polytope(), face2.polytope(), point, face1.normalW() }  );
+                contacts.insert( { face1.polytope(), face2.polytope(), p3D, face2.normalW() }  );
             }
         }
     }
