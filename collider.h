@@ -35,22 +35,25 @@ struct Collider : ICollider {
     };
     vec3 &pos(){ return m_pos; }
     mat3 &matRS() { return m_matRS; };
-    mat3 &matRS_inverse() { return m_matRS_inverse; };
+    mat3 &matRS_inverse() { return m_matRS_inverse; };    
+    vec3 posL2W( vec3 posL ){ return m_matRS * posL + m_pos; }
+    vec3 posW2L( vec3 posW ){ return m_matRS_inverse * ( posW - m_pos ); }
+    vec3 dirW2L( vec3 dirW ){ return m_matRS_inverse * dirW; }
 };
 
 //BBox: AABB + Orientation matrix
 struct BBox : Collider {
     vec3 m_min, m_max; //Assume these are axis aligned!
 
-    vec3 support(vec3 dir){
-        dir = m_matRS_inverse*dir; //find support in model space
+    vec3 support(vec3 dirW){
+        auto dirL = dirW2L(dirW); //find support in model space
 
         vec3 result;
-        result.x = (dir.x>0) ? m_max.x : m_min.x;
-        result.y = (dir.y>0) ? m_max.y : m_min.y;
-        result.z = (dir.z>0) ? m_max.z : m_min.z;
+        result.x = (dirL.x>0) ? m_max.x : m_min.x;
+        result.y = (dirL.y>0) ? m_max.y : m_min.y;
+        result.z = (dirL.z>0) ? m_max.z : m_min.z;
 
-        return m_matRS*result + m_pos; //convert support to world space
+        return posL2W(result); //convert support to world space
     }
 };
 
@@ -60,8 +63,8 @@ struct Sphere : Collider {
 
     Sphere( vec3 pos = vec3(0.0f, 0.0f, 0.0f), float radius = 1.0f) : Collider(pos, mat3(1.0f)), m_r(radius) {};
 
-    vec3 support(vec3 dir){
-        return normalize(dir)*m_r + m_pos;
+    vec3 support(vec3 dirW){
+        return normalize(dirW)*m_r + m_pos;
     }
 };
 
@@ -78,7 +81,7 @@ struct Point : Collider {
     Point & operator=(const Point & l) = default;
     pluecker_point plueckerW() { return { m_pos, 1}; };
 
-    vec3 support(vec3 dir) {
+    vec3 support(vec3 dirW) {
         return m_pos; 
     }
 };
@@ -87,12 +90,12 @@ struct Point : Collider {
 struct Cylinder : Collider {
     float m_r, m_y_base, m_y_cap;
 
-    vec3 support(vec3 dir){
-        dir = m_matRS_inverse*dir; //find support in model space
-        vec3 dir_xz = vec3(dir.x, 0, dir.z);
+    vec3 support(vec3 dirW){
+        auto dirL = dirW2L(dirW); //find support in model space
+        vec3 dir_xz = vec3(dirL.x, 0, dirL.z);
         vec3 result = normalize(dir_xz)*m_r;
-        result.y = (dir.y>0) ? m_y_cap : m_y_base;
-        return m_matRS*result + m_pos; //convert support to world space
+        result.y = (dirL.y>0) ? m_y_cap : m_y_base;
+        return posL2W(result); //convert support to world space
     }
 };
 
@@ -104,11 +107,11 @@ struct Capsule : Collider {
             ,   float radius = 0.2f, float yb = -0.5f, float yc = 0.5 ) 
                     : Collider( pos, matRS ), m_r(radius), m_y_base(yb), m_y_cap(yc)  {}
 
-    vec3 support(vec3 dir){
-        dir = m_matRS_inverse*dir; //find support in model space
-        vec3 result = normalize(dir)*m_r;
-        result.y += (dir.y>0) ? m_y_cap : m_y_base;
-        return m_matRS*result + m_pos; //convert support to world space
+    vec3 support(vec3 dirW){
+        auto dirL = dirW2L(dirW); //find support in model space
+        vec3 result = normalize(dirL)*m_r;
+        result.y += (dirL.y>0) ? m_y_cap : m_y_base;
+        return posL2W(result); //convert support to world space
     }
 };
 
@@ -165,10 +168,10 @@ struct Line : Collider {
         return d.z / m_dir.z;
     }
 
-    vec3 support(vec3 dir) {
-        dir = m_matRS_inverse*dir; //find support in model space
-        vec3 result = dot( dir, m_dir ) < 0.0f ?  vec3{0,0,0} : m_dir;
-        return m_matRS*result + m_pos; //convert support to world space
+    vec3 support(vec3 dirW) {
+        auto dirL = dirW2L(dirW); //find support in model space
+        vec3 result = dot( dirL, m_dir ) < 0.0f ?  vec3{0,0,0} : m_dir;
+        return posL2W(result); //convert support to world space
     }
 };
 
@@ -268,8 +271,6 @@ struct Polytope : Collider {
     std::vector<Face>&     faces() { return m_faces; };
     Vertex & vertex( int v) { return m_vertices[v]; }
     Face &   face( int f ) { return m_faces[f]; }
-    vec3 toW( vec3 vL ){ return m_matRS * vL + m_pos; }
-    vec3 toL( vec3 vW ){ return m_matRS_inverse * ( vW - m_pos ); }
 
     //return the edges of this polytope, include each edge only once
     void edgesW( std::vector<Line> & edges ) {
@@ -279,17 +280,17 @@ struct Polytope : Collider {
         }
     }
 
-    vec3 support(vec3 dir) {
+    vec3 support(vec3 dirW) {
         if( m_vertices.empty()) return {0,0,0};
 
-        dir = m_matRS_inverse*dir;
+        auto dirL = dirW2L(dirW);
         vec3 furthest_point = m_vertices[0].pointL(); 
-        float max_dot = dot(furthest_point, dir);
+        float max_dot = dot(furthest_point, dirL);
 
         if( true ) {
             std::for_each(  std::begin(m_vertices), std::end(m_vertices), 
                             [&]( auto &vertex) {
-                                float d = dot(vertex.pointL(), dir);
+                                float d = dot(vertex.pointL(), dirL);
                                 if(d>max_dot){
                                     max_dot = d;
                                     furthest_point = vertex.pointL();
@@ -299,8 +300,7 @@ struct Polytope : Collider {
             //ADD YOUR CODE HERE TO ITERATE THROUGH NEIGHBORS rather than iterate through all points
         }
 
-        vec3 result = m_matRS*furthest_point + m_pos; //convert support to world space
-        return result;
+        return posL2W(furthest_point);
     }
 };
 
@@ -453,18 +453,18 @@ pluecker_plane Face::plueckerW() const {
 }
 
 //suport function for the face
-vec3 Face::support(vec3 dir) {
-    dir = m_polytope->matRS_inverse()*dir; //find support in model space
+vec3 Face::support(vec3 dirW) {
+    auto dirL = m_polytope->dirW2L(dirW); //find support in model space
     vec3 maxL = m_polytope->vertices()[0].pointL();
-    float max = dot( dir, maxL );
+    float max = dot( dirL, maxL );
     for( auto i : m_data->m_vertices ) {
-        float d = dot( dir, m_polytope->vertices()[i].pointL() );
+        float d = dot( dirL, m_polytope->vertices()[i].pointL() );
         if( d > max ) {
             maxL = m_polytope->vertices()[i].pointL();
             max = d;
         }
     }
-    return m_polytope->matRS() * maxL + m_polytope->pos(); //convert support to world space
+    return m_polytope->posL2W(maxL); //convert support to world space
 }
 
 
