@@ -149,6 +149,17 @@ struct Line : Collider {
         return { dir, cross( m_pos, m_pos + dir) }; 
     };
 
+    float t( vec3 point ) {     //point = pos + t dir
+        vec3 d = point - m_pos;
+        float t0;
+        if( std::abs(m_dir.x)>std::abs(m_dir.y) && std::abs(m_dir.x)>std::abs(m_dir.z)) {
+            return d.x / m_dir.x;
+        } else if( std::abs(m_dir.y)>std::abs(m_dir.z)) {
+            return d.y / m_dir.y;
+        }
+        return d.z / m_dir.z;
+    }
+
     vec3 support(vec3 dir) {
         dir = m_matRS_inverse*dir; //find support in model space
         vec3 result = dot( dir, m_dir ) < 0.0f ?  vec3{0,0,0} : m_dir;
@@ -202,9 +213,11 @@ struct FaceData {
 
 //Face of a polytope
 struct Face  : PolytopePart {
+    protected:
     Polytope*        m_polytope;
     const FaceData * m_data;
 
+    public:
     Face(Polytope* p, const FaceData *d) : PolytopePart(), m_polytope(p), m_data(d) {}
 
     bool contains_vertex(int v ) const {
@@ -217,17 +230,18 @@ struct Face  : PolytopePart {
     const vint &    neighbors() const { return m_data->m_neighbors; }
     vec3            normalW() const;
     void            pointsW( vvec3 &points ) const;
-    void            edge_vectorsW( vvec3 &vectors ) const;
-    void            edgesW( std::vector<Line> & edges ) const;
+    void            edgesW( std::vector<Line> & edges, std::set<std::pair<int,int>> *pairs = nullptr ) const;
     pluecker_plane  plueckerW() const;
     vec3            support(vec3 dir);
 };
 
 //Polytope: Just a set of points plus adjencency information
 struct Polytope : Collider {
+    protected:
     std::vector<Vertex>   m_vertices;
     std::vector<Face>     m_faces;
 
+    public:
     Polytope( vec3 pos = {0,0,0}, mat3 matRS = mat3(1.0f) ) : Collider(pos, matRS) {}
 
     Polytope( vvec3& points, vec3 pos = {0,0,0}, mat3 matRS = mat3(1.0f) ) : Collider(pos, matRS) {
@@ -250,15 +264,11 @@ struct Polytope : Collider {
     Vertex & vertex( int v) { return m_vertices[v]; }
     Face &   face( int f ) { return m_faces[f]; }
 
-    void edge_vectorsW( vvec3 & vectors) const {
-        for( auto & face : m_faces ) {
-            face.edge_vectorsW( vectors );
-        }
-    }
-
+    //return the edges of this polytope, include each edge only once
     void edgesW( std::vector<Line> & edges ) {
+        std::set<std::pair<int,int>> pairs;
         for( auto & face : m_faces ) {
-            face.edgesW( edges );
+            face.edgesW( edges, &pairs );
         }
     }
 
@@ -393,6 +403,7 @@ struct Polygon3D : Polytope {
 
 //Polytope parts
 
+//return the position of a vertex in world coordinates
 vec3 Vertex::pointW() {
     return m_polytope->m_matRS * pointL() + m_polytope->m_pos ;
 }
@@ -400,52 +411,49 @@ vec3 Vertex::pointW() {
 //get the normal of the face
 vec3 Face::normalW() const {
     auto &n = m_data->m_normal_vertices;
-    Vertex v0 = m_polytope->m_vertices[n[0]];
-    Vertex v1 = m_polytope->m_vertices[n[1]];
-    Vertex v2 = m_polytope->m_vertices[n[2]];
-    Vertex v3 = m_polytope->m_vertices[n[3]];
+    Vertex v0 = m_polytope->vertices()[n[0]];
+    Vertex v1 = m_polytope->vertices()[n[1]];
+    Vertex v2 = m_polytope->vertices()[n[2]];
+    Vertex v3 = m_polytope->vertices()[n[3]];
     return cross( v0.pointW() - v1.pointW(), v2.pointW() - v3.pointW());
 }
 
 //return a list with the coordinates of the vertices of a given face in world coordinates
 void Face::pointsW( vvec3 &points ) const {
-    for( auto i : m_data->m_vertices) {
-        points.push_back( m_polytope->m_vertices[i].pointW() );
-    }
-}
-
-//return a list of vectors going along the edges of the face
-void Face::edge_vectorsW( vvec3 &vectors ) const {
-    int v0 = m_data->m_vertices.back();
-    for( int v : m_data->m_vertices ) {
-        vectors.push_back( m_polytope->m_vertices[v].pointW() - m_polytope->m_vertices[v0].pointW() );
-        v0 = v;
+    for( auto i : vertices()) {
+        points.push_back( m_polytope->vertices()[i].pointW() );
     }
 }
 
 //return a list of edges of this face
-void Face::edgesW( std::vector<Line> & edges ) const {
-    int v0 = m_data->m_vertices.back();
-    for( int v : m_data->m_vertices ) {
-        edges.emplace_back( m_polytope->m_vertices[v0].pointW(), m_polytope->m_vertices[v].pointW() );
+//if pairs ppoints to a set, make sure that each edge is included only once
+void Face::edgesW( std::vector<Line> & edges, std::set<std::pair<int,int>> *pairs  ) const {
+    int v0 = vertices().back();
+    for( int v : vertices() ) {
+        if( pairs==nullptr || !pairs->contains(std::make_pair(v0, v)) ) {
+            edges.emplace_back( m_polytope->vertices()[v0].pointW(), m_polytope->vertices()[v].pointW() );
+            if( pairs!=nullptr) pairs->insert(std::make_pair(v, v0)); //do not include this edge a 2nd time with neighbor face
+        }
         v0 = v;
     }
 }
 
+//returns a pluecker plane from the face
 pluecker_plane Face::plueckerW() const {
-    vec3 q = m_polytope->m_vertices[m_data->m_vertices[0]].pointW();
+    vec3 q = m_polytope->vertices()[vertices()[0]].pointW();
     vec3 normal = normalW();
     return { normal, -1.0f * dot( normal, q)};
 }
 
+//suport function for the face
 vec3 Face::support(vec3 dir) {
     dir = m_polytope->m_matRS_inverse*dir; //find support in model space
-    vec3 maxL = m_polytope->m_vertices[0].pointL();
+    vec3 maxL = m_polytope->vertices()[0].pointL();
     float max = dot( dir, maxL );
     for( auto i : m_data->m_vertices ) {
-        float d = dot( dir, m_polytope->m_vertices[i].pointL() );
+        float d = dot( dir, m_polytope->vertices()[i].pointL() );
         if( d > max ) {
-            maxL = m_polytope->m_vertices[i].pointL();
+            maxL = m_polytope->vertices()[i].pointL();
             max = d;
         }
     }

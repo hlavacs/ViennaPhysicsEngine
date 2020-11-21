@@ -58,8 +58,17 @@ void process_vertex_face_contact( Vertex &vertex, Face &face, std::set<contact> 
     contacts.insert( { vertex.polytope(), face.polytope(), vertex.pointW(), face.normalW() }  );
 }
 
-void process_edge_edge_contact( Line &edge1, Line &edge2, std::set<contact> & contacts) {
-
+void process_edge_edge_contact( Face &face1, Line &edge1, Face &face2, Line &edge2, std::set<contact> & contacts) {
+    if( distance_line_line(edge1.plueckerW(), edge2.plueckerW()) < EPS ) {
+        auto point = intersect_line_plane( edge2.plueckerW(), face1.plueckerW()).p3D();
+        float t1 = edge1.t( point);
+        if( 0.0f<=t1 && t1<=1.0f) {
+            float t2 = edge2.t( point);
+            if( 0.0f<=t2 && t2<=1.0f) {
+                contacts.insert( { face1.polytope(), face2.polytope(), point, face1.normalW() }  );
+            }
+        }
+    }
 }
 
 //test a pair of faces against each other.
@@ -91,7 +100,7 @@ void process_face_face_contact(    Polytope &obj1, Polytope &obj2, vec3 &dir
     for( auto& edge1 : edges1 ) {      //go through all edge pairs
         for( auto& edge2 : edges2 ) {
             if( sat( edge1, edge2, dir) ) {
-                process_edge_edge_contact( edge1, edge2, contacts );
+                process_edge_edge_contact( face1, edge1, face2, edge2, contacts );
             }
         }
     }

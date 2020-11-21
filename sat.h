@@ -115,15 +115,19 @@ bool sat_faces_test( Polytope &obj1, Polytope &obj2, vec3 &dir ) {
 //returns true if a separating axis was found (i.e. objects are NOT in contact), else false
 template<typename T>
 bool sat_edges_test( T &obj1, T &obj2, vec3 &dir ) {
-    vvec3 edges1;
-    vvec3 edges2;
-    obj1.edge_vectorsW( edges1 );
-    obj2.edge_vectorsW( edges2 );
+    std::set<std::pair<int,int>> pairs1;    //each edge should be included only once
+    std::set<std::pair<int,int>> pairs2;
+    std::vector<Line> edges1;
+    std::vector<Line> edges2;
+    obj1.edgesW( edges1, &pairs1 );
+    obj2.edgesW( edges2, &pairs2 );
 
-    for( auto& v1 : edges1 )  {
-        for( auto& v2: edges2 ) {
-            vec3 axis = cross( v1, v2 );
+    for( auto& l1 : edges1 )  {
+        for( auto& l2: edges2 ) {
+            vec3 axis = cross( l1.m_dir, l2.m_dir );
             dir = axis;
+            if( sat_axis_test(obj1, obj2, dir) ) return true;
+            dir = -1.0f*axis;
             if( sat_axis_test(obj1, obj2, dir) ) return true;
         }
     }
