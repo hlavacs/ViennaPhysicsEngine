@@ -162,7 +162,6 @@ struct Line : Collider {
 
     float t( vec3 &point ) const {     //point = pos + t dir
         vec3 d = point - m_pos;
-        float t0;
         if( std::abs(m_dir.x)>std::abs(m_dir.y) && std::abs(m_dir.x)>std::abs(m_dir.z)) {
             return d.x / m_dir.x;
         } else if( std::abs(m_dir.y)>std::abs(m_dir.z)) {
@@ -454,16 +453,16 @@ vec3 Face::normalW() const {
     int i0 = m_data->m_vertices[0];
     int i1 = m_data->m_vertices[1];
     int i2 = m_data->m_vertices.back();
-    Vertex v0 = m_polytope->vertices()[i0];
-    Vertex v1 = m_polytope->vertices()[i1];
-    Vertex v2 = m_polytope->vertices()[i2];
+    Vertex v0 = m_polytope->vertex(i0);
+    Vertex v1 = m_polytope->vertex(i1);
+    Vertex v2 = m_polytope->vertex(i2);
     return normalize( cross( v1.pointW() - v0.pointW(), v2.pointW() - v0.pointW() ) );
 }
 
 //return a list with the coordinates of the vertices of a given face in world coordinates
 void Face::pointsW( vvec3 &points ) const {
     for( auto i : vertices()) {
-        points.push_back( m_polytope->vertices()[i].pointW() );
+        points.push_back( m_polytope->vertex(i).pointW() );
     }
 }
 
@@ -473,7 +472,7 @@ void Face::edgesW( std::vector<Line> & edges, std::set<ipair> *pairs  ) const {
     int v0 = vertices().back();
     for( int v : vertices() ) {
         if( pairs==nullptr || !pairs->contains(std::make_pair(v0, v)) ) {
-            edges.emplace_back( m_polytope->vertices()[v0].pointW(), m_polytope->vertices()[v].pointW() );
+            edges.emplace_back( m_polytope->vertex(v0).pointW(), m_polytope->vertex(v).pointW() );
             if( pairs!=nullptr) pairs->insert(std::make_pair(v, v0)); //do not include this edge a 2nd time with neighbor face
         }
         v0 = v;
@@ -482,7 +481,7 @@ void Face::edgesW( std::vector<Line> & edges, std::set<ipair> *pairs  ) const {
 
 //returns a pluecker plane from the face
 pluecker_plane Face::plueckerW() const {
-    vec3 q = m_polytope->vertices()[vertices()[0]].pointW();
+    vec3 q = m_polytope->vertex(vertices()[0]).pointW();
     vec3 normal = normalW();
     return { normal, -1.0f * dot( normal, q)};
 }
@@ -492,8 +491,8 @@ bool Face::voronoi( vec3 &pointW) const {
     int v0 = vertices().back(); //last vertex of face
     vec3 n = normalW();         //face normal vector
     for( int v : vertices() ) {
-        vec3 p0 = m_polytope->vertices()[v0].pointW();
-        vec3 p1 = m_polytope->vertices()[v].pointW();
+        vec3 p0 = m_polytope->vertex(v0).pointW();
+        vec3 p1 = m_polytope->vertex(v).pointW();
         vec3 p2 = p0 - n;
         vec3 plane_normal = cross( p1 - p0, p2 - p0 );  //points towards the inside of the face
         if( dot( pointW - p0, plane_normal) < 0 ) return false; //if point is left from plane then false

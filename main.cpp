@@ -38,8 +38,6 @@ int main() {
 	box.pos() += mtv;
 	std::set<contact> ct;
 	contacts( box, ground, mtv, ct);
-	std::vector<contact> ctv;;
-	std::copy( ct.begin(), ct.end(), std::back_inserter(ctv));
 
 	vec3 p0{0,1,2};
 	vec3 p1{3,4,5};

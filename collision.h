@@ -18,7 +18,19 @@ constexpr int NUM_RANDOM_DIR = 32;
 
 //test whether a direction is a separating axis
 //returns true if a separating axis was found (i.e. objects are NOT in contact), else false
-bool sat_axis_test( ICollider &obj1, ICollider &obj2, vec3 &dir, vec3 &r, float &d) {
+bool sat_axis_test1( ICollider &obj1, ICollider &obj2, vec3 &dir, vec3 &r, float &d) {
+    vec3 dir2 = -1.0f*dir;
+    vec3 p = obj1.support( dir );
+    vec3 q = obj2.support( dir2 );
+    r = normalize(q - p); 
+    d = dot( r, dir );
+    return( d > EPS);       //allow for numerical inaccuracies
+}
+
+
+//test whether a direction (or its reverse) is a separating axis
+//returns true if a separating axis was found (i.e. objects are NOT in contact), else false
+bool sat_axis_test2( ICollider &obj1, ICollider &obj2, vec3 &dir, vec3 &r, float &d) {
     vec3 dir2 = -1.0f*dir;
     vec3 p = obj1.support( dir );
     vec3 q = obj2.support( dir2 );
@@ -39,12 +51,17 @@ bool sat_axis_test( ICollider &obj1, ICollider &obj2, vec3 &dir, vec3 &r, float 
     return false;
 }
 
-bool sat_axis_test( ICollider &obj1, ICollider &obj2, vec3 &dir ) {
+bool sat_axis_test1( ICollider &obj1, ICollider &obj2, vec3 &dir ) {
     vec3 r;
     float d;
-    return sat_axis_test( obj1, obj2, dir, r, d);
+    return sat_axis_test1( obj1, obj2, dir, r, d);
 }
 
+bool sat_axis_test2( ICollider &obj1, ICollider &obj2, vec3 &dir ) {
+    vec3 r;
+    float d;
+    return sat_axis_test2( obj1, obj2, dir, r, d);
+}
 
 
 //choose N random directions to find SA
@@ -71,7 +88,7 @@ bool sat_random_test( ICollider &obj1, ICollider &obj2, vec3 &dir) {
     float max = -1.0e6;
     bool found = false;
     for( int i=0; i<random_axes.size() && !found; ++i ) {        
-        found = sat_axis_test(obj1, obj2, random_axes[i], r, d);
+        found = sat_axis_test1(obj1, obj2, random_axes[i], r, d);
         if( d>max ) { 
             max = d;
             dir = random_axes[i];
@@ -87,13 +104,13 @@ bool sat_chung_wang_test( ICollider &obj1, ICollider &obj2, vec3 &dir, int max_l
     float d;
     int loop = 0;
     float f = 1.0f;
-    while( loop < max_loops && !sat_axis_test(obj1, obj2, dir, r, d) ) {
+    while( loop < max_loops && !sat_axis_test1(obj1, obj2, dir, r, d) ) {
         dir = dir - (1.0f + f)*dot(r, dir)*r;
         ++loop;
         f = std::max( f * 0.97f, 0.5f );   //apply damping to prevent small gaps from oscillating forever
     }
-    std::cout << "Loops: " << loop << std::endl;
-    return sat_axis_test(obj1, obj2, dir, r, d);
+    //std::cout << "Loops: " << loop << std::endl;
+    return sat_axis_test1(obj1, obj2, dir, r, d);
 }
 
 
@@ -103,23 +120,23 @@ bool sat_faces_test( Face &face1, Face &face2, vec3 &dir ) {
     {    
         vec3 n = face1.normalW();
         dir = n;
-        if( sat_axis_test(face1, face2, dir ) ) return true;
+        if( sat_axis_test2(face1, face2, dir ) ) return true;
         std::vector<Line> edges1;
         face1.edgesW( edges1 );
         for( auto &edge : edges1 ) {
-            dir = cross(n, edge.m_dir);
-            if( sat_axis_test(face1, face2, dir ) ) return true;
+            dir = cross(edge.m_dir, n);
+            if( sat_axis_test1(face1, face2, dir ) ) return true;
         }
     }
     {    
         vec3 n = face2.normalW();
         dir = n;
-        if( sat_axis_test(face1, face2, dir ) ) return true;
+        if( sat_axis_test2(face1, face2, dir ) ) return true;
         std::vector<Line> edges2;
         face2.edgesW( edges2 );
         for( auto &edge : edges2 ) {
-            dir = cross(n, edge.m_dir);
-            if( sat_axis_test(face1, face2, dir ) ) return true;
+            dir = cross(edge.m_dir, n);
+            if( sat_axis_test1(face1, face2, dir ) ) return true;
         }
     }
 
@@ -132,12 +149,12 @@ bool sat_faces_test( Face &face1, Face &face2, vec3 &dir ) {
 bool sat_faces_test( Polytope &obj1, Polytope &obj2, vec3 &dir ) {
     for( auto& face : obj1.faces() ) {
         dir = face.normalW();
-        if( sat_axis_test(obj1, obj2, dir) ) return true;
+        if( sat_axis_test2(obj1, obj2, dir) ) return true;
     }
 
     for( auto& face : obj2.faces() ) {
         dir = face.normalW();
-        if( sat_axis_test(obj1, obj2, dir) ) return true;
+        if( sat_axis_test2(obj1, obj2, dir) ) return true;
     }
 
     return false;
@@ -159,9 +176,7 @@ bool sat_edges_test( T &obj1, T &obj2, vec3 &dir ) {
         for( auto& l2: edges2 ) {
             vec3 axis = cross( l1.m_dir, l2.m_dir );
             dir = axis;
-            if( sat_axis_test(obj1, obj2, dir) ) return true;
-            dir = -1.0f*axis;
-            if( sat_axis_test(obj1, obj2, dir) ) return true;
+            if( sat_axis_test2(obj1, obj2, dir) ) return true;
         }
     }
     return false; 
@@ -170,13 +185,20 @@ bool sat_edges_test( T &obj1, T &obj2, vec3 &dir ) {
 //---------------------------------------------------------------------------
 
 
+//test for collision between a vertex and a face
+//returns true of the objects are in contact
+//else false
+bool collision( Vertex &vertex, Face &face, vec3 &dir ) {
+    vec3 p = vertex.pointW();
+    return distance_point_plane( p, face.plueckerW() ) < EPS && face.voronoi(p);
+}
+
 //test for collision between two faces
 //returns true of the objects are in contact
 //else false
 bool collision( Face &face1, Face &face2, vec3 &dir ) {
     if( dot(dir, dir) < EPS ) dir = vec3(0.0f, 1.0f, 0.0f);
     if( sat_faces_test( face1, face2, dir ) ) return false;
-    if( sat_edges_test( face1, face2, dir ) ) return false;
     return true;
 }
 
