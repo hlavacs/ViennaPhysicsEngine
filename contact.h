@@ -75,14 +75,14 @@ void process_face_face_contact(    Face &face1, Face &face2, vec3 &dir
     
     for( int v1 : face1.vertices() ) {      //go through all vertices of face 1
         Vertex &vertex1 = face1.polytope()->vertex(v1);
-        if( sat( vertex1, face2, dir) ) {
+        if( collision( vertex1, face2, dir) ) {
             process_vertex_face_contact( vertex1, face2, contacts );
         }
     }
 
     for( int v2 : face2.vertices() ) {      //go through all vertices of face 2
         Vertex &vertex2 = face2.polytope()->vertex(v2);
-        if( sat( vertex2, face1, dir) ) {
+        if( collision( vertex2, face1, dir) ) {
             process_vertex_face_contact( vertex2, face1, contacts );
         }
     }
@@ -94,7 +94,7 @@ void process_face_face_contact(    Face &face1, Face &face2, vec3 &dir
 
     for( auto& edge1 : edges1 ) {      //go through all edge pairs
         for( auto& edge2 : edges2 ) {
-            if( sat( edge1, edge2, dir) ) {
+            if( collision( edge1, edge2, dir) ) {
                 process_edge_edge_contact( face1, edge1, face2, edge2, contacts );
             }
         }
@@ -111,8 +111,8 @@ void process_face_obj_contacts(     Polytope &obj1, Polytope &obj2, vec3 &dir
     for( int f1 : obj1_faces) {             // go through all face-face pairs
         Face & face1 = obj1.face(f1);
         for( int f2 : obj2_faces) {
-            Face & face2 = obj1.face(f2);
-            if( sat( face1, face2, dir) ) {           //only if the faces actually touch - can also drop this if statement
+            Face & face2 = obj2.face(f2);
+            if( collision( face1, face2, dir) ) {           //only if the faces actually touch - can also drop this if statement
                 process_face_face_contact( face1, face2, dir, contacts ); //compare all vertices and edges in the faces
             }
         }
@@ -124,7 +124,7 @@ void process_face_obj_contacts(     Polytope &obj1, Polytope &obj2, vec3 &dir
 //return it and its neighbors by adding their indices to a list
 void get_face_obj_contacts( Polytope &obj1, Polytope &obj2, vec3 &dir, vint& obj_faces ) {
     for( auto & face : obj1.faces() ) {
-        if( sat( face, obj2, dir ) ) {
+        if( collision( face, obj2, dir ) ) {
             obj_faces.push_back(face.index());
             auto& neighbors = face.neighbors();
             std::copy( std::begin(neighbors), std::end(neighbors), std::back_inserter(obj_faces) );   //also insert its neighbors
@@ -139,8 +139,8 @@ void neighboring_faces( Polytope &obj1, Polytope &obj2, vec3 &dir, std::set<cont
     vint obj1_faces;
     vint obj2_faces;
 
-    get_face_obj_contacts(obj1, obj2, dir, obj1_faces );    //get list of faces from obj1 that touch obj2
-    get_face_obj_contacts(obj2, obj1, dir, obj2_faces );    //get list of faces from obj2 that touch obj1
+    get_face_obj_contacts( obj1, obj2, dir, obj1_faces );    //get list of faces from obj1 that touch obj2
+    get_face_obj_contacts( obj2, obj1, dir, obj2_faces );    //get list of faces from obj2 that touch obj1
     process_face_obj_contacts( obj1, obj2, dir, obj1_faces, obj2_faces, contacts ); //collide them pairwise
 }
 

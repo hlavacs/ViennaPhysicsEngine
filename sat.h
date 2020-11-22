@@ -137,10 +137,10 @@ bool sat_edges_test( T &obj1, T &obj2, vec3 &dir ) {
 //---------------------------------------------------------------------------
 
 
-//entry points for SAT
+//test for collision between two faces
 //returns true of the objects are in contact
 //else false
-bool sat( Face &face1, Face &face2, vec3 &dir ) {
+bool collision( Face &face1, Face &face2, vec3 &dir ) {
     if( dot(dir, dir) < EPS ) dir = vec3(0.0f, 1.0f, 0.0f);
     if( sat_faces_test( face1, face2, dir ) ) return false;
     if( sat_edges_test( face1, face2, dir ) ) return false;
@@ -148,20 +148,20 @@ bool sat( Face &face1, Face &face2, vec3 &dir ) {
 }
 
 
-//entry points for SAT
+//test for collision between two polytopes
 //returns true of the objects are in contact
 //else false
-bool sat( Polytope &obj1, Polytope &obj2, vec3 &dir ) {
+bool collision( Polytope &obj1, Polytope &obj2, vec3 &dir ) {
     if( dot(dir, dir) < EPS ) dir = vec3(0.0f, 1.0f, 0.0f);
     if( sat_faces_test( obj1, obj2, dir ) ) return false;
     if( sat_chung_wang_test( obj1, obj2, dir ) ) return false;
     return true;
 }
 
-//entry points for SAT
+//test for collision between two colliders
 //returns true of the objects are in contact
 //else false
-bool sat( ICollider &obj1, ICollider &obj2, vec3 &dir ) {
+bool collision( ICollider &obj1, ICollider &obj2, vec3 &dir ) {
     if( dot(dir, dir) < EPS ) dir = vec3(0.0f, 1.0f, 0.0f);
     if( sat_chung_wang_test( obj1, obj2, dir ) ) return false;
     return true;

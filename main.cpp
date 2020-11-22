@@ -38,7 +38,7 @@ int main() {
 
 	auto n0 = box.face(0).normalW();
 
-	auto hit2 = sat( box, ground, mtv);
+	auto hit2 = collision( box, ground, mtv);
 
 	Point3D point{ {0,-10,0} };
 	auto hit3 = gjk( point, ground, mtv);
