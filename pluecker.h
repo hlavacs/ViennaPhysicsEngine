@@ -1,4 +1,5 @@
-#pragma once
+#ifndef PLUECKER_H
+#define PLUECKER_H
 
 #include "glm/glm/glm.hpp"
 #include "glm/glm/ext.hpp"
@@ -101,3 +102,4 @@ pluecker_point intersect_line_plane( pluecker_line line, pluecker_plane plane ) 
 
 
 
+#endif

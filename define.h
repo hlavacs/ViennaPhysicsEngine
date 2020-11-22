@@ -1,4 +1,5 @@
-#pragma once
+#ifndef DEFINE_H
+#define DEFINE_H
 
 #include "glm/glm/glm.hpp"
 #include "glm/glm/ext.hpp"
@@ -16,3 +17,4 @@ using vvec4 = std::vector<vec4>;
 using ipair = std::pair<int,int>;
 
 
+#endif

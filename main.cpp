@@ -10,6 +10,7 @@
 #include <iterator>
 
 #include "gjk_epa.h"
+#include "collider.h"
 #include "collision.h"
 #include "contact.h"
 

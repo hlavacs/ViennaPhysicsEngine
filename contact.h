@@ -1,4 +1,5 @@
-#pragma once
+#ifndef CONTACT_H
+#define CONTACT_H
 
 #include <iostream>
 
@@ -14,7 +15,7 @@
 
 #include "define.h"
 #include "collider.h"
-#include "sat.h"
+#include "collision.h"
 
 
 
@@ -152,3 +153,4 @@ void  contacts( Polytope &obj1, Polytope &obj2, vec3 &dir, std::set<contact> & c
 }
 
 
+#endif

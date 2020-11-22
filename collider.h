@@ -1,4 +1,6 @@
-#pragma once
+#ifndef COLLIDER_H
+#define COLLIDER_H
+
 
 #define _USE_MATH_DEFINES
 #include <cmath>
@@ -513,4 +515,6 @@ vec3 Face::support(vec3 dirW) {
 
 //-----------------------------------------------------------------------
 
+
+#endif
 

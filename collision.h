@@ -1,11 +1,11 @@
-#pragma once
+#ifndef COLLISION_H
+#define COLLISION_H
 
 #include <iostream>
 #include <random>
 
 #define _USE_MATH_DEFINES
 #include <cmath>
-
 
 #include "glm/glm/glm.hpp"
 #include "glm/glm/ext.hpp"
@@ -170,5 +170,5 @@ bool collision( ICollider &obj1, ICollider &obj2, vec3 &dir ) {
 
 
 
-
+#endif
 

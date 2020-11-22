@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HASH_H
+#define HASH_H
 
 //hashable concept
 template<typename T>
@@ -50,3 +51,4 @@ struct std::hash<std::tuple<Args...>> {
 
 
 
+#endif
