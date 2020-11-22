@@ -9,8 +9,8 @@
 #include <algorithm>
 #include <iterator>
 
-#include "sat.h"
 #include "gjk_epa.h"
+#include "collision.h"
 #include "contact.h"
 
 int main() {

@@ -9,6 +9,7 @@
 using namespace glm;
 
 #include <vector>
+#include <set>
 
 #include "define.h"
 #include "pluecker.h"

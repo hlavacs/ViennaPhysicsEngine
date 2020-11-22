@@ -18,7 +18,7 @@ constexpr int NUM_RANDOM_DIR = 32;
 
 //test whether a direction is a separating axis
 //returns true if a separating axis was found (i.e. objects are NOT in contact), else false
-bool sat_axis_test( ICollider const &obj1, ICollider const &obj2, vec3 &dir, vec3 &r, float &d) {
+bool sat_axis_test( ICollider &obj1, ICollider &obj2, vec3 &dir, vec3 &r, float &d) {
     vec3 p = obj1.support( dir );
     vec3 q = obj2.support( -1.0f* (dir) );
     r = normalize(q - p); 
@@ -26,7 +26,7 @@ bool sat_axis_test( ICollider const &obj1, ICollider const &obj2, vec3 &dir, vec
     return  d > EPS;       //allow for numerical inaccuracies
 }
 
-bool sat_axis_test( ICollider const &obj1, ICollider const &obj2, vec3 &dir ) {
+bool sat_axis_test( ICollider &obj1, ICollider &obj2, vec3 &dir ) {
     vec3 r;
     float d;
     return sat_axis_test( obj1, obj2, dir, r, d);
