@@ -19,11 +19,24 @@ constexpr int NUM_RANDOM_DIR = 32;
 //test whether a direction is a separating axis
 //returns true if a separating axis was found (i.e. objects are NOT in contact), else false
 bool sat_axis_test( ICollider &obj1, ICollider &obj2, vec3 &dir, vec3 &r, float &d) {
+    vec3 dir2 = -1.0f*dir;
     vec3 p = obj1.support( dir );
-    vec3 q = obj2.support( -1.0f* (dir) );
+    vec3 q = obj2.support( dir2 );
     r = normalize(q - p); 
     d = dot( r, dir );
-    return  d > EPS;       //allow for numerical inaccuracies
+    if( d > EPS) return true;       //allow for numerical inaccuracies
+
+    vec3 p2 = obj1.support( dir2 );
+    vec3 q2 = obj2.support( dir );
+    vec3 r2 = normalize(q2 - p2); 
+    float d2 = dot( r2, dir2 );
+    if( d2 > EPS ) {
+        dir = dir2;
+        r = r2;
+        d = d2;
+        return true;
+    }
+    return false;
 }
 
 bool sat_axis_test( ICollider &obj1, ICollider &obj2, vec3 &dir ) {
@@ -87,10 +100,29 @@ bool sat_chung_wang_test( ICollider &obj1, ICollider &obj2, vec3 &dir, int max_l
 //SAT using the normals of 2 faces
 //returns true if a separating axis was found (i.e. objects are NOT in contact), else false
 bool sat_faces_test( Face &face1, Face &face2, vec3 &dir ) {
-    dir = face1.normalW();
-    if( sat_axis_test(face1, face2, dir ) ) return true;
-    dir = face2.normalW();
-    if( sat_axis_test(face1, face2, dir ) ) return true;
+    {    
+        vec3 n = face1.normalW();
+        dir = n;
+        if( sat_axis_test(face1, face2, dir ) ) return true;
+        std::vector<Line> edges1;
+        face1.edgesW( edges1 );
+        for( auto &edge : edges1 ) {
+            dir = cross(n, edge.m_dir);
+            if( sat_axis_test(face1, face2, dir ) ) return true;
+        }
+    }
+    {    
+        vec3 n = face2.normalW();
+        dir = n;
+        if( sat_axis_test(face1, face2, dir ) ) return true;
+        std::vector<Line> edges2;
+        face2.edgesW( edges2 );
+        for( auto &edge : edges2 ) {
+            dir = cross(n, edge.m_dir);
+            if( sat_axis_test(face1, face2, dir ) ) return true;
+        }
+    }
+
     return false;
 }
 

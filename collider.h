@@ -390,19 +390,23 @@ struct Box : Polytope {
 
                         //6 faces, each having 4 vertices (clockwise), 4 neighbor faces
     const static inline std::vector<FaceData> m_faces_data =  
-                    {   FaceData{ 0, {0,2,4,6}, {2,3,4,5} }   //0
-                    ,   FaceData{ 1, {1,3,5,7}, {2,3,4,5} }   //1
-                    ,   FaceData{ 2, {0,1,2,3}, {0,1,4,5} }   //2
-                    ,   FaceData{ 3, {4,5,6,7}, {0,1,4,5} }   //3
-                    ,   FaceData{ 4, {0,1,4,5}, {0,1,2,3} }   //4
-                    ,   FaceData{ 5, {2,3,6,7}, {0,1,2,3} }   //5
+                    {   FaceData{ 0, {0,2,6,4}, {2,3,4,5} }   //0
+                    ,   FaceData{ 1, {1,5,7,3}, {2,3,4,5} }   //1
+                    ,   FaceData{ 2, {0,1,3,2}, {0,1,4,5} }   //2
+                    ,   FaceData{ 3, {4,6,7,5}, {0,1,4,5} }   //3
+                    ,   FaceData{ 4, {0,4,5,1}, {0,1,2,3} }   //4
+                    ,   FaceData{ 5, {2,3,7,6}, {0,1,2,3} }   //5
                     };
 
     const static inline vvec3 m_points_data = //3D coordinates in local space
-                    {   vec3(-0.5f, -0.5f, -0.5f), vec3(0.5f, -0.5f, -0.5f)
-                    ,   vec3(-0.5f, -0.5f, 0.5f),  vec3(0.5f, -0.5f, 0.5f)
-                    ,   vec3(-0.5f,  0.5f, -0.5f), vec3(0.5f,  0.5f, -0.5f)
-                    ,   vec3(-0.5f,  0.5f, 0.5f),  vec3(0.5f,  0.5f, 0.5f)
+                    {   vec3(-0.5f, -0.5f, -0.5f)   //0
+                    ,   vec3(0.5f, -0.5f, -0.5f)    //1
+                    ,   vec3(-0.5f, -0.5f, 0.5f)    //2
+                    ,   vec3(0.5f, -0.5f, 0.5f)     //3
+                    ,   vec3(-0.5f,  0.5f, -0.5f)   //4
+                    ,   vec3(0.5f,  0.5f, -0.5f)    //5
+                    ,   vec3(-0.5f,  0.5f, 0.5f)    //6
+                    ,   vec3(0.5f,  0.5f, 0.5f)     //7
                     };
 
     Box( vec3 pos = vec3(0.0f, 0.0f, 0.0f), mat3 matRS = mat3(1.0f) )  
@@ -447,10 +451,13 @@ vec3 Vertex::pointW() {
 
 //get the normal of the face
 vec3 Face::normalW() const {
-    Vertex v0 = m_polytope->vertices()[0];
-    Vertex v1 = m_polytope->vertices()[1];
-    Vertex v2 = m_polytope->vertices().back();
-    return cross( v1.pointW() - v0.pointW(), v2.pointW() - v0.pointW());
+    int i0 = m_data->m_vertices[0];
+    int i1 = m_data->m_vertices[1];
+    int i2 = m_data->m_vertices.back();
+    Vertex v0 = m_polytope->vertices()[i0];
+    Vertex v1 = m_polytope->vertices()[i1];
+    Vertex v2 = m_polytope->vertices()[i2];
+    return normalize( cross( v1.pointW() - v0.pointW(), v2.pointW() - v0.pointW() ) );
 }
 
 //return a list with the coordinates of the vertices of a given face in world coordinates
@@ -499,7 +506,7 @@ bool Face::voronoi( vec3 &pointW) const {
 //suport function for the face
 vec3 Face::support(vec3 dirW) {
     auto dirL = m_polytope->dirW2L(dirW); //find support in model space
-    vec3 maxL = m_polytope->vertices()[0].pointL();
+    vec3 maxL = m_polytope->vertices()[m_data->m_vertices[0]].pointL();
     float max = dot( dirL, maxL );
     for( auto i : m_data->m_vertices ) {
         float d = dot( dirL, m_polytope->vertices()[i].pointL() );

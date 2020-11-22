@@ -24,12 +24,22 @@ int main() {
 
 	Box ground{ {0.0f, -50.0f, 0.0f}, scale( mat4(1.0f), vec3(100.0f, 100.0f, 100.0f)) };
 	Box box{ {0.0f, 0.41f, 0.0f} };
+
+	vec3 n0 = box.face(0).normalW();
+	vec3 n1 = box.face(1).normalW();
+	vec3 n2 = box.face(2).normalW();
+	vec3 n3 = box.face(3).normalW();
+	vec3 n4 = box.face(4).normalW();
+	vec3 n5 = box.face(5).normalW();
+
 	vec3 mtv(0,1,0); //minimum translation vector
 	auto hit1 = gjk( box, ground, mtv);
 
 	box.pos() += mtv;
 	std::set<contact> ct;
 	contacts( box, ground, mtv, ct);
+	std::vector<contact> ctv;;
+	std::copy( ct.begin(), ct.end(), std::back_inserter(ctv));
 
 	vec3 p0{0,1,2};
 	vec3 p1{3,4,5};
@@ -37,7 +47,7 @@ int main() {
 	auto pl = pluecker_line( {7,8,9}, p1 );
 	auto ppl = pluecker_plane( {7,8,9}, 3 );
 
-	auto n0 = box.face(0).normalW();
+	auto nn = box.face(0).normalW();
 
 	auto hit2 = collision( box, ground, mtv);
 
