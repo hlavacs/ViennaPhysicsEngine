@@ -38,27 +38,18 @@ struct contact {
     }
  };
 
-
 //operator< uses hash values for contacts
 bool contact::operator <(const contact& c) const {
     return std::hash<contact>()(*this) < std::hash<contact>()(c);
 }
 
-
-//point contacts face if the distance point-plane is smaller than EPS AND
-//the point is inside the face Voronoi region, i.e. it lies on the left of all planes
-//defined by a face edge and the face normal vector
+//point contacts face if the distance point-plane is smaller than EPS AND 
+//the point is inside the face Voronoi region.
 void process_vertex_face_contact( Vertex &vertex, Face &face, std::set<contact> & contacts) {
-    if( distance_point_plane( vertex.pointW(), face.plueckerW() ) < EPS ) {
-        std::vector<Line> edges;
-        face.edgesW( edges );
-        for( auto &edge : edges ) {
-            auto pp = vertex.plueckerW();
-            pluecker_plane plane( edge.pos() + face.normalW(), edge.plueckerW() );
-            if( dot( vec4{pp}, vec4{plane}) <= 0.0f ) return;
-        }
+    vec3 p = vertex.pointW();
+    if( distance_point_plane( p, face.plueckerW() ) < EPS &&  face.voronoi(p) ) {
+        contacts.insert( { vertex.polytope(), face.polytope(), p, face.normalW() }  );
     }
-    contacts.insert( { vertex.polytope(), face.polytope(), vertex.pointW(), face.normalW() }  );
 }
 
 //process a possible edge-edge contact
@@ -69,13 +60,9 @@ void process_edge_edge_contact( Face &face1, Line &edge1, Face &face2, Line &edg
     if( distance_line_line(edge1.plueckerW(), edge2.plueckerW()) < EPS ) {
         pluecker_point point = intersect_line_plane( edge2.plueckerW(), face1.plueckerW()).p3D();
         if( std::abs(point.w()) < EPS ) return; // if 0 then both are parallel
-        vec3 p3D = point.p3D();
-        float t1 = edge1.t(p3D);
-        if( 0.0f<=t1 && t1<=1.0f) {
-            float t2 = edge2.t(p3D);
-            if( 0.0f<=t2 && t2<=1.0f) {
-                contacts.insert( { face1.polytope(), face2.polytope(), p3D, face2.normalW() }  );
-            }
+        vec3 p = point.p3D();
+        if( edge1.in_segment(p) && edge2.in_segment(p) ) {
+            contacts.insert( { face1.polytope(), face2.polytope(), p, face2.normalW() }  );
         }
     }
 }
@@ -83,21 +70,20 @@ void process_edge_edge_contact( Face &face1, Line &edge1, Face &face2, Line &edg
 //test a pair of faces against each other.
 //collide each vertex from one face with the other face
 //collide each edge from one face with all edges from the other face
-void process_face_face_contact(    Polytope &obj1, Polytope &obj2, vec3 &dir
-                                ,  int f1, int f2, std::set<contact> & contacts ) {
+void process_face_face_contact(    Face &face1, Face &face2, vec3 &dir
+                                ,  std::set<contact> & contacts ) {
     
-    Face &face1 = obj1.face(f1);
-    Face &face2 = obj1.face(f2);
-
     for( int v1 : face1.vertices() ) {      //go through all vertices of face 1
-        if( sat( obj1.vertex(v1), face2, dir) ) {
-            process_vertex_face_contact( obj1.vertex(v1), face1, contacts );
+        Vertex &vertex1 = face1.polytope()->vertex(v1);
+        if( sat( vertex1, face2, dir) ) {
+            process_vertex_face_contact( vertex1, face2, contacts );
         }
     }
 
     for( int v2 : face2.vertices() ) {      //go through all vertices of face 2
-        if( sat( obj2.vertex(v2), face1, dir) ) {
-            process_vertex_face_contact( obj2.vertex(v2), face2, contacts );
+        Vertex &vertex2 = face2.polytope()->vertex(v2);
+        if( sat( vertex2, face1, dir) ) {
+            process_vertex_face_contact( vertex2, face1, contacts );
         }
     }
 
@@ -123,9 +109,11 @@ void process_face_obj_contacts(     Polytope &obj1, Polytope &obj2, vec3 &dir
                                 ,   std::set<contact> & contacts ) {
     
     for( int f1 : obj1_faces) {             // go through all face-face pairs
+        Face & face1 = obj1.face(f1);
         for( int f2 : obj2_faces) {
-            if( sat( obj1.face(f1), obj2.face(f2), dir) ) {           //only if the faces actually touch - can also drop this if statement
-                process_face_face_contact( obj1, obj2, dir, f1, f2, contacts ); //compare all vertices and edges in the faces
+            Face & face2 = obj1.face(f2);
+            if( sat( face1, face2, dir) ) {           //only if the faces actually touch - can also drop this if statement
+                process_face_face_contact( face1, face2, dir, contacts ); //compare all vertices and edges in the faces
             }
         }
     }
@@ -135,10 +123,9 @@ void process_face_obj_contacts(     Polytope &obj1, Polytope &obj2, vec3 &dir
 //find a face of obj1 that touches obj2
 //return it and its neighbors by adding their indices to a list
 void get_face_obj_contacts( Polytope &obj1, Polytope &obj2, vec3 &dir, vint& obj_faces ) {
-    for( int f = 0; f < obj1.faces().size(); ++f ) {
-        Face &face = obj1.face(f);
-        if( sat( face, obj2, dir ) ) {              //find the first face from obj1 that touches obj2
-            obj_faces.push_back(f);                    //insert into result list
+    for( auto & face : obj1.faces() ) {
+        if( sat( face, obj2, dir ) ) {
+            obj_faces.push_back(face.index());
             auto& neighbors = face.neighbors();
             std::copy( std::begin(neighbors), std::end(neighbors), std::back_inserter(obj_faces) );   //also insert its neighbors
             return;

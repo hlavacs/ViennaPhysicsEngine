@@ -152,12 +152,12 @@ struct Line : Collider {
     Line( vec3 p0, vec3 p1 ) : Collider(p0), m_dir(p1 - p0) {}
     Line & operator=(const Line & l) = default;
 
-    pluecker_line plueckerW() {
+    pluecker_line plueckerW() const {
         vec3 dir = m_matRS*m_dir;
         return { dir, cross( m_pos, m_pos + dir) }; 
     };
 
-    float t( vec3 point ) {     //point = pos + t dir
+    float t( vec3 &point ) const {     //point = pos + t dir
         vec3 d = point - m_pos;
         float t0;
         if( std::abs(m_dir.x)>std::abs(m_dir.y) && std::abs(m_dir.x)>std::abs(m_dir.z)) {
@@ -166,6 +166,12 @@ struct Line : Collider {
             return d.y / m_dir.y;
         }
         return d.z / m_dir.z;
+    }
+
+    bool in_segment(vec3 &point) const {
+        if( distance_point_line( point, plueckerW() ) > EPS ) return false;
+        float ft = t(point);
+        return 0.0f <= ft && ft <= 1.0f;
     }
 
     vec3 support(vec3 dirW) {
@@ -202,6 +208,7 @@ struct Vertex : PolytopePart {
     Vertex(Polytope* p, const VertexData *d, vec3 pointL ) : PolytopePart(), m_polytope(p), m_data(d), m_pointL(pointL) {}
     
     Polytope*       polytope() const { return m_polytope; };
+    int             index() const { return m_data->m_index; };
     vec3 &          pointL() { return m_pointL; };
     vec3            pointW();
     const vint &    neighbors() const { assert(m_data!=nullptr); return m_data->m_neighbors;};
@@ -233,12 +240,14 @@ struct Face  : PolytopePart {
     }
 
     Polytope*       polytope() const { return m_polytope; };
+    int             index() const { return m_data->m_index; };
     const vint &    vertices() const { return m_data->m_vertices; }
     const vint &    neighbors() const { return m_data->m_neighbors; }
     vec3            normalW() const;
     void            pointsW( vvec3 &points ) const;
     void            edgesW( std::vector<Line> & edges, std::set<ipair> *pairs = nullptr ) const;
     pluecker_plane  plueckerW() const;
+    bool            voronoi( vec3 &point ) const;
     vec3            support(vec3 dir);
 };
 
@@ -468,6 +477,22 @@ pluecker_plane Face::plueckerW() const {
     return { normal, -1.0f * dot( normal, q)};
 }
 
+//test whether a point is inside the voronoi region of a face
+bool Face::voronoi( vec3 &pointW) const {
+    int v0 = vertices().back(); //last vertex of face
+    vec3 n = normalW();         //face normal vector
+    for( int v : vertices() ) {
+        vec3 p0 = m_polytope->vertices()[v0].pointW();
+        vec3 p1 = m_polytope->vertices()[v].pointW();
+        vec3 p2 = p0 - n;
+        vec3 plane_normal = cross( p1 - p0, p2 - p0 );  //points towards the inside of the face
+        if( dot( pointW - p0, plane_normal) < 0 ) return false; //if point is left from plane then false
+        v0 = v;
+    }
+    return true;
+}
+
+
 //suport function for the face
 vec3 Face::support(vec3 dirW) {
     auto dirL = m_polytope->dirW2L(dirW); //find support in model space
@@ -484,5 +509,7 @@ vec3 Face::support(vec3 dirW) {
 }
 
 
+
+//-----------------------------------------------------------------------
 
 
