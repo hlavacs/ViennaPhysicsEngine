@@ -8,6 +8,7 @@ using namespace glm;
 
 #include <vector>
 
+constexpr float SMALL = 1.0e-3f;
 constexpr float EPS = 1.0e-6f;
 
 using vint = std::vector<int>;
