@@ -4,6 +4,9 @@
 #include "glm/glm/glm.hpp"
 #include "glm/glm/ext.hpp"
 
+#include <cstdlib>
+
+#include "define.h"
 #include "collider.h"
 
 
@@ -33,34 +36,40 @@ namespace vpe {
 
     //Returns true if two colliders are intersecting. Has optional Minimum Translation Vector output param;
     //If supplied the EPA will be used to find the vector to separate coll1 from coll2
-    bool gjk(Collider& coll1, Collider& coll2, vec3& mtv, bool epa = true);
-    bool gjk(Collider& coll1, Collider& coll2 );
+    inline bool gjk(Collider& coll1, Collider& coll2, vec3& mtv, bool epa = true);
+    inline bool gjk(Collider& coll1, Collider& coll2 );
 
     //Internal functions used in the GJK algorithm
-    void update_simplex3(vec3 &a, vec3 &b, vec3 &c, vec3 &d, int &simp_dim, vec3 &search_dir);
-    bool update_simplex4(vec3 &a, vec3 &b, vec3 &c, vec3 &d, int &simp_dim, vec3 &search_dir);
+    inline void update_simplex3(vec3 &a, vec3 &b, vec3 &c, vec3 &d, int &simp_dim, vec3 &search_dir);
+    inline bool update_simplex4(vec3 &a, vec3 &b, vec3 &c, vec3 &d, int &simp_dim, vec3 &search_dir);
     //Expanding Polytope Algorithm. Used to find the mtv of two intersecting 
     //colliders using the final simplex obtained with the GJK algorithm
     vec3 EPA(vec3 a, vec3 b, vec3 c, vec3 d, Collider& coll1, Collider& coll2);
 
     #define GJK_MAX_NUM_ITERATIONS 64
 
-    bool gjk(Collider& coll1, Collider& coll2 ) {
+    inline bool gjk(Collider& coll1, Collider& coll2 ) {
         vec3 mtv;
         return gjk( coll1, coll2, mtv, false );
     }
 
-    bool gjk(Collider& coll1, Collider& coll2, vec3& mtv, bool epa ) {
+    inline bool gjk(Collider& coll1, Collider& coll2, vec3& mtv, bool epa ) {
         vec3 a, b, c, d; //Simplex: just a set of points (a is always most recently added)
-        vec3 search_dir = coll1.pos() - coll2.pos(); //initial search direction between colliders
+        vec3 search_dir = coll1.pos() - coll2.pos(); //initial search direction between colliders 
+        if(search_dir==vec3(0,0,0)) search_dir = vec3{ std::rand() - RAND_MAX/2,std::rand() - RAND_MAX/2,std::rand() - RAND_MAX/2 } * (1.0f / RAND_MAX );
 
         //Get initial point for simplex
         c = coll2.support(search_dir) - coll1.support(-search_dir);
+        int tries = 20;
+        while( c == vec3{0,0,0} && tries-- > 0) {
+            search_dir = vec3{ std::rand() - RAND_MAX/2,std::rand() - RAND_MAX/2,std::rand() - RAND_MAX/2 } * (1.0f / RAND_MAX );
+            c = coll2.support(search_dir) - coll1.support(-search_dir);
+        }
+        if(c == vec3{0,0,0}) return false;
         search_dir = -c; //search in direction of origin
 
         //Get second point for a line segment simplex
         b = coll2.support(search_dir) - coll1.support(-search_dir);
-
         if(dot(b, search_dir)<0) { return false; }//we didn't reach the origin, won't enclose it
 
         search_dir = cross(cross(c-b,-b),c-b); //search perpendicular to line segment towards origin
@@ -89,7 +98,7 @@ namespace vpe {
     }
 
     //Triangle case
-    void update_simplex3(vec3 &a, vec3 &b, vec3 &c, vec3 &d, int &simp_dim, vec3 &search_dir){
+    inline void update_simplex3(vec3 &a, vec3 &b, vec3 &c, vec3 &d, int &simp_dim, vec3 &search_dir){
         /* Required winding order:
         //  b
         //  | \
@@ -136,7 +145,7 @@ namespace vpe {
     }
 
     //Tetrahedral case
-    bool update_simplex4(vec3 &a, vec3 &b, vec3 &c, vec3 &d, int &simp_dim, vec3 &search_dir){
+    inline bool update_simplex4(vec3 &a, vec3 &b, vec3 &c, vec3 &d, int &simp_dim, vec3 &search_dir){
         // a is peak/tip of pyramid, BCD is the base (counterclockwise winding order)
         //We know a priori that origin is above BCD and below a
 
@@ -190,7 +199,7 @@ namespace vpe {
     #define EPA_MAX_NUM_FACES 64
     #define EPA_MAX_NUM_LOOSE_EDGES 32
     #define EPA_MAX_NUM_ITERATIONS 64
-    vec3 EPA(vec3 a, vec3 b, vec3 c, vec3 d, Collider& coll1, Collider& coll2){
+    inline vec3 EPA(vec3 a, vec3 b, vec3 c, vec3 d, Collider& coll1, Collider& coll2) {
         vec3 faces[EPA_MAX_NUM_FACES][4]; //Array of faces, each with 3 verts and a normal
         
         //Init with final simplex from GJK

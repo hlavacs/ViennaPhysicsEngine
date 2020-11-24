@@ -38,22 +38,26 @@ namespace vpe {
     //test whether a direction (or its reverse) is a separating axis
     //returns true if a separating axis was found (i.e. objects are NOT in contact), else false
     bool sat_axis_test2( ICollider &obj1, ICollider &obj2, vec3 &dir, vec3 &r, float &d) {
-        vec3 dir2 = -1.0f*dir;
-        vec3 p = obj1.support( dir );
-        vec3 q = obj2.support( dir2 );
-        r = normalize(q - p); 
-        d = dot( r, dir );
-        if( d > EPS) return true;       //allow for numerical inaccuracies
 
-        vec3 p2 = obj1.support( dir2 );
-        vec3 q2 = obj2.support( dir );
-        vec3 r2 = normalize(q2 - p2); 
-        float d2 = dot( r2, dir2 );
-        if( d2 > EPS ) {
-            dir = dir2;
-            r = r2;
-            d = d2;
-            return true;
+        vec3 dir2 = -1.0f*dir;
+        {
+            vec3 p = obj1.support( dir );
+            vec3 q = obj2.support( dir2 );
+            r = normalize(q - p); 
+            d = dot( r, dir );
+            if( d > EPS) return true;       //allow for numerical inaccuracies
+        }
+        {
+            vec3 p2 = obj1.support( dir2 );
+            vec3 q2 = obj2.support( dir );
+            vec3 r2 = normalize(q2 - p2); 
+            float d2 = dot( r2, dir2 );
+            if( d2 > EPS ) {
+                dir = dir2;
+                r = r2;
+                d = d2;
+                return true;
+            }
         }
         return false;
     }

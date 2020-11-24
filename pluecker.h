@@ -67,17 +67,17 @@ namespace vpe {
 
     //--------------------------------------------------------------------------
 
-    float distance_point_line( vec3 p, pluecker_line line ) {
+    inline float distance_point_line( vec3 p, pluecker_line line ) {
         vec3 v = line.v();
         vec3 m = line.m();
         return length(cross(v,p) + m) / length(v);
     }
 
-    float distance_point_line( pluecker_point point, pluecker_line line ) {
+    inline float distance_point_line( pluecker_point point, pluecker_line line ) {
         return distance_point_line( point.p3D(), line );
     }
 
-    float distance_line_line(pluecker_line line1, pluecker_line line2) {
+    inline float distance_line_line(pluecker_line line1, pluecker_line line2) {
         vec3 v1 = line1.v();
         vec3 m1 = line1.m();
         vec3 v2 = line2.v();
@@ -85,7 +85,7 @@ namespace vpe {
         return std::abs(dot(v1,m2) + dot(v2,m1)) / length(cross(v1,v2));
     }
 
-    float distance_point_plane( vec3 p, pluecker_plane plane ) {
+    inline float distance_point_plane( vec3 p, pluecker_plane plane ) {
         vec3  n = plane.n();
         float d = plane.d();
         return std::abs(dot(n,p) + d) / length(n);
@@ -93,7 +93,7 @@ namespace vpe {
 
     //--------------------------------------------------------------------------
 
-    pluecker_point intersect_line_plane( pluecker_line line, pluecker_plane plane ) {
+   inline pluecker_point intersect_line_plane( pluecker_line line, pluecker_plane plane ) {
         vec3  v = line.v();
         vec3  m = line.m();
         vec3  n = plane.n();

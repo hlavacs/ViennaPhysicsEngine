@@ -11,7 +11,7 @@
 
 namespace vpe {
 
-    bool unit_test_normals() {
+    inline bool unit_test_normals() {
 	    Box box{ {0.0f, 0.41f, 0.0f} };
         vec3 n0 = box.face(0).normalW();
 	    vec3 n1 = box.face(1).normalW();
@@ -22,15 +22,29 @@ namespace vpe {
         return true;
     }
 
-    bool unit_test_collision() {
+    inline bool unit_test_face_face_collision() {
 	    Box ground{ {0.0f, -50.0f, 0.0f}, scale( mat4(1.0f), vec3(100.0f, 100.0f, 100.0f)) };
 	    Box box{ {0.0f, 0.41f, 0.0f} };
         vec3 mtv(0,1,0); //minimum translation vector
 	    auto hit1 = gjk( box, ground, mtv);
+		return true;
+	}
+
+    inline bool unit_test_edge_edge_collision() {
+	    Box box1{ {0.0f, 1.0f, 0.0f}, scale( mat4(1.0f), vec3(2.0f, 2.0f, 2.0f)) };
+	    Box box2{ {2.0f, 1.0f, 0.0f}, scale( mat4(1.0f), vec3(2.0f, 2.0f, 2.0f)) };
+        vec3 mtv(0,0,0); //minimum translation vector
+	    auto hit1 = gjk( box1, box2, mtv);
+        return true;
+	}
+
+    inline bool unit_test_collision() {
+		unit_test_face_face_collision();
+		unit_test_edge_edge_collision();
         return true;
     }
 
-    bool unit_test_contacts() {
+    inline bool unit_test_contacts() {
 	    Box ground{ {0.0f, -50.0f, 0.0f}, scale( mat4(1.0f), vec3(100.0f, 100.0f, 100.0f)) };
 	    Box box{ {0.0f, 0.41f, 0.0f} };
         vec3 mtv(0,1,0); //minimum translation vector
