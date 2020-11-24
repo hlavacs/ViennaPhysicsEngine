@@ -72,7 +72,7 @@ namespace vpe {
             if( edge1.in_segment(p) && edge2.in_segment(p) ) {  //point is on both edges -> there is a contact
                 vec3 outwards2 = cross( edge2.m_dir, face2.normalW());  //points outwards of face2
                 vec3 cnormal = cross( edge1.m_dir, edge2.m_dir );       //cross prod of both edges is contact normalö
-                if( dot( cnormal, outwards2 ) <0  ) cnormal *= 1.0f;    //contact normal shoould point outwards of face2
+                if( dot( cnormal, outwards2 ) <0  ) cnormal *= -1.0f;    //contact normal should point outwards of face2
                 contacts.insert( { face1.polytope(), face2.polytope(), p, cnormal }  );
             }
         }
