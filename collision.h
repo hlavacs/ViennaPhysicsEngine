@@ -195,7 +195,7 @@ namespace vpe {
         if( dot(dir, dir) < EPS ) {
             dir = vec3(0.0f, 1.0f, 0.0f);
         } else {
-            sat_axis_test1( face1, face2, dir );
+            if( sat_axis_test1( face1, face2, dir ) ) return false;
         }
         if( sat_faces_test( face1, face2, dir ) ) return false;
         return true;
@@ -208,7 +208,7 @@ namespace vpe {
         if( dot(dir, dir) < EPS ) {
             dir = vec3(0.0f, 1.0f, 0.0f);
         } else {
-            sat_axis_test1( obj1, obj2, dir );
+            if( sat_axis_test1( obj1, obj2, dir ) ) return false;
         }
         if( sat_faces_test( obj1, obj2, dir ) ) return false;
         if( sat_chung_wang_test( obj1, obj2, dir ) ) return false;
@@ -222,7 +222,7 @@ namespace vpe {
         if( dot(dir, dir) < EPS ) {
             dir = vec3(0.0f, 1.0f, 0.0f);
         } else {
-            sat_axis_test1( obj1, obj2, dir );
+            if( sat_axis_test1( obj1, obj2, dir ) ) return false;
         }
         if( sat_chung_wang_test( obj1, obj2, dir ) ) return false;
         return true;
