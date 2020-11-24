@@ -121,13 +121,11 @@ namespace vpe {
     //returns true if a separating axis was found (i.e. objects are NOT in contact), else false
     bool sat_faces_test2( Face &face1, Face &face2, vec3 &dir ) {
         vec3 n = face1.normalW();
-        dir = n;
-        if( sat_axis_test2(face1, face2, dir ) ) return true;
+        if( sat_axis_test2(face1, face2, dir = n ) ) return true;
         std::vector<Line> edges1;
         face1.edgesW( edges1 );
         for( auto &edge : edges1 ) {
-            dir = cross(edge.m_dir, n);
-            if( sat_axis_test2(face1, face2, dir ) ) return true;
+            if( sat_axis_test2(face1, face2, dir = cross(edge.m_dir, n) ) ) return true;
         }
         return false;
     }
@@ -143,13 +141,11 @@ namespace vpe {
     //returns true if a separating axis was found (i.e. objects are NOT in contact), else false
     bool sat_faces_test( Polytope &obj1, Polytope &obj2, vec3 &dir ) {
         for( auto& face : obj1.faces() ) {
-            dir = face.normalW();
-            if( sat_axis_test1(obj1, obj2, dir) ) return true;
+            if( sat_axis_test1(obj1, obj2, dir = face.normalW()) ) return true;
         }
 
         for( auto& face : obj2.faces() ) {
-            dir = face.normalW();
-            if( sat_axis_test1(obj1, obj2, dir) ) return true;
+            if( sat_axis_test1(obj1, obj2, dir = face.normalW()) ) return true;
         }
 
         return false;
@@ -160,8 +156,8 @@ namespace vpe {
     //returns true if a separating axis was found (i.e. objects are NOT in contact), else false
     template<typename T>
     bool sat_edges_test( T &obj1, T &obj2, vec3 &dir ) {
-        std::set<std::pair<int,int>> pairs1;    //each edge should be included only once
-        std::set<std::pair<int,int>> pairs2;
+        std::set<ipair> pairs1;    //each edge should be included only once
+        std::set<ipair> pairs2;
         std::vector<Line> edges1;
         std::vector<Line> edges2;
         obj1.edgesW( edges1, &pairs1 );
@@ -170,8 +166,7 @@ namespace vpe {
         for( auto& l1 : edges1 )  {
             for( auto& l2: edges2 ) {
                 vec3 axis = cross( l1.m_dir, l2.m_dir );
-                dir = axis;
-                if( sat_axis_test2(obj1, obj2, dir) ) return true;
+                if( sat_axis_test2(obj1, obj2, dir = axis) ) return true;
             }
         }
         return false; 
@@ -183,7 +178,7 @@ namespace vpe {
     //test for collision between a vertex and a face
     //returns true of the objects are in contact
     //else false
-    bool collision( Vertex &vertex, Face &face, vec3 &dir ) {
+    bool collision( Vertex &vertex, Face &face ) {
         vec3 p = vertex.pointW();
         return distance_point_plane( p, face.plueckerW() ) < EPS && face.voronoi(p);
     }

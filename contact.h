@@ -54,8 +54,7 @@ namespace vpe {
     //point contacts face if the distance point-plane is smaller than EPS AND 
     //the point is inside the face Voronoi region.
     inline void process_vertex_face_contact( Vertex &vertex, Face &face, std::set<contact> & contacts) {
-        vec3 dir;
-        if( collision( vertex, face, dir ) ) {
+        if( collision( vertex, face ) ) {
             contacts.insert( { vertex.polytope(), face.polytope(), vertex.pointW(), face.normalW() }  );
         }
     }
