@@ -12,6 +12,13 @@
 
 namespace vpe {
 
+	inline bool unit_sub_test( bool result ) {
+		if( result ) {
+			return true;			
+		}
+		std::cout << " -- FAIL\n";
+		std::exit(1);
+	}
 
     inline bool unit_test_normals() {
 	    Box box{ {0.0f, 0.5f, 0.0f} };
@@ -29,12 +36,12 @@ namespace vpe {
     inline bool unit_test_box_box() {
 		std::cout << "Box-Box tests\n";
 		{
-			std::cout << "Face-Face tests";
+			std::cout << "Face-Face 1";
 			Box ground{ {0.0f, -50.0f, 0.0f}, scale( mat4(1.0f), vec3(100.0f, 100.0f, 100.0f)) };
 			Box box{ {0.0f, 0.41f, 0.0f} };
 			vec3 mtv(0,1,0); //minimum translation vector
-			auto hit1 = gjk( box, ground, mtv);
-			if(!hit1) return false;
+			auto hit = gjk( box, ground, mtv);
+			if(!hit) return false;
 			if( mtv != vec3{ 0, 0.09f, 0 }) return false;
 
 			box.pos() += mtv;
@@ -45,23 +52,45 @@ namespace vpe {
 		}
 
 		{
-			std::cout << "Face-Face tests";
+			std::cout << "Face-Face 2";
 			Box box1{ {0.0f, 1.0f, 0.0f}, scale( mat4(1.0f), vec3(2.0f, 2.0f, 2.0f)) };
 			Box box2{ {2.0f, 1.0f, 0.0f}, scale( mat4(1.0f), vec3(2.0f, 2.0f, 2.0f)) };
 			vec3 mtv(0,0,0); //minimum translation vector
-			auto hit1 = gjk( box1, box2, mtv);
+			auto hit = gjk( box1, box2, mtv);
+			if( !hit ) return false;
+			if( mtv != vec3{ 0, 0.0f, 0 }) return false;
 
 			box1.pos() += mtv;
 			std::set<contact> ct;
 			contacts( box1, box2, mtv, ct);
+			if( ct.size()!=4) return false;
 			std::cout << " -- OK\n";
 		}
+
+		{
+			std::cout << "Face-Face 2";
+			Box box1{ {0.1f, 1.9f, 0.1f} };
+			Box box2{ {0.0f, 1.0f, 0.0f} }; //, rotate( mat4(1.0f), (float)(M_PI / 4.0f), vec3{0.0f,0.0f,1.0f} ) };
+			vec3 mtv(0,0,0); //minimum translation vector
+			auto hit = gjk( box1, box2, mtv);
+			if( !hit ) return false;
+			//if( mtv != vec3{ 0, 0.0f, 0 }) return false;
+
+			box1.pos() += mtv;
+			std::set<contact> ct;
+			contacts( box1, box2, mtv, ct);
+			if( ct.size()!=4) return false;
+			std::cout << " -- OK\n";
+		}
+
 		return true;
 	}
 
+
+
     inline bool unit_tests() {
-		unit_test_normals();
-		unit_test_box_box();
+		unit_sub_test( unit_test_normals() );
+		unit_sub_test( unit_test_box_box() );
         return true;
     }
 

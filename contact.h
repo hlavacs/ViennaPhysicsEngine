@@ -28,7 +28,10 @@ namespace vpe {
         vec3 normal;
 
         int v1 = -1;
+        int f1 = -1;
         int f2 = -1;
+        int e1 = -1;
+        int e2 = -1;
 
         bool operator <(const contact& c) const; //need this for std::set
     };
@@ -56,18 +59,17 @@ namespace vpe {
 
     //point contacts face if the distance point-plane is smaller than EPS AND 
     //the point is inside the face Voronoi region.
-    //only contacts are allowed where the vertex is on a face that can actually contact the other face.
-    //so we also test the normals of all faces the vertex is on.
-    inline void process_vertex_face_contact( Vertex &vertex, Face &face, std::set<contact> & contacts) {
-        if( collision( vertex, face ) ) {
-            bool found;
-            for( auto& f : vertex.faces() ) {                
-                Face & vface = vertex.polytope()->face(f);
-                if( dot( vface.normalW(), face.normalW() ) < 0 ) found = true;
+    //since contacts can be symmetric, as convention, sort the polytopes by larger pointer first
+    inline void process_vertex_face_contact( Vertex &vertex, Face &face1, Face &face2, std::set<contact> & contacts) {
+        if( collision( vertex, face2 ) ) {
+
+            if( reinterpret_cast<std::uintptr_t>(vertex.polytope()) > reinterpret_cast<std::uintptr_t>(face2.polytope()) ) {
+                contacts.insert( {  vertex.polytope(), face2.polytope(), vertex.pointW(), face2.normalW(), 
+                                    vertex.index(), face1.index(), face2.index() }  );
+            } else {
+                contacts.insert( {  face2.polytope(), vertex.polytope(), vertex.pointW(), -face2.normalW(), 
+                                    vertex.index(), face1.index(), face2.index() }  );
             }
-            if(!found) return;
-            contacts.insert( {  vertex.polytope(), face.polytope(), vertex.pointW(), face.normalW(), 
-                                vertex.index(), face.index() }  );
         }
     }
 
@@ -94,16 +96,16 @@ namespace vpe {
     //collide each edge from one face with all edges from the other face
     inline void process_face_face_contact( Face &face1, Face &face2, vec3 &dir,  std::set<contact> & contacts ) {
         
-        if( !collision( face1, face2, dir) ) return;   //only if the faces actually touch 
+        if( !collision( face1, face2, dir) || dot(face1.normalW(), face2.normalW()) >= 0.0f ) return;   //only if the faces actually touch 
 
         for( int v1 : face1.face_vertices() ) {      //go through all vertices of face 1
-            process_vertex_face_contact( face1.polytope()->vertex(v1), face2, contacts );
+            process_vertex_face_contact( face1.polytope()->vertex(v1), face1, face2, contacts );
         }
-        return;
 
         for( int v2 : face2.face_vertices() ) {      //go through all vertices of face 2
-            process_vertex_face_contact( face2.polytope()->vertex(v2), face1, contacts );
+            process_vertex_face_contact( face2.polytope()->vertex(v2), face2, face1, contacts );
         }
+        return;
 
         std::vector<Line> edges1;
         std::vector<Line> edges2;
