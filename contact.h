@@ -105,7 +105,6 @@ namespace vpe {
         for( int v2 : face2.face_vertices() ) {      //go through all vertices of face 2
             process_vertex_face_contact( face2.polytope()->vertex(v2), face2, face1, contacts );
         }
-        return;
 
         std::vector<Line> edges1;
         std::vector<Line> edges2;
