@@ -57,6 +57,8 @@ namespace vpe {
         return std::hash<contact>()(*this) < std::hash<contact>()(c);
     }
 
+    //store a contact in the contact set
+    //by convention store the larger pointer first
     inline void add_contact( contact c, std::set<contact> & contacts) {
             if( reinterpret_cast<std::uintptr_t>(c.obj1) > reinterpret_cast<std::uintptr_t>(c.obj2) ) {
                 contacts.insert( c );
@@ -77,10 +79,7 @@ namespace vpe {
     }
 
     //process a possible edge-edge contact
-    //first test whether both lines are in contact
-    //then test that they are not parallel
-    //then use http://mathforum.org/library/drmath/view/62814.html to find the intersection
-    //Finally test whether the contact point is inside both line segments
+    //if contact normal points inwards then invert the sign
     inline void process_edge_edge_contact( Face &face1, Line &edge1, Face &face2, Line &edge2, std::set<contact> & contacts) {
         pluecker_point point = intersect_segment_segment( edge1, edge2 );
         if( point.w()==0) return;

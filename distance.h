@@ -34,6 +34,7 @@ namespace vpe {
 
     //--------------------------------------------------------------------------
 
+    //use http://mathforum.org/library/drmath/view/62814.html to find the intersection of two line segments
     inline pluecker_point intersect_segment_segment( Line l1, Line l2 ) {
         if( distance_line_line(l1.plueckerW(), l2.plueckerW()) > EPS ) return { {0,0,0}, 0};
 
@@ -42,14 +43,14 @@ namespace vpe {
         vec3 diff = l2.pos() - l1.pos();
         vec3 rs = cross( diff, l2.m_dir );
 
-        float t = length(rs) / length(cp);
-        t = dot(cp,rs)>=0 ? t : -t;
-        if( t<0 || t>1) return { {0,0,0}, 0};
+        float t = length(rs) / length(cp);      //get line parameter t
+        t = dot(cp,rs)>=0 ? t : -t;             //might have to invert sign
+        if( t<0 || t>1) return { {0,0,0}, 0};   //test if in segment
 
         vec3 ls = t*l1.m_dir - diff;
-        float u = length( ls ) / length( l2.m_dir);
-        u = dot(ls, l2.m_dir)>=0 ? u : -u;
-        if( u<0 || u>1) return { {0,0,0}, 0};
+        float u = length( ls ) / length( l2.m_dir); //get line parameter u
+        u = dot(ls, l2.m_dir)>=0 ? u : -u;          //might have to invert sign
+        if( u<0 || u>1) return { {0,0,0}, 0};       //test if in segment
         return l1.pos() + t * l1.m_dir;
     }
 
