@@ -7,6 +7,7 @@
 #include "collider.h"
 #include "collision.h"
 #include "contact.h"
+#include "distance.h"
 
 
 
@@ -91,7 +92,7 @@ namespace vpe {
 		}
 
 		{
-			std::cout << "Face-Face 2";
+			std::cout << "Face-Face 3";
 			Box box1{ {0.1f, 1.9f, 0.1f} };
 			Box box2{ {0.0f, 1.0f, 0.0f} }; //, rotate( mat4(1.0f), (float)(M_PI / 4.0f), vec3{0.0f,0.0f,1.0f} ) };
 			vec3 mtv(0,0,0); //minimum translation vector

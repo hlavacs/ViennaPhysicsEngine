@@ -173,12 +173,6 @@ namespace vpe {
             return d.z / m_dir.z;
         }
 
-        bool in_segment(vec3 &point) const {
-            if( distance_point_line( point, plueckerW() ) > EPS ) return false;
-            float ft = t(point);
-            return 0.0f <= ft && ft <= 1.0f;
-        }
-
         vec3 support(vec3 dirW) {
             auto dirL = dirW2L(dirW); //find support in model space
             vec3 result = dot( dirL, m_dir ) < 0.0f ?  vec3{0,0,0} : m_dir;

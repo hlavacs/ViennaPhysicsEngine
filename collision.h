@@ -11,6 +11,8 @@
 #include "glm/glm/ext.hpp"
 
 #include "collider.h"
+#include "distance.h"
+
 
 namespace vpe {
 
@@ -222,6 +224,7 @@ namespace vpe {
         if( sat_chung_wang_test( obj1, obj2, dir ) ) return false;
         return true;
     }
+
 
 
 }

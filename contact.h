@@ -82,22 +82,15 @@ namespace vpe {
     //then use http://mathforum.org/library/drmath/view/62814.html to find the intersection
     //Finally test whether the contact point is inside both line segments
     inline void process_edge_edge_contact( Face &face1, Line &edge1, Face &face2, Line &edge2, std::set<contact> & contacts) {
-        if( distance_line_line(edge1.plueckerW(), edge2.plueckerW()) < EPS ) {
-            vec3 cp = cross(edge1.m_dir, edge2.m_dir);
-            if( cp == vec3{0,0,0}) return; //if edges are parallel there is no intersection
-            vec3 diff = edge1.pos() - edge2.pos();
-            vec3 rs = cross( diff, edge2.m_dir );
-            float t = length(rs) / length(cp);
-            if( t<0 || t>1) return;
-            float u = length( t*edge1.m_dir - diff ) / length( edge2.m_dir);
-            if( u<0 || u>1) return;
+        pluecker_point point = intersect_segment_segment( edge1, edge2 );
+        if( point.w()==0) return;
 
-            vec3 p = edge1.pos() + t * edge1.m_dir;
-            vec3 outwards2 = cross( edge2.m_dir, face2.normalW());  //points outwards of face2
-            if( dot( cp, outwards2 ) <0  ) cp *= -1.0f;    //contact normal should point outwards of face2
-            add_contact( {  face1.polytope(), face2.polytope(), p, cp, -1, face1.index(), face2.index() }
-                            , contacts  );
-        }
+        vec3 p = point.p3D();
+        vec3 cp = cross(edge1.m_dir, edge2.m_dir);     //contact normal
+        vec3 outwards2 = cross( edge2.m_dir, face2.normalW());  //points outwards of face2
+        if( dot( cp, outwards2 ) <0  ) cp *= -1.0f;    //contact normal should point outwards of face2
+        add_contact( {  face1.polytope(), face2.polytope(), p, cp, -1, face1.index(), face2.index() }
+                        , contacts  );
     }
 
     //test a pair of faces against each other.
