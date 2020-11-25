@@ -27,6 +27,9 @@ namespace vpe {
         vec3 pos;
         vec3 normal;
 
+        int v1 = -1;
+        int f2 = -1;
+
         bool operator <(const contact& c) const; //need this for std::set
     };
 
@@ -53,9 +56,18 @@ namespace vpe {
 
     //point contacts face if the distance point-plane is smaller than EPS AND 
     //the point is inside the face Voronoi region.
+    //only contacts are allowed where the vertex is on a face that can actually contact the other face.
+    //so we also test the normals of all faces the vertex is on.
     inline void process_vertex_face_contact( Vertex &vertex, Face &face, std::set<contact> & contacts) {
         if( collision( vertex, face ) ) {
-            contacts.insert( { vertex.polytope(), face.polytope(), vertex.pointW(), face.normalW() }  );
+            bool found;
+            for( auto& f : vertex.faces() ) {                
+                Face & vface = vertex.polytope()->face(f);
+                if( dot( vface.normalW(), face.normalW() ) < 0 ) found = true;
+            }
+            if(!found) return;
+            contacts.insert( {  vertex.polytope(), face.polytope(), vertex.pointW(), face.normalW(), 
+                                vertex.index(), face.index() }  );
         }
     }
 
@@ -72,7 +84,7 @@ namespace vpe {
                 vec3 outwards2 = cross( edge2.m_dir, face2.normalW());  //points outwards of face2
                 vec3 cnormal = cross( edge1.m_dir, edge2.m_dir );       //cross prod of both edges is contact normalö
                 if( dot( cnormal, outwards2 ) <0  ) cnormal *= -1.0f;    //contact normal should point outwards of face2
-                contacts.insert( { face1.polytope(), face2.polytope(), p, cnormal }  );
+                contacts.insert( {  face1.polytope(), face2.polytope(), p, cnormal }  );
             }
         }
     }
@@ -87,6 +99,7 @@ namespace vpe {
         for( int v1 : face1.face_vertices() ) {      //go through all vertices of face 1
             process_vertex_face_contact( face1.polytope()->vertex(v1), face2, contacts );
         }
+        return;
 
         for( int v2 : face2.face_vertices() ) {      //go through all vertices of face 2
             process_vertex_face_contact( face2.polytope()->vertex(v2), face1, contacts );

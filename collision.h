@@ -156,8 +156,8 @@ namespace vpe {
     //returns true if a separating axis was found (i.e. objects are NOT in contact), else false
     template<typename T>
     bool sat_edges_test( T &obj1, T &obj2, vec3 &dir ) {
-        std::set<ipair> pairs1;    //each edge should be included only once
-        std::set<ipair> pairs2;
+        std::set<pint> pairs1;    //each edge should be included only once
+        std::set<pint> pairs2;
         std::vector<Line> edges1;
         std::vector<Line> edges2;
         obj1.edgesW( edges1, &pairs1 );

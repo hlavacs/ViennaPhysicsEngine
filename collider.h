@@ -197,9 +197,10 @@ namespace vpe {
     struct VertexData {
         int  m_index;       //index of this vertex
         vint m_neighbors;   //indices of all vertex neighbors of this vertex
+        vint m_faces;
 
-        VertexData(int i, vint& ne) : m_index(i), m_neighbors(ne) {}
-        VertexData(int i, vint&& ne) : m_index(i), m_neighbors(ne) {}
+        VertexData(int i, vint& ne, vint& faces) : m_index(i), m_neighbors(ne), m_faces(faces) {}
+        VertexData(int i, vint&& ne, vint&& faces) : m_index(i), m_neighbors(ne), m_faces(faces) {}
     };
 
     //Vertex of a polytope
@@ -217,6 +218,7 @@ namespace vpe {
         vec3 &          pointL() { return m_pointL; };
         vec3            pointW();
         const vint &    neighbors() const { assert(m_data!=nullptr); return m_data->m_neighbors;};
+        const vint &    faces() const { assert(m_data!=nullptr); return m_data->m_faces;};
         pluecker_point  plueckerW() { return { pointW(), 1.0f}; };
         vec3            support(vec3 dir) { return pointW(); }
     };
@@ -250,7 +252,7 @@ namespace vpe {
         const vint &    neighbors() const { return m_data->m_neighbors; }
         vec3            normalW() const;
         void            pointsW( vvec3 &points ) const;
-        void            edgesW( std::vector<Line> & edges, std::set<ipair> *pairs = nullptr ) const;
+        void            edgesW( std::vector<Line> & edges, std::set<pint> *pairs = nullptr ) const;
         pluecker_plane  plueckerW() const;
         bool            voronoi( vec3 &point ) const;
         vec3            support(vec3 dir);
@@ -288,7 +290,7 @@ namespace vpe {
 
         //return the edges of this polytope, include each edge only once
         void edgesW( std::vector<Line> & edges ) {
-            std::set<ipair> pairs;
+            std::set<pint> pairs;
             for( auto & face : m_faces ) {
                 face.edgesW( edges, &pairs );
             }
@@ -339,10 +341,10 @@ namespace vpe {
     struct Tetrahedron : Polytope {
 
         const static inline std::vector<VertexData> m_vertices_data =  //4 vertices, each is member of 3 faces and has 3 neighbors
-                            {       VertexData{ 0, {1,2,3} }  //0
-                                , 	VertexData{ 1, {0,2,3} }  //1
-                                , 	VertexData{ 2, {0,1,3} }  //2
-                                , 	VertexData{ 3, {0,1,2} }  //3
+                            {       VertexData{ 0, {1,2,3}, {0,1,3} }  //0
+                                , 	VertexData{ 1, {0,2,3}, {0,1,2} }  //1
+                                , 	VertexData{ 2, {0,1,3}, {0,2,3} }  //2
+                                , 	VertexData{ 3, {0,1,2}, {1,2,3} }  //3
                             };
 
         const static inline std::vector<FaceData> m_faces_data =  //4 faces, each has 3 vertices (clockwise), 3 neighbor faces
@@ -377,17 +379,17 @@ namespace vpe {
 
     //a box is a polytope with 8 vertices
     struct Box : Polytope {
-                                    //every vertex has 3 neighbors
+                                    //every vertex has 3 neighbors and 3 faces
         const static inline std::vector<VertexData> m_vertices_data = 
                             { 
-                                    VertexData{ 0, {1,2,4} }   // 0  
-                                , 	VertexData{ 1, {0,3,5} }   // 1
-                                , 	VertexData{ 2, {0,3,6} }   // 2
-                                , 	VertexData{ 3, {1,2,7} }   // 3
-                                ,   VertexData{ 4, {0,5,6} }   // 4
-                                , 	VertexData{ 5, {1,4,7} }   // 5
-                                , 	VertexData{ 6, {2,4,7} }   // 6
-                                , 	VertexData{ 7, {3,5,6} }   // 7
+                                    VertexData{ 0, {1,2,4}, {0,2,4} }   // 0  
+                                , 	VertexData{ 1, {0,3,5}, {1,2,4} }   // 1
+                                , 	VertexData{ 2, {0,3,6}, {0,2,5} }   // 2
+                                , 	VertexData{ 3, {1,2,7}, {1,2,5} }   // 3
+                                ,   VertexData{ 4, {0,5,6}, {0,3,4} }   // 4
+                                , 	VertexData{ 5, {1,4,7}, {1,3,4} }   // 5
+                                , 	VertexData{ 6, {2,4,7}, {0,3,5} }   // 6
+                                , 	VertexData{ 7, {3,5,6}, {1,3,5} }   // 7
                             };
 
                             //6 faces, each having 4 vertices (clockwise), 4 neighbor faces
@@ -471,7 +473,7 @@ namespace vpe {
 
     //return a list of edges of this face
     //if pairs ppoints to a set, make sure that each edge is included only once
-    void Face::edgesW( std::vector<Line> & edges, std::set<ipair> *pairs  ) const {
+    void Face::edgesW( std::vector<Line> & edges, std::set<pint> *pairs  ) const {
         int v0 = face_vertices().back();
         for( int v : face_vertices() ) {
             if( pairs==nullptr || !pairs->contains(std::make_pair(v0, v)) ) {

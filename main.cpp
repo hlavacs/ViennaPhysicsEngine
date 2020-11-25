@@ -20,9 +20,7 @@ using namespace vpe;
 
 int main() {
 
-	unit_test_normals();
-	unit_test_collision();
-	unit_test_contacts();
+	unit_tests();
 
 
 

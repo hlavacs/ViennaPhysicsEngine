@@ -1,6 +1,7 @@
 #ifndef TEST_H
 #define TEST_H
 
+#include <iterator>
 
 #include "gjk_epa.h"
 #include "collider.h"
@@ -11,38 +12,60 @@
 
 namespace vpe {
 
+
     inline bool unit_test_normals() {
-	    Box box{ {0.0f, 0.41f, 0.0f} };
-        vec3 n0 = box.face(0).normalW();
-	    vec3 n1 = box.face(1).normalW();
-	    vec3 n2 = box.face(2).normalW();
-	    vec3 n3 = box.face(3).normalW();
-	    vec3 n4 = box.face(4).normalW();
-	    vec3 n5 = box.face(5).normalW();
+	    Box box{ {0.0f, 0.5f, 0.0f} };
+		vvec3 normals = {
+			box.face(0).normalW(), box.face(1).normalW(),
+			box.face(2).normalW(), box.face(3).normalW(),
+			box.face(4).normalW(), box.face(5).normalW()};
+		
+		vvec3 normals2 = {{-1,0,0},{1,0,0},{0,-1,0},{0,1,0},{0,0,-1},{0,0,1}};
+		if( !std::equal(std::begin(normals), std::end(normals), std::begin(normals2) ) ) return false;
+
         return true;
     }
 
-    inline bool unit_test_face_face_collision() {
-	    Box ground{ {0.0f, -50.0f, 0.0f}, scale( mat4(1.0f), vec3(100.0f, 100.0f, 100.0f)) };
-	    Box box{ {0.0f, 0.41f, 0.0f} };
-        vec3 mtv(0,1,0); //minimum translation vector
-	    auto hit1 = gjk( box, ground, mtv);
+    inline bool unit_test_box_box() {
+		std::cout << "Box-Box tests\n";
+		{
+			std::cout << "Face-Face tests";
+			Box ground{ {0.0f, -50.0f, 0.0f}, scale( mat4(1.0f), vec3(100.0f, 100.0f, 100.0f)) };
+			Box box{ {0.0f, 0.41f, 0.0f} };
+			vec3 mtv(0,1,0); //minimum translation vector
+			auto hit1 = gjk( box, ground, mtv);
+			if(!hit1) return false;
+			if( mtv != vec3{ 0, 0.09f, 0 }) return false;
+
+			box.pos() += mtv;
+			std::set<contact> ct;
+			contacts( box, ground, mtv, ct);
+			if( ct.size()!=4) return false;
+			std::cout << " -- OK\n";
+		}
+
+		{
+			std::cout << "Face-Face tests";
+			Box box1{ {0.0f, 1.0f, 0.0f}, scale( mat4(1.0f), vec3(2.0f, 2.0f, 2.0f)) };
+			Box box2{ {2.0f, 1.0f, 0.0f}, scale( mat4(1.0f), vec3(2.0f, 2.0f, 2.0f)) };
+			vec3 mtv(0,0,0); //minimum translation vector
+			auto hit1 = gjk( box1, box2, mtv);
+
+			box1.pos() += mtv;
+			std::set<contact> ct;
+			contacts( box1, box2, mtv, ct);
+			std::cout << " -- OK\n";
+		}
 		return true;
 	}
 
-    inline bool unit_test_edge_edge_collision() {
-	    Box box1{ {0.0f, 1.0f, 0.0f}, scale( mat4(1.0f), vec3(2.0f, 2.0f, 2.0f)) };
-	    Box box2{ {2.0f, 1.0f, 0.0f}, scale( mat4(1.0f), vec3(2.0f, 2.0f, 2.0f)) };
-        vec3 mtv(0,0,0); //minimum translation vector
-	    auto hit1 = gjk( box1, box2, mtv);
-        return true;
-	}
-
-    inline bool unit_test_collision() {
-		unit_test_face_face_collision();
-		unit_test_edge_edge_collision();
+    inline bool unit_tests() {
+		unit_test_normals();
+		unit_test_box_box();
         return true;
     }
+
+
 
     inline bool unit_test_contacts() {
 	    Box ground{ {0.0f, -50.0f, 0.0f}, scale( mat4(1.0f), vec3(100.0f, 100.0f, 100.0f)) };
