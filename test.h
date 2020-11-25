@@ -20,6 +20,29 @@ namespace vpe {
 		std::exit(1);
 	}
 
+	inline bool unit_test_pluecker() {
+		{
+			Line l1( {-1,1,0}, {1,1,0} );
+			Line l2( {0,0,-1}, {0,0,1} );
+			float d = distance_line_line( l1.plueckerW(), l2.plueckerW());
+			if( d!=1) return false;
+		}
+		{
+			Line l1( {-1,0,0}, {1,0,0} );
+			Line l2( {0,0,-1}, {0,0,1} );
+			float d = distance_line_line( l1.plueckerW(), l2.plueckerW());
+			if( d!=0) return false;
+		}
+		{
+			pluecker_line l1( {-1,0,0}, {1,0,0} );
+			pluecker_plane p1( {1,0,0}, {2,0,0} );
+			auto point = intersect_line_plane( l1, p1);
+			if( point.p3D()!=vec3{2,0,0}) return false;			
+		}
+		return true;
+	}
+
+
     inline bool unit_test_normals() {
 	    Box box{ {0.0f, 0.5f, 0.0f} };
 		vvec3 normals = {
@@ -89,6 +112,7 @@ namespace vpe {
 
 
     inline bool unit_tests() {
+		unit_sub_test( unit_test_pluecker() );
 		unit_sub_test( unit_test_normals() );
 		unit_sub_test( unit_test_box_box() );
         return true;

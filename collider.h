@@ -146,7 +146,7 @@ namespace vpe {
 
         pluecker_line plueckerW() { 
             vec3 dir = m_matRS*vec3(0,1,0);  //capsule in local space along y axis
-            return { dir, cross( m_pos, m_pos + dir) }; 
+            return { m_pos, m_pos + dir }; 
         };
 
     };
@@ -160,7 +160,7 @@ namespace vpe {
 
         pluecker_line plueckerW() const {
             vec3 dir = m_matRS*m_dir;
-            return { dir, cross( m_pos, m_pos + dir) }; 
+            return { m_pos, m_pos + dir }; 
         };
 
         float t( vec3 &point ) const {     //point = pos + t dir

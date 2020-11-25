@@ -129,6 +129,7 @@ namespace vpe {
             Face & face1 = obj1.face(f1);
             for( int f2 : obj2_faces) {
                 Face & face2 = obj2.face(f2);
+                //if( f1==2 && f2==3)
                 process_face_face_contact( face1, face2, dir, contacts ); //compare all vertices and edges in the faces
             }
         }
