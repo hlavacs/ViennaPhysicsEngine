@@ -97,7 +97,7 @@ namespace vpe {
 			vec3 mtv(0,0,0); //minimum translation vector
 			auto hit = gjk( box1, box2, mtv);
 			if( !hit ) return false;
-			//if( mtv != vec3{ 0, 0.0f, 0 }) return false;
+			if( mtv != vec3{ 0, 0.1f, 0 }) return false;
 
 			box1.pos() += mtv;
 			std::set<contact> ct;

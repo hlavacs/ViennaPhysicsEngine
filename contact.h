@@ -44,8 +44,8 @@ namespace vpe {
 template<>
 struct std::hash<vpe::contact> {
     size_t operator()(const vpe::contact& c) {
-        return std::hash<std::tuple<vpe::Polytope*,vpe::Polytope*,vec3,vec3>>()( 
-            std::make_tuple( c.obj1, c.obj2, c.pos, c.normal) );
+        return std::hash<std::tuple<vpe::Polytope*,vpe::Polytope*,vec3>>()( 
+            std::make_tuple( c.obj1, c.obj2, c.pos ) );
     }
 };
 
@@ -57,37 +57,46 @@ namespace vpe {
         return std::hash<contact>()(*this) < std::hash<contact>()(c);
     }
 
+    inline void add_contact( contact c, std::set<contact> & contacts) {
+            if( reinterpret_cast<std::uintptr_t>(c.obj1) > reinterpret_cast<std::uintptr_t>(c.obj2) ) {
+                contacts.insert( c );
+            } else {
+                contacts.insert( {  c.obj2, c.obj1, c.pos, -c.normal, c.v1, c.f2, c.f1 }  );
+            }
+    }
+
     //point contacts face if the distance point-plane is smaller than EPS AND 
     //the point is inside the face Voronoi region.
     //since contacts can be symmetric, as convention, sort the polytopes by larger pointer first
     inline void process_vertex_face_contact( Vertex &vertex, Face &face1, Face &face2, std::set<contact> & contacts) {
         if( collision( vertex, face2 ) ) {
-
-            if( reinterpret_cast<std::uintptr_t>(vertex.polytope()) > reinterpret_cast<std::uintptr_t>(face2.polytope()) ) {
-                contacts.insert( {  vertex.polytope(), face2.polytope(), vertex.pointW(), face2.normalW(), 
-                                    vertex.index(), face1.index(), face2.index() }  );
-            } else {
-                contacts.insert( {  face2.polytope(), vertex.polytope(), vertex.pointW(), -face2.normalW(), 
-                                    vertex.index(), face1.index(), face2.index() }  );
-            }
+            add_contact( {    vertex.polytope(), face2.polytope(), vertex.pointW(), face2.normalW()
+                            , vertex.index(), face1.index(), face2.index() }
+                            , contacts );
         }
     }
 
     //process a possible edge-edge contact
     //first test whether both lines are in contact
-    //then get the intersection between the edge face and the other edge line -> point
+    //then test that they are not parallel
+    //then use http://mathforum.org/library/drmath/view/62814.html to find the intersection
     //Finally test whether the contact point is inside both line segments
     inline void process_edge_edge_contact( Face &face1, Line &edge1, Face &face2, Line &edge2, std::set<contact> & contacts) {
         if( distance_line_line(edge1.plueckerW(), edge2.plueckerW()) < EPS ) {
-            pluecker_point point = intersect_line_plane( edge1.plueckerW(), face2.plueckerW()).p3D();
-            if( std::abs(point.w()) < EPS ) return; // if 0 then both edges are parallel
-            vec3 p = point.p3D();
-            if( edge1.in_segment(p) && edge2.in_segment(p) ) {  //point is on both edges -> there is a contact
-                vec3 outwards2 = cross( edge2.m_dir, face2.normalW());  //points outwards of face2
-                vec3 cnormal = cross( edge1.m_dir, edge2.m_dir );       //cross prod of both edges is contact normalö
-                if( dot( cnormal, outwards2 ) <0  ) cnormal *= -1.0f;    //contact normal should point outwards of face2
-                contacts.insert( {  face1.polytope(), face2.polytope(), p, cnormal }  );
-            }
+            vec3 cp = cross(edge1.m_dir, edge2.m_dir);
+            if( cp == vec3{0,0,0}) return; //if edges are parallel there is no intersection
+            vec3 diff = edge1.pos() - edge2.pos();
+            vec3 rs = cross( diff, edge2.m_dir );
+            float t = length(rs) / length(cp);
+            if( t<0 || t>1) return;
+            float u = length( t*edge1.m_dir - diff ) / length( edge2.m_dir);
+            if( u<0 || u>1) return;
+
+            vec3 p = edge1.pos() + t * edge1.m_dir;
+            vec3 outwards2 = cross( edge2.m_dir, face2.normalW());  //points outwards of face2
+            if( dot( cp, outwards2 ) <0  ) cp *= -1.0f;    //contact normal should point outwards of face2
+            add_contact( {  face1.polytope(), face2.polytope(), p, cp, -1, face1.index(), face2.index() }
+                            , contacts  );
         }
     }
 
