@@ -22,29 +22,38 @@ namespace vpe {
 	}
 
 	inline bool unit_test_pluecker() {
+		std::cout << "Pluecker tests\n";
 		{
+			std::cout << "Distance Line-Line 1";
 			Line l1( {-1,1,0}, {1,1,0} );
 			Line l2( {0,0,-1}, {0,0,1} );
 			float d = distance_line_line( l1.plueckerW(), l2.plueckerW());
 			if( d!=1) return false;
+			std::cout << " -- OK\n";
 		}
 		{
+			std::cout << "Distance Line-Line 2";
 			Line l1( {-1,0,0}, {1,0,0} );
 			Line l2( {0,0,-1}, {0,0,1} );
 			float d = distance_line_line( l1.plueckerW(), l2.plueckerW());
 			if( d!=0) return false;
+			std::cout << " -- OK\n";
 		}
 		{
+			std::cout << "Intersect Line-Plane";
 			pluecker_line l1( {-1,0,0}, {1,0,0} );
 			pluecker_plane p1( {1,0,0}, {2,0,0} );
 			auto point = intersect_line_plane( l1, p1);
 			if( point.p3D()!=vec3{2,0,0}) return false;			
+			std::cout << " -- OK\n";
 		}
+
 		return true;
 	}
 
 
     inline bool unit_test_normals() {
+		std::cout << "Normals test";
 	    Box box{ {0.0f, 0.5f, 0.0f} };
 		vvec3 normals = {
 			box.face(0).normalW(), box.face(1).normalW(),
@@ -53,6 +62,7 @@ namespace vpe {
 		
 		vvec3 normals2 = {{-1,0,0},{1,0,0},{0,-1,0},{0,1,0},{0,0,-1},{0,0,1}};
 		if( !std::equal(std::begin(normals), std::end(normals), std::begin(normals2) ) ) return false;
+		std::cout << " -- OK\n";
 
         return true;
     }

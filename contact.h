@@ -27,12 +27,7 @@ namespace vpe {
         vec3 pos;
         vec3 normal;
 
-        int v1 = -1;
-        int f1 = -1;
-        int f2 = -1;
-        int e1 = -1;
-        int e2 = -1;
-
+        //int v1 = -1;int f1 = -1;int f2 = -1;int e1 = -1;int e2 = -1;
         bool operator <(const contact& c) const; //need this for std::set
     };
 
@@ -63,7 +58,9 @@ namespace vpe {
             if( reinterpret_cast<std::uintptr_t>(c.obj1) > reinterpret_cast<std::uintptr_t>(c.obj2) ) {
                 contacts.insert( c );
             } else {
-                contacts.insert( {  c.obj2, c.obj1, c.pos, -c.normal, c.v1, c.f2, c.f1 }  );
+                contacts.insert( {  c.obj2, c.obj1, c.pos, -c.normal
+                                    //, c.v1, c.f2, c.f1
+                                 }  );
             }
     }
 
@@ -72,8 +69,9 @@ namespace vpe {
     //since contacts can be symmetric, as convention, sort the polytopes by larger pointer first
     inline void process_vertex_face_contact( Vertex &vertex, Face &face1, Face &face2, std::set<contact> & contacts) {
         if( collision( vertex, face2 ) ) {
-            add_contact( {    vertex.polytope(), face2.polytope(), vertex.pointW(), face2.normalW()
-                            , vertex.index(), face1.index(), face2.index() }
+            add_contact(    { vertex.polytope(), face2.polytope(), vertex.pointW(), face2.normalW()
+                            //, vertex.index(), face1.index(), face2.index() 
+                            }
                             , contacts );
         }
     }
@@ -88,13 +86,15 @@ namespace vpe {
         vec3 cp = cross(edge1.m_dir, edge2.m_dir);     //contact normal
         vec3 outwards2 = cross( edge2.m_dir, face2.normalW());  //points outwards of face2
         if( dot( cp, outwards2 ) <0  ) cp *= -1.0f;    //contact normal should point outwards of face2
-        add_contact( {  face1.polytope(), face2.polytope(), p, cp, -1, face1.index(), face2.index() }
+        add_contact(    {  face1.polytope(), face2.polytope(), p, cp
+                        //, -1, face1.index(), face2.index() 
+                        }
                         , contacts  );
     }
 
     //test a pair of faces against each other.
-    //collide each vertex from one face with the other face
-    //collide each edge from one face with all edges from the other face
+    //test each vertex from one face with the other face
+    //test each edge from one face with all edges from the other face
     inline void process_face_face_contact( Face &face1, Face &face2, vec3 &dir,  std::set<contact> & contacts ) {
         
         if( !collision( face1, face2, dir) || dot(face1.normalW(), face2.normalW()) >= 0.0f ) return;   //only if the faces actually touch 
