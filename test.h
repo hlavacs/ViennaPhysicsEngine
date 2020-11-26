@@ -117,6 +117,30 @@ namespace vpe {
 			std::cout << " -- OK\n";
 		}
 
+		{
+			std::cout << "Edge-Edge 1";
+			mat4 r1 = rotate( mat4(1.0f), (float)(M_PI / 4.0f), vec3{0.0f,1.0f,0.0f} );
+			Box box1{ {0.5f, 0.0f, 0.0f}, r1 };
+			vec3 p14 = box1.vertex(4).pointW();
+			vec3 p10 = box1.vertex(0).pointW();
+
+			mat4 r3 = rotate( mat4(1.0f), (float)(-M_PI / 4.0f), vec3{0.0f,0.0f,1.0f} );
+			Box box2{ {0.0f, 0.0f, 0.0f}, r3 };
+			vec3 p25 = box2.vertex(5).pointW();
+			vec3 p27 = box2.vertex(7).pointW();
+
+			vec3 mtv(0,0,0); //minimum translation vector
+			auto hit = gjk( box1, box2, mtv);
+			if( !hit ) return false;
+			box1.pos() += mtv;
+			std::set<contact> ct;
+			contacts( box1, box2, mtv, ct);
+			if( ct.size()!=1) return false;
+			std::cout << " -- OK\n";
+		}
+
+
+
 		return true;
 	}
 
