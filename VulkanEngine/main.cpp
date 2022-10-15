@@ -1,7 +1,7 @@
 /**
 * The Vienna Vulkan Engine
 *
-* (c) bei Helmut Hlavacs, University of Vienna
+* (c) bei Helmut Hlavacs, University of Vienna, 2022
 *
 */
 
@@ -74,9 +74,7 @@ namespace geometry {
 	real distancePointLine(glmvec3 p, glmvec3 a, glmvec3 b);
 	real distancePointLinesegment(glmvec3 p, glmvec3 a, glmvec3 b);
 	void computeBasis(const glmvec3& a, glmvec3& b, glmvec3& c);
-
-	template<typename T>
-	void SutherlandHodgman(T& subjectPolygon, T& clipPolygon, T& newPolygon);
+	void SutherlandHodgman(auto& subjectPolygon, auto& clipPolygon, auto& newPolygon);
 }
 
 
@@ -289,20 +287,6 @@ namespace ve {
 			assert(faces.size() > 0);
 			auto compare = [&](Face* a, Face* b) { return fct(glm::dot(dirL, a->m_normalL)) < fct(glm::dot(dirL, b->m_normalL)); };
 			return *std::ranges::max_element(faces, compare);
-		}
-
-		/// <summary>
-		/// Find the edge of a polytope whose normal vector is minimally aligned with a given vector.
-		/// </summary>
-		/// <typeparam name="T">Class holding a list of pointers to faces.</typeparam>
-		/// <param name="dirL">The vector in local space.</param>
-		/// <param name="signed_edges"></param>
-		/// <returns></returns>
-		template<typename T>
-		Edge* minEdgeAlignment(const glmvec3 dirL, const T& signed_edges) {
-			assert(signed_edges.size() > 0);
-			auto compare = [&](Edge* a, Edge* b) { return fabs(glm::dot(dirL, a->m_edgeL)) < fabs(glm::dot(dirL, b->m_edgeL)); };
-			return *std::ranges::min_element(signed_edges, compare);
 		}
 
 		struct Collider {};		//Base class for all classes that can collide
@@ -1823,8 +1807,6 @@ namespace ve {
 			//eParent->addChild(e1);
 		};
 	};
-
-
 }
 
 
@@ -1903,8 +1885,7 @@ namespace geometry {
 
 	// Sutherland-Hodgman clipping
 	//https://rosettacode.org/wiki/Sutherland-Hodgman_polygon_clipping#C.2B.2B
-	template<typename T>
-	void SutherlandHodgman(T& subjectPolygon, T& clipPolygon, T& newPolygon) {
+	void SutherlandHodgman(auto& subjectPolygon, auto& clipPolygon, auto& newPolygon) {
 		glmvec2 cp1, cp2, s, e;
 		std::vector<glmvec2> inputPolygon;
 		newPolygon = subjectPolygon;
@@ -1952,37 +1933,6 @@ namespace geometry {
 			}
 		}
 	}
-
-
-	//-------------------------------------------------------------------------------------------------------
-	//Test SutherlandHodgman
-
-	int testSutherlandHodgman()
-	{
-		// subject polygon
-		std::vector<glmvec2> subjectPolygon {
-		{50,150}, {200,50}, {350,150},
-			{350,300},{250,300},{200,250},
-			{150,350},{100,250},{100,200}
-		};
-
-		// clipping polygon
-		std::vector<glmvec2> clipPolygon { {100,100}, {300,100}, {300,300}, {100,300} };
-
-		// define the new clipped polygon (empty)
-		std::vector<glmvec2> newPolygon;
-
-		// apply clipping
-		SutherlandHodgman(subjectPolygon, clipPolygon, newPolygon);
-
-		// print clipped polygon points
-		cout << "Clipped polygon points:" << endl;
-		for (int i = 0; i < newPolygon.size(); i++)
-			cout << "(" << newPolygon[i].x << ", " << newPolygon[i].y << ")" << endl;
-
-		return 0;
-	}
-
 }
 
 
@@ -1996,8 +1946,6 @@ int main() {
 	mve.initEngine();
 	mve.loadLevel(1);
 	mve.run();
-
-	//geometry::testSutherlandHodgman();		//test clipping
 
 	return 0;
 }
