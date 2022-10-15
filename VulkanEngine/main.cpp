@@ -373,18 +373,19 @@ namespace ve {
 
 		/// <summary>
 		/// This is the template for each cube. It contains the basic geometric properties of a cube:
-		/// Vertices, edges and faces.
+		/// Vertices, edges and faces. We use a left handed space. Edges can have signs, meaning
+		/// their vectors are multiplied with this factor (1 or -1). 
 		/// </summary>
 		Polytope g_cube{
 			{ { -0.5_real,-0.5_real,-0.5_real }, { -0.5_real,-0.5_real,0.5_real }, { -0.5_real,0.5_real,0.5_real }, { -0.5_real,0.5_real,-0.5_real },
 			{ 0.5_real,-0.5_real,0.5_real }, { 0.5_real,-0.5_real,-0.5_real }, { 0.5_real,0.5_real,-0.5_real }, { 0.5_real,0.5_real,0.5_real } },
 			{ {0,1}, {1,2}, {2,3}, {3,0}, {4,5}, {5,6}, {6,7}, {7,0}, {5,0}, {1,4}, {3,6}, {7,2} }, //edges
-			{	{ {0}, {1}, {2}, {3} },							//face 0
-				{ {4}, {5}, {6}, {7} },							//face 1
-				{ {0,-1.0}, {8,-1.0}, {4,-1.0}, {9,-1.0} },		//face 2
-				{ {2,-1.0}, {11,-1.0}, {6,-1.0}, {10,-1.0} },	//face 3
-				{ {3,-1.0}, {10}, {5,-1.0}, {8} },				//face 4
-				{ {1,-1.0}, {9}, {7,-1.0}, {11} }				//face 5
+			{	{ {0}, {1}, {2}, {3} },					//face 0
+				{ {4}, {5}, {6}, {7} },					//face 1
+				{ {0,-1}, {8,-1},  {4,-1}, {9,-1} },	//face 2
+				{ {2,-1}, {11,-1}, {6,-1}, {10,-1} },	//face 3
+				{ {3,-1}, {10},    {5,-1}, {8} },		//face 4
+				{ {1,-1}, {9},     {7,-1}, {11} }		//face 5
 			},
 			[&](real mass, glmvec3& s) { //callback for calculating the inertia tensor of this polytope
 				return mass * glmmat3{ {s.y * s.y + s.z * s.z,0,0}, {0,s.x * s.x + s.z * s.z,0}, {0,0,s.x * s.x + s.y * s.y} } / 12.0_real;
@@ -1535,7 +1536,7 @@ namespace ve {
 			struct nk_context* ctx = pSubrender->getContext();
 
 			/* GUI */
-			if (nk_begin(ctx, "Physics Panel", nk_rect(20, 20, 450, 650),
+			if (nk_begin(ctx, "Physics Panel", nk_rect(20, 20, 550, 900),
 				NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
 				NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE))
 			{
