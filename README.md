@@ -28,11 +28,19 @@ The project will be updated regularly, so it makes sense to download the source 
 
 # Using VPE
 
-You can create bodies, erase bodies, attach forces to bodies. When creating bodies you can also
-specify two callbacks. One is called when the body moves, so the render engine can update its position
-and orientation. The other is called if the body is erased by calling eraseBody() or clear().
+The main class is called VPEWorld. This class manages bodies, which themselves must be polytopes, i.e., convex mesh like objects, consisting of faces, edges and vertexes. There can be arbitrary numbers of VPEWOrld instances at any time. You can create bodies, erase bodies, attach forces to bodies by calling the respective member functions addBody(), eraseBody(), attachForce().
 
-The simulation is advanced by calling tick(). See how the debug panel works for more options.
+When created, you can specify a plethora of parameters, like polytope type, mass, velocity, rotation, friction etc. See the constructor of the class Body for more details.
+You can also specify two callbacks. One is called when the body moves, so the render engine can update its position and orientation. The other is called if the body is erased by calling eraseBody() or clear(). This way, its pendent in the render engine can be automatically removed as well. This pendent is called the owner of the body, and pointer to it is stored as void pointer with the body. The pointer VPEWorld::m_body always points the latest body creates, or a body that was picked with the debug panel option "pick body".
+
+The simulation is advanced by dt seconds calling tick(dt). See how the debug panel works for more options.
+
+# The Debug Panel
+
+Main.cpp contains code that uses Nuklear to create a debug panel. This panel lets to monitor and change many values of the simulation. This is done simply by changing the respective member variables of the VPEWorld instance.
+
+In debug mode, the simulation pauses and can be stepped through manually. This can be mixed with debugging and setting breakpoints, and outputting values.
+
 
 ## Links
 -	https://github.com/hlavacs/ViennaVulkanEngine

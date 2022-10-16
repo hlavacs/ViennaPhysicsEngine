@@ -487,6 +487,23 @@ namespace vpe {
 					m_loop_last_active = m_physics->m_loop;
 			};
 
+			/// <summary>
+			/// Attach a force to the body or change it.
+			/// </summary>
+			/// <param name="id">The force ID.</param>
+			/// <param name="force">The force itself.</param>
+			template<typename F>
+			void setForce(uint64_t id, F&& force) {
+				m_forces[id] = std::forward<F>(force);
+			}
+
+			/// <summary>
+			/// Remove a force.
+			/// </summary>
+			/// <param name="id">Force id.</param>
+			void removeForce(uint64_t id) {
+				m_forces.erase(id);
+			}
 
 			/// <summary>
 			/// Euler step for position. Can be used for integration or extrapolation in between time steps.
@@ -834,6 +851,7 @@ namespace vpe {
 		/// </summary>
 		/// <param name="pbody">The new body.</param>
 		void addBody(auto pbody) {
+			m_body = pbody;
 			m_bodies.insert({ pbody->m_owner, pbody });	//Put into body container
 			addGrid(pbody);	//add to broadphase grid.
 			++m_body_id;
@@ -859,6 +877,17 @@ namespace vpe {
 		void eraseBody(std::shared_ptr<Body> body) {
 			if (body->m_on_erase) (*body->m_on_erase)(body.get());
 			m_bodies.erase(body->m_owner);
+			m_grid[intpair_t{ body->m_grid_x, body->m_grid_z }].erase(body->m_owner);
+		}
+
+		/// <summary>
+		/// Erase one body.
+		/// </summary>
+		/// <param name="owner">A void pointer to the owner of the body.</param>
+		void eraseBody(auto* owner) {
+			auto body = m_bodies[(void*)owner];
+			if (body->m_on_erase) (*body->m_on_erase)(body.get());
+			m_bodies.erase(owner);
 			m_grid[intpair_t{ body->m_grid_x, body->m_grid_z }].erase(body->m_owner);
 		}
 
