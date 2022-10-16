@@ -188,6 +188,9 @@
     <ClInclude Include="VERendererRayTracingKHR.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="VPE.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="VEEngine.cpp">

@@ -223,6 +223,7 @@
     <ClInclude Include="VHHelper.h" />
     <ClInclude Include="VKHelpers.h" />
     <ClInclude Include="vk_mem_alloc.h" />
+    <ClInclude Include="VPE.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\external\threadpool\ThreadPool.cpp" />

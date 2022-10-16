@@ -1,6 +1,6 @@
 # The Vienna Physics Engine (VVE)
-The Vienna Physics Engine (VVPE) is a simple, single file physic engine for educational purposes.
-Rendering is done by the Vienna Vulkan Engine.
+The Vienna Physics Engine (VVPE) is a simple, single file physics engine for educational purposes.
+Rendering is done by the Vienna Vulkan Engine. 
 
 The VPE is developed as basis for game based courses at the Faculty of Computer Science of the University of Vienna, held by Prof. Helmut Hlavacs:
 
