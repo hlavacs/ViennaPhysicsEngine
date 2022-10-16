@@ -45,9 +45,10 @@ Main.cpp contains code that uses Nuklear to create a debug panel. This panel let
 
 In debug mode, the simulation pauses and can be stepped through manually. This can be mixed with debugging and setting breakpoints, and outputting values.
 
-# Screenshots
+# Screenshots and Videos
 
 [![Video](https://img.youtube.com/vi/9BWoTY59eH4/0.jpg)](https://www.youtube.com/watch?v=9BWoTY59eH4&t=3s "")
+
 Video
 
 ![](screenshot1.png "")
