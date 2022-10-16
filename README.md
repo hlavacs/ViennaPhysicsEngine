@@ -34,7 +34,7 @@ The main class is called VPEWorld. This class manages bodies, which themselves m
 When created, you can specify a plethora of parameters, like polytope type, mass, velocity, rotation, friction etc. See the constructor of the class Body for more details.
 You can also specify two callbacks. One is called when the body moves, so your render engine can update its position and orientation. The other is called if the body is erased by calling eraseBody() or clear(). This way, its pendent in the render engine can be automatically removed as well.
 See the functions onMOve() ad onErase() in main.cpp.
-The pendent in your render engine is called the owner of the body, and a pointer to it is stored as void pointer with the body. There is a 1:1 correspondence between the owner and a body. An owner can not own more than one body. The void pointer to the owner is the key that is used in the associative container m_bodies to store all bodies and can be used to find using getBody() it or erase it later using eraseBody(). 
+The pendent in your render engine is called the owner of the body, and a pointer to it is stored as void pointer with the body. There is a 1:1 correspondence between the owner and a body. An owner can not own more than one body. The void pointer to the owner is the key that is used in the associative container m_bodies to store all bodies and can be used to find using getBody() it or erase it later using eraseBody().
 The pointer VPEWorld::m_body always points the latest body created, or a body that was picked with the debug panel option "pick body".
 
 The simulation is advanced by dt seconds calling tick(dt). See how the debug panel works for more options.
@@ -46,6 +46,9 @@ Main.cpp contains code that uses Nuklear to create a debug panel. This panel let
 In debug mode, the simulation pauses and can be stepped through manually. This can be mixed with debugging and setting breakpoints, and outputting values.
 
 # Screenshots
+
+[![Video](https://img.youtube.com/vi/9BWoTY59eH4/0.jpg)](https://www.youtube.com/watch?v=9BWoTY59eH4&t=3s "")
+Video
 
 ![](screenshot1.png "")
 Random objects falling from above.
