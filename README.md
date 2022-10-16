@@ -41,6 +41,20 @@ Main.cpp contains code that uses Nuklear to create a debug panel. This panel let
 
 In debug mode, the simulation pauses and can be stepped through manually. This can be mixed with debugging and setting breakpoints, and outputting values.
 
+# Screenshots
+
+![](screenshot1.png "")
+Random objects falling from above.
+
+![](screenshot2.png "Pyramid.")
+Pyramid.
+
+![](screenshot3.png "")
+Destroying the pyramid.
+
+![](screenshot4.png "")
+Arbitrarily high stack.
+
 
 ## Links
 -	https://github.com/hlavacs/ViennaVulkanEngine
