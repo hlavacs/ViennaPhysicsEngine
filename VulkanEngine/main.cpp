@@ -33,6 +33,9 @@ using namespace vpe;
 
 namespace ve {
 
+	//---------------------------------------------------------------------------------------------------------
+	//callbacks for bodies
+
 	/// <summary>
 	/// This callback is used for updating the visual boy whenever the physics box moves.
 	/// It is also used for extrapolating the new position between two simulation slots.
@@ -45,10 +48,18 @@ namespace ve {
 		cube->setTransform(VPEWorld::Body::computeModel(pos, orient, body->m_scale));	//Set the scene node data
 	};
 
+	/// <summary>
+	/// This callback is called if the body is intentionally deleted. It is not called if the engine shuts down
+	/// and all bodies are deleted.
+	/// </summary>
 	inline std::function<void(VPEWorld::Body*)> onErase = [&](VPEWorld::Body* body) {
 		VESceneNode* node = static_cast<VESceneNode*>(body->m_owner);		//Owner is a pointer to a scene node
 		getSceneManagerPointer()->deleteSceneNodeAndChildren(((VESceneNode*)body->m_owner)->getName());
 	};
+
+
+	//---------------------------------------------------------------------------------------------------------
+	//Listener for driving the simulation and creating bodies
 
 	/// <summary>
 	/// This is a callback that is called in each loop. It implements a simple rigid body 
@@ -71,7 +82,7 @@ namespace ve {
 			if (event.idata1 == GLFW_KEY_B && event.idata3 == GLFW_PRESS) {
 				glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
 				glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
-				glmvec3 vel = 35.0_real * (real)rnd_unif(rnd_gen) * dir / glm::length(dir);
+				glmvec3 vel = (30.0_real + 5.0_real * (real)rnd_unif(rnd_gen)) * dir / glm::length(dir);
 				glmvec3 scale{ 1,1,1 }; // = rnd_unif(rnd_gen) * 10;
 				real angle = (real)rnd_unif(rnd_gen) * 10 * 3 * (real)M_PI / 180.0_real;
 				glmvec3 orient{ rnd_unif(rnd_gen), rnd_unif(rnd_gen), rnd_unif(rnd_gen) };
@@ -123,12 +134,15 @@ namespace ve {
 			return false;
 		};
 
+		/// <summary>
+		/// This drives the simulation!!!
+		/// </summary>
 		void onFrameStarted(veEvent event ) {
 			m_physics->tick(event.dt);
 		}
 
+		VPEWorld* m_physics;	//Pointer to the physics world
 
-		VPEWorld* m_physics;
 	public:
 		///Constructor of class EventListenerCollision
 		VEEventListenerPhysics(std::string name, VPEWorld* physics) : VEEventListener(name), m_physics{physics} { };
@@ -137,6 +151,9 @@ namespace ve {
 		virtual ~VEEventListenerPhysics() {};
 	};
 
+
+	//---------------------------------------------------------------------------------------------------------
+	//Listener for creating the debug GUI
 
 	class VEEventListenerPhysicsGUI : public VEEventListener
 	{
@@ -385,8 +402,9 @@ namespace ve {
 		}
 
 
+		VPEWorld* m_physics;	//pointer to the physics world
+
 	public:
-		VPEWorld* m_physics;
 
 		///Constructor of class VEEventListenerPhysicsGUI
 		VEEventListenerPhysicsGUI(std::string name, VPEWorld* phy) : VEEventListener{ name }, m_physics{ phy } {};
@@ -395,6 +413,9 @@ namespace ve {
 		virtual ~VEEventListenerPhysicsGUI() {};
 	};
 
+
+	//---------------------------------------------------------------------------------------------------------
+	//My custom engine
 
 	///user defined manager class, derived from VEEngine
 	class MyVulkanEngine : public VEEngine {
@@ -455,6 +476,7 @@ namespace ve {
 
 //-------------------------------------------------------------------------------------------------------
 
+using namespace ve;
 
 int main() {
 	bool debug = true;
