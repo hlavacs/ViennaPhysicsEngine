@@ -28,10 +28,14 @@ The project will be updated regularly, so it makes sense to download the source 
 
 # Using VPE
 
-The main class is called VPEWorld. This class manages bodies, which themselves must be polytopes, i.e., convex mesh like objects, consisting of faces, edges and vertexes. There can be arbitrary numbers of VPEWOrld instances at any time. You can create bodies, erase bodies, attach forces to bodies by calling the respective member functions addBody(), eraseBody(), attachForce().
+You can use VPE without the VVE, just include VPE.hpp into your project, its 100% C++20 and does not depend on any external library.
+The main class is called VPEWorld. This class manages bodies, which themselves must be polytopes, i.e., convex mesh like objects, consisting of faces, edges and vertexes. There can be arbitrary numbers of VPEWorld instances at any time. You can create bodies, erase bodies, attach forces to bodies by calling the respective member functions addBody(), eraseBody(), attachForce(). See the examples in main.cpp.
 
 When created, you can specify a plethora of parameters, like polytope type, mass, velocity, rotation, friction etc. See the constructor of the class Body for more details.
-You can also specify two callbacks. One is called when the body moves, so the render engine can update its position and orientation. The other is called if the body is erased by calling eraseBody() or clear(). This way, its pendent in the render engine can be automatically removed as well. This pendent is called the owner of the body, and pointer to it is stored as void pointer with the body. The pointer VPEWorld::m_body always points the latest body creates, or a body that was picked with the debug panel option "pick body".
+You can also specify two callbacks. One is called when the body moves, so your render engine can update its position and orientation. The other is called if the body is erased by calling eraseBody() or clear(). This way, its pendent in the render engine can be automatically removed as well.
+See the functions onMOve() ad onErase() in main.cpp.
+The pendent in your render engine is called the owner of the body, and a pointer to it is stored as void pointer with the body. There is a 1:1 correspondence between the owner and a body. An owner can not own more than one body. The void pointer to the owner is the key that is used in the associative container m_bodies to store all bodies and can be used to find using getBody() it or erase it later using eraseBody(). 
+The pointer VPEWorld::m_body always points the latest body created, or a body that was picked with the debug panel option "pick body".
 
 The simulation is advanced by dt seconds calling tick(dt). See how the debug panel works for more options.
 

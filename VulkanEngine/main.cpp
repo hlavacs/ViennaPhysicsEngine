@@ -59,13 +59,37 @@ namespace ve {
 
 
 	//---------------------------------------------------------------------------------------------------------
-	//Listener for driving the simulation and creating bodies
+	//Listener for driving the simulation 
+
+	class VEEventListenerPhysics : public VEEventListener {
+	protected:
+
+		/// <summary>
+		/// This drives the simulation!!!
+		/// </summary>
+		void onFrameStarted(veEvent event) {
+			m_physics->tick(event.dt);
+		}
+
+		VPEWorld* m_physics;	//Pointer to the physics world
+
+	public:
+		///Constructor of class EventListenerCollision
+		VEEventListenerPhysics(std::string name, VPEWorld* physics) : VEEventListener(name), m_physics{ physics } { };
+
+		///Destructor of class EventListenerCollision
+		virtual ~VEEventListenerPhysics() {};
+	};
+
+
+	//---------------------------------------------------------------------------------------------------------
+	//Listener for creating bodies with keyboard
 
 	/// <summary>
 	/// This is a callback that is called in each loop. It implements a simple rigid body 
 	/// physics engine.
 	/// </summary>
-	class VEEventListenerPhysics : public VEEventListener {
+	class VEEventListenerPhysicsKeys : public VEEventListener {
 
 		std::default_random_engine rnd_gen{ 12345 };					//Random numbers
 		std::uniform_real_distribution<> rnd_unif{ 0.0f, 1.0f };		//Random numbers
@@ -134,21 +158,14 @@ namespace ve {
 			return false;
 		};
 
-		/// <summary>
-		/// This drives the simulation!!!
-		/// </summary>
-		void onFrameStarted(veEvent event ) {
-			m_physics->tick(event.dt);
-		}
-
 		VPEWorld* m_physics;	//Pointer to the physics world
 
 	public:
 		///Constructor of class EventListenerCollision
-		VEEventListenerPhysics(std::string name, VPEWorld* physics) : VEEventListener(name), m_physics{physics} { };
+		VEEventListenerPhysicsKeys(std::string name, VPEWorld* physics) : VEEventListener(name), m_physics{physics} { };
 
 		///Destructor of class EventListenerCollision
-		virtual ~VEEventListenerPhysics() {};
+		virtual ~VEEventListenerPhysicsKeys() {};
 	};
 
 
@@ -421,20 +438,22 @@ namespace ve {
 	class MyVulkanEngine : public VEEngine {
 	public:
 
-		MyVulkanEngine(veRendererType type = veRendererType::VE_RENDERER_TYPE_FORWARD, bool debug=false) : VEEngine(type, debug) {};
-		~MyVulkanEngine() {};
-
 		VPEWorld					m_physics;
 		VEEventListenerPhysics*		m_physics_listener;
-		VEEventListenerPhysicsGUI*	m_physics_gui;
+		VEEventListenerPhysicsKeys* m_physics_listener_keys;
+		VEEventListenerPhysicsGUI*	m_physics_listener_gui;
+
+		MyVulkanEngine(veRendererType type = veRendererType::VE_RENDERER_TYPE_FORWARD, bool debug=false) : VEEngine(type, debug) {};
+		~MyVulkanEngine() {};
 
 		///Register an event listener to interact with the user
 		
 		virtual void registerEventListeners() {
 			VEEngine::registerEventListeners();
 
-			registerEventListener(m_physics_listener = new VEEventListenerPhysics("Physics", &m_physics), { veEvent::VE_EVENT_FRAME_STARTED, veEvent::VE_EVENT_KEYBOARD, veEvent::VE_EVENT_FRAME_ENDED });
-			registerEventListener(m_physics_gui = new VEEventListenerPhysicsGUI("PhysicsGUI",&m_physics), { veEvent::VE_EVENT_DRAW_OVERLAY });
+			registerEventListener(m_physics_listener = new VEEventListenerPhysics("Physics", &m_physics), { veEvent::VE_EVENT_FRAME_STARTED });
+			registerEventListener(m_physics_listener_keys = new VEEventListenerPhysicsKeys("Physics Keys", &m_physics), { veEvent::VE_EVENT_KEYBOARD });
+			registerEventListener(m_physics_listener_gui = new VEEventListenerPhysicsGUI("Physics GUI",&m_physics), { veEvent::VE_EVENT_DRAW_OVERLAY });
 		};
 		
 

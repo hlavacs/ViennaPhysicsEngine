@@ -858,12 +858,21 @@ namespace vpe {
 		}
 
 		/// <summary>
+		/// Retrieve a body using the owner.
+		/// </summary>
+		/// <param name="owner">Pointer to the owner</param>
+		/// <returns>Shared pointer to the body.</returns>
+		auto getBody(auto* owner) {
+			return m_bodies[(void*)owner];
+		}
+
+		/// <summary>
 		/// Delete all bodies.
 		/// </summary>
 		void clear() {
 			for (  std::pair<void*, std::shared_ptr<Body>> body : m_bodies) {
-				if (body.second->m_on_erase) {
-					(*body.second->m_on_erase)(body.second.get());
+				if (body.second->m_on_erase) {						//if there is a callback for removing the owner
+					(*body.second->m_on_erase)(body.second.get());	//call it first
 				}
 			}
 			m_bodies.clear();
