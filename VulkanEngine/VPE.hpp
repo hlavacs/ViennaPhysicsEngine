@@ -854,6 +854,7 @@ namespace vpe {
 			m_body = pbody;
 			m_bodies.insert({ pbody->m_owner, pbody });	//Put into body container
 			addGrid(pbody);	//add to broadphase grid.
+			pbody->updateMatrices();
 			++m_body_id;
 		}
 
