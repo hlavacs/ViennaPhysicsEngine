@@ -74,9 +74,6 @@ using voidppair_t = std::pair<void*, void*>;	//Pair of void pointers
 
 //Algorithms from namespace geometry, defined below this file
 namespace geometry {
-	std::pair<glmvec3, glmvec3> closestPointsLineLine(glmvec3 p1, glmvec3 p2, glmvec3 p3, glmvec3 p4);
-	real distancePointLine(glmvec3 p, glmvec3 a, glmvec3 b);
-	real distancePointLinesegment(glmvec3 p, glmvec3 a, glmvec3 b);
 	void computeBasis(const glmvec3& a, glmvec3& b, glmvec3& c);
 	void SutherlandHodgman(auto& subjectPolygon, auto& clipPolygon, auto& newPolygon);
 }
@@ -1485,31 +1482,6 @@ namespace vpe {
 
 namespace geometry {
 
-	//https://en.wikipedia.org/wiki/Skew_lines#Nearest_points
-	/// <summary>
-	/// </summary>
-	/// <param name=""</param>
-	inline std::pair<glmvec3, glmvec3> closestPointsLineLine(glmvec3 p1, glmvec3 a, glmvec3 p2, glmvec3 b) {
-		glmvec3 d1 = a - p1;
-		glmvec3 d2 = b - p2;
-		glmvec3 n = glm::cross(d1, d2);
-		glmvec3 n1 = glm::cross(d1, n);
-		glmvec3 n2 = glm::cross(d2, n);
-		real t1 = glm::clamp(glm::dot(p2 - p1, n2) / glm::dot(d1, n2), 0.0_real, 1.0_real);
-		real t2 = glm::clamp(glm::dot(p1 - p2, n1) / glm::dot(d2, n1), 0.0_real, 1.0_real);
-		return { p1 + t1 * d1, p2 + t2 * d2 };
-	}
-
-	//https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line
-	inline real distancePointLine(glmvec3 p, glmvec3 a, glmvec3 b) {
-		glmvec3 n = glm::normalize(b - a);
-		return glm::length((p - a) - glm::dot(p - a, n) * n);
-	}
-
-	//https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line
-	inline real distancePointLinesegment(glmvec3 p, glmvec3 a, glmvec3 b) {
-		return glm::clamp(distancePointLine(p, a, b), glm::length(p - a), glm::length(p - b));
-	}
 
 	//https://box2d.org/posts/2014/02/computing-a-basis/
 	inline void computeBasis(const glmvec3& a, glmvec3& b, glmvec3& c)
