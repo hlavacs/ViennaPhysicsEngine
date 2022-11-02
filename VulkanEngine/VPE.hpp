@@ -762,7 +762,7 @@ namespace vpe {
 		int		m_clamp_position = 1;						//No motions below a certain limit
 		int		m_use_vbias = 1;							//If true, the the bias is used for resting contacts
 		int		m_align_position_bias = 1;					//if true then look of current position bias is already enough
-		real	m_pbias_factor = 0.5_real;					//Add only a fraction of the current position bias.
+		real	m_pbias_factor = 0.3_real;					//Add only a fraction of the current position bias.
 		int		m_use_warmstart = 1;						//If true then warm start resting contacts
 		int		m_use_warmstart_single = 0;					//If true then warm start resting contacts
 		int		m_loops = 30;								//Number of loops in each simulation step
