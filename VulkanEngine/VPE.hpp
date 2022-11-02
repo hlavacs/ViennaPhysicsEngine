@@ -1166,7 +1166,6 @@ namespace vpe {
 
 				if (m_solver == 0) {	//All in one solver
 					auto F = cp.m_K_inv * (-cp.m_restitution * (dN + m_use_vbias * cp.m_vbias) * contact.m_normalW - vrel);
-					cp.m_vbias = 0.0_real;
 					f = glm::dot(F, contact.m_normalW);
 					auto Fn = f * contact.m_normalW;
 					auto Ft = F - Fn;
