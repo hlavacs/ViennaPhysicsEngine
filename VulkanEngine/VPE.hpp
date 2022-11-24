@@ -394,8 +394,9 @@ namespace vpe {
 		//Physics engine stuff
 
 		class Body;
-		using callb_move = std::function<void(double, std::shared_ptr<Body>)>; //call this function when the body moves
-		using callb_erase = std::function<void(Body*)>; //call this function when the body moves
+		using callback_move = std::function<void(double, std::shared_ptr<Body>)>; //call this function when the body moves
+		using callback_erase = std::function<void(std::shared_ptr<Body>)>; //call this function when the body moves
+		using callback_collide = std::function<void(std::shared_ptr<Body>, std::shared_ptr<Body>)>; //call this function when the body moves
 
 		/// <summary>
 		/// This class implements the basic physics properties of a rigid body.
@@ -416,8 +417,8 @@ namespace vpe {
 			glmquat		m_orientationLW{ 1, 0, 0, 0 };	//current orientation at time slot Local -> World
 			glmvec3		m_linear_velocityW{ 0,0,0 };	//linear velocity at time slot in world space
 			glmvec3		m_angular_velocityW{ 0,0,0 };	//angular velocity at time slot in world space
-			callb_move* m_on_move = nullptr;			//called if the body moves
-			callb_erase*m_on_erase = nullptr;			//called if the body is erased
+			callback_move  m_on_move = nullptr;			//called if the body moves
+			callback_erase m_on_erase = nullptr;			//called if the body is erased
 			real		m_mass_inv{ 0 };				//1 over mass
 			real		m_restitution{ 0 };				//coefficient of restitution eps
 			real		m_friction{ 1 };				//coefficient of friction mu
@@ -470,12 +471,10 @@ namespace vpe {
 			/// <param name="friction">Friction coefficient, usually larger than 0.5.</param>
 			Body(VPEWorld* physics, std::string name, void* owner, Polytope* polytope,
 				glmvec3 scale, glmvec3 positionW, glmquat orientationLW = { 1,0,0,0 },
-				callb_move* on_move = nullptr, callb_erase* on_erase = nullptr,
 				glmvec3 linear_velocityW = glmvec3{ 0,0,0 }, glmvec3 angular_velocityW = glmvec3{ 0,0,0 },
 				real mass_inv = 0, real restitution = 0.2_real, real friction = 1) :
 				m_physics{ physics }, m_name{ name }, m_owner{ owner }, m_polytope{ polytope },
 				m_scale{ scale }, m_positionW{ positionW }, m_orientationLW{ orientationLW },
-				m_on_move{ on_move }, m_on_erase{ on_erase },
 				m_linear_velocityW{ linear_velocityW }, m_angular_velocityW{ angular_velocityW },
 				m_mass_inv{ mass_inv }, m_restitution{ restitution }, m_friction{ friction } {
 					m_scale *= m_physics->m_collision_margin_factor;
@@ -820,6 +819,8 @@ namespace vpe {
 		/// </summary>
 		std::unordered_map<voidppair_t, Contact> m_contacts;	//possible contacts resulting from broadphase
 
+		std::unordered_map<void*, callback_collide> m_collider;	//Call these callbacks if there is a collision for a specific body
+
 		//-----------------------------------------------------------------------------------------------------
 
 		/// <summary>
@@ -869,10 +870,12 @@ namespace vpe {
 		/// </summary>
 		void clear() {
 			for (  std::pair<void*, std::shared_ptr<Body>> body : m_bodies) {
-				if (body.second->m_on_erase) {						//if there is a callback for removing the owner
-					(*body.second->m_on_erase)(body.second.get());	//call it first
+				auto b = body.second;
+				if (b->m_on_erase) {	//if there is a callback for removing the owner
+					b->m_on_erase(b);	//call it first
 				}
 			}
+			m_collider.clear();
 			m_bodies.clear();
 			m_grid.clear();
 		}
@@ -882,7 +885,8 @@ namespace vpe {
 		/// </summary>
 		/// <param name="body">(Shared) pointer to the body.</param>
 		void eraseBody(std::shared_ptr<Body> body) {
-			if (body->m_on_erase) (*body->m_on_erase)(body.get());
+			if (body->m_on_erase) body->m_on_erase(body);
+			m_collider.erase(body->m_owner);
 			m_bodies.erase(body->m_owner);
 			m_grid[intpair_t{ body->m_grid_x, body->m_grid_z }].erase(body->m_owner);
 		}
@@ -892,10 +896,23 @@ namespace vpe {
 		/// </summary>
 		/// <param name="owner">A void pointer to the owner of the body.</param>
 		void eraseBody(auto* owner) {
-			auto body = m_bodies[(void*)owner];
-			if (body->m_on_erase) (*body->m_on_erase)(body.get());
+			std::shared_ptr<Body> body = m_bodies[(void*)owner];
+			if (body->m_on_erase) body->m_on_erase(body);
+			m_collider.erase(body->m_owner);
 			m_bodies.erase(owner);
 			m_grid[intpair_t{ body->m_grid_x, body->m_grid_z }].erase(body->m_owner);
+		}
+
+		void addCollider(std::shared_ptr<Body> body, callback_collide collider ) {
+			m_collider[body->m_owner] = collider;
+		}
+
+		void eraseCollider(std::shared_ptr<Body> body) {
+			m_collider.erase(body->m_owner);
+		}
+
+		void clearCollider() {
+			m_collider.clear();
 		}
 
 		/// <summary>
@@ -987,8 +1004,8 @@ namespace vpe {
 				for (auto& body : m_bodies) { moveBodyInGrid(body.second); } //update grid
 			}
 			for (auto& body : m_bodies) {	//predict pos/vel at slot + delta, this is only a prediction for rendering, this is not stored anywhere
-				if (body.second->m_on_move != nullptr) {
-					(*body.second->m_on_move)(m_current_time - m_last_slot, body.second); //predict new pos/orient
+				if (body.second->m_on_move) {
+					body.second->m_on_move(m_current_time - m_last_slot, body.second); //predict new pos/orient
 				}
 			}
 			m_last_time = m_current_time;	//save last time
@@ -1048,14 +1065,19 @@ namespace vpe {
 					contact.m_old_contact_points = std::move(contact.m_contact_points);
 
 					if (!warmStartContact(contact)) {	//Can we completely warm start the contact?
+						bool ct = false;
 						if (contact.m_body_ref.m_body->m_owner == nullptr) {
-							groundTest(contact);		//is the ref body the ground?
+							ct = groundTest(contact);		//is the ref body the ground?
 						}
 						else {
 							glmvec3 diff = contact.m_body_inc.m_body->m_positionW - contact.m_body_ref.m_body->m_positionW;
 							real rsum = contact.m_body_ref.m_body->boundingSphereRadius() + contact.m_body_inc.m_body->boundingSphereRadius();
 							if (glm::dot(diff, diff) > rsum * rsum) { ++it;  continue; }
-							SAT(it->second);						//yes - test it
+							ct = SAT(it->second);						//yes - test it
+						}
+						if (ct) {
+							if (m_collider.contains(contact.m_body_ref.m_body->m_owner)) m_collider[contact.m_body_ref.m_body->m_owner](contact.m_body_ref.m_body, contact.m_body_inc.m_body);
+							if (m_collider.contains(contact.m_body_inc.m_body->m_owner)) m_collider[contact.m_body_inc.m_body->m_owner](contact.m_body_inc.m_body, contact.m_body_ref.m_body);
 						}
 					}
 					++it;
@@ -1132,17 +1154,20 @@ namespace vpe {
 		/// y world coordinate is negative.
 		/// </summary>
 		/// <param name="contact">The contact information between the ground and the body.</param>
-		void groundTest(Contact& contact) {
-			if (contact.m_body_inc.m_body->m_positionW.y > contact.m_body_inc.m_body->boundingSphereRadius()) return; //early out test
+		bool groundTest(Contact& contact) {
+			if (contact.m_body_inc.m_body->m_positionW.y > contact.m_body_inc.m_body->boundingSphereRadius()) return false; //early out test
 			real min_depth{ std::numeric_limits<real>::max() };
+			bool res = false;
 			for (auto& vL : contact.m_body_inc.m_body->m_polytope->m_vertices) {
 				auto vW = ITOWP(vL.m_positionL);							//world coordinates
 				if (vW.y <= m_collision_margin) {							//close to the ground?
 					min_depth = std::min(min_depth, vW.y);					//remember smalles y coordinate for calculating bias
 					addContactPoint(contact, vW, glmvec3{ 0,1,0 }, vW.y);	//add the contact point
+					res = true;
 				}
 			}
 			positionBias(min_depth, min_depth, glmvec3{ 0,1,0 }, contact);	//add position bias if necessary
+			return res;
 		}
 
 		/// <summary>
@@ -1292,7 +1317,7 @@ namespace vpe {
 		/// https://www.gdcvault.com/play/1022193/Physics-for-Game-Programmers-Robust
 		/// http://media.steampowered.com/apps/valve/2015/DirkGregorius_Contacts.pdf
 		/// 
-		void SAT(Contact& contact) {
+		bool SAT(Contact& contact) {
 			contact.m_body_ref.m_to_other = contact.m_body_inc.m_body->m_model_inv * contact.m_body_ref.m_body->m_model; //transform to bring space A to space B
 			contact.m_body_ref.m_to_other_it = glm::transpose(glm::inverse(glmmat3{ contact.m_body_ref.m_to_other }));	//transform for a normal vector
 			contact.m_body_inc.m_to_other = contact.m_body_ref.m_body->m_model_inv * contact.m_body_inc.m_body->m_model; //transform to bring space B to space A
@@ -1300,19 +1325,19 @@ namespace vpe {
 
 			if (contact.m_separating_axisW != glmvec3{ 0,0,0 } &&	//try old separating axis
 				sat_query(contact, WTORN(contact.m_separating_axisW)).m_separation > m_collision_margin) {
-				return;
+				return false;
 			}
 
 			FaceQuery fq0 = queryFaceDirections(contact);			//Query all normal vectors of faces of first body
-			if (fq0.m_separation > m_collision_margin) { return; };	//found a separating axis with face normal
+			if (fq0.m_separation > m_collision_margin) { return false; };	//found a separating axis with face normal
 
 			std::swap(contact.m_body_ref, contact.m_body_inc);		//body 0 is the reference body having the reference face
 			FaceQuery fq1 = queryFaceDirections(contact);			//Query all normal vectors of faces of second body
-			if (fq1.m_separation > m_collision_margin) { return; };	//found a separating axis with face normal
+			if (fq1.m_separation > m_collision_margin) { return false; };	//found a separating axis with face normal
 
 			std::swap(contact.m_body_ref, contact.m_body_inc);		//prevent flip flopping
 			EdgeQuery eq = queryEdgeDirections(contact);			//Query cross product of edge pairs from body 0 and 1	
-			if (eq.m_separation > m_collision_margin) { return; }	//found a separating axis with edge-edge normal
+			if (eq.m_separation > m_collision_margin) { return false; }	//found a separating axis with edge-edge normal
 
 			contact.m_separating_axisW = glmvec3{ 0,0,0 };		//no separating axis found
 			if (fq0.m_separation >= eq.m_separation * 1.001_real || fq1.m_separation >= eq.m_separation * 1.001_real) {	//max separation is a face-vertex contact
@@ -1323,6 +1348,7 @@ namespace vpe {
 				}
 			}
 			else { createEdgeContact(contact, eq); } //max separation is an edge-edge contact 
+			return true;
 		}
 
 		/// <summary>

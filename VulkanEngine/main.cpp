@@ -37,10 +37,10 @@ namespace ve {
 	//callbacks for bodies
 
 	/// <summary>
-	/// This callback is used for updating the visual boy whenever the physics box moves.
+	/// This callback is used for updating the visual body whenever a physics body moves.
 	/// It is also used for extrapolating the new position between two simulation slots.
 	/// </summary>
-	inline std::function<void(double, std::shared_ptr<VPEWorld::Body>)> onMove = [&](double dt, std::shared_ptr<VPEWorld::Body> body) {
+	inline VPEWorld::callback_move onMove = [&](double dt, std::shared_ptr<VPEWorld::Body> body) {
 		VESceneNode* cube = static_cast<VESceneNode*>(body->m_owner);		//Owner is a pointer to a scene node
 		glmvec3 pos = body->m_positionW;									//New position of the scene node
 		glmquat orient = body->m_orientationLW;								//New orientation of the scende node
@@ -52,9 +52,19 @@ namespace ve {
 	/// This callback is called if the body is intentionally deleted. It is not called if the engine shuts down
 	/// and all bodies are deleted.
 	/// </summary>
-	inline std::function<void(VPEWorld::Body*)> onErase = [&](VPEWorld::Body* body) {
+	inline VPEWorld::callback_erase onErase = [&](std::shared_ptr<VPEWorld::Body> body) {
 		VESceneNode* node = static_cast<VESceneNode*>(body->m_owner);		//Owner is a pointer to a scene node
 		getSceneManagerPointer()->deleteSceneNodeAndChildren(((VESceneNode*)body->m_owner)->getName());
+	};
+
+	/// <summary>
+	/// This is an example callback that is called if a body collides with another body.
+	/// The first parameter is the body for which this collides was set, the second body
+	/// is the body that collided with it.
+	/// </summary>
+	inline VPEWorld::callback_collide onCollide =
+		[](std::shared_ptr<VPEWorld::Body> body1, std::shared_ptr<VPEWorld::Body> body2) {
+		std::cout << "Collision " << body1->m_name << " " << body2->m_name << "\n";
 	};
 
 
@@ -113,8 +123,10 @@ namespace ve {
 				glmvec3 vrot{ rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5 };
 				VESceneNode* cube;
 				VECHECKPOINTER(cube = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "media/models/test/crate0", "cube.obj", 0, getRoot()));
-				auto body = std::make_shared<VPEWorld::Body>( m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube, & m_physics->g_cube, scale, positionCamera + 2.0_real * dir, glm::rotate(angle, glm::normalize(orient)), & onMove, & onErase, vel, vrot, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
+				auto body = std::make_shared<VPEWorld::Body>( m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube, & m_physics->g_cube, scale, positionCamera + 2.0_real * dir, glm::rotate(angle, glm::normalize(orient)), vel, vrot, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
 				body->setForce( 0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} } );
+				body->m_on_move = onMove;
+				body->m_on_erase = onErase;
 				m_physics->addBody(body);
 			}
 
@@ -125,8 +137,10 @@ namespace ve {
 					VESceneNode* cube0;
 					static real dy = 0.5_real;
 					VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "media/models/test/crate0", "cube.obj", 0, getRoot()));
-					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_cube, glmvec3{ 1.0_real }, glmvec3{positionCamera.x, dy++, positionCamera.z + 4}, glmquat{ 1,0,0,0 }, &onMove, &onErase, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction );
+					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_cube, glmvec3{ 1.0_real }, glmvec3{positionCamera.x, dy++, positionCamera.z + 4}, glmquat{ 1,0,0,0 }, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction );
 					body->setForce( 0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} } );
+					body->m_on_move = onMove;
+					body->m_on_erase = onErase;
 					m_physics->addBody(body);
 				}
 			}
@@ -138,8 +152,10 @@ namespace ve {
 					for (int dx = 0; dx < 15 - dy; ++dx) {
 						VESceneNode* cube0;
 						VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "media/models/test/crate0", "cube.obj", 0, getRoot()));
-						auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_cube, glmvec3{1.0_real}, glmvec3{dx + 0.4 * dy, 0.5_real + dy, 0.0_real}, glmquat{1,0,0,0}, &onMove, &onErase, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
+						auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_cube, glmvec3{1.0_real}, glmvec3{dx + 0.4 * dy, 0.5_real + dy, 0.0_real}, glmquat{1,0,0,0}, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
 						body->setForce( 0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} } );
+						body->m_on_move = onMove;
+						body->m_on_erase = onErase;
 						m_physics->addBody(body);
 					}
 				}
@@ -150,8 +166,10 @@ namespace ve {
 				glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
 				VESceneNode* cube0;
 				VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "media/models/test/crate0", "cube.obj", 0, getRoot()));
-				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_cube, glmvec3{1.0_real}, positionCamera + 2.0_real * dir, glmquat{1,0,0,0}, &onMove, &onErase, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction );
+				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_cube, glmvec3{1.0_real}, positionCamera + 2.0_real * dir, glmquat{1,0,0,0}, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction );
 				body->setForce( 0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} } );
+				body->m_on_move = onMove;
+				body->m_on_erase = onErase;
 				m_physics->addBody(body);
 			}
 
@@ -341,11 +359,10 @@ namespace ve {
 					for (auto body : m_physics->m_bodies) m_physics->addGrid(body.second);
 				}
 
-				nk_layout_row_dynamic(ctx, 30, 3);
+				nk_layout_row_dynamic(ctx, 30, 5);
 				str.str("Current Body ");
 				if (m_physics->m_body) { str << "Current Body " << m_physics->m_body->m_name; }
 				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-
 
 				if (nk_button_label(ctx, "Pick body")) { 
 					glmvec3 pos{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
@@ -357,6 +374,13 @@ namespace ve {
 					glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
 					auto b = m_physics->pickBody( pos, dir );
 					if(b) m_physics->eraseBody(b);
+				}
+				if (nk_button_label(ctx, "Add collider")) {
+					if(m_physics->m_body)
+						m_physics->addCollider(m_physics->m_body, onCollide);
+				}
+				if (nk_button_label(ctx, "Remove colliders")) {
+					m_physics->clearCollider();
 				}
 
 				real vel = 5.0;
@@ -412,8 +436,10 @@ namespace ve {
 				glmvec3 vrot{ rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5 };
 				VESceneNode* cube;
 				VECHECKPOINTER(cube = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "media/models/test/crate0", "cube.obj", 0, getRoot()));
-				auto body = std::make_shared<VPEWorld::Body>( m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube, &VPEWorld::g_cube, scale, pos, glm::rotate(angle, glm::normalize(orient)), &onMove, &onErase, vel, vrot, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction );
+				auto body = std::make_shared<VPEWorld::Body>( m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube, &VPEWorld::g_cube, scale, pos, glm::rotate(angle, glm::normalize(orient)), vel, vrot, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction );
 				body->m_forces.insert({ 0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} } });
+				body->m_on_move = onMove;
+				body->m_on_erase = onErase;
 				m_physics->addBody(m_physics->m_body = body);
 			}
 		}
