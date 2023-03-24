@@ -1182,4 +1182,25 @@ namespace ve
 		}
 	}
 
+
+	//--------------------------------------Soft-Body-Stuff-----------------------------------------
+	// Felix Neumann
+
+	VESoftBodyEntity::VESoftBodyEntity(std::string name,
+		VESoftBodyMesh* pSoftBodyMesh, VEMaterial* pMat, glm::mat4 transf)
+		: VEEntity::VEEntity(name, VEEntity::veEntityType::VE_ENTITY_TYPE_NORMAL, pSoftBodyMesh,
+			pMat, transf) {}
+
+	VESoftBodyEntity::~VESoftBodyEntity() {
+		VEEntity::~VEEntity();
+
+		delete m_pMesh;
+	}
+
+	void VESoftBodyEntity::updateMesh(std::vector<vh::vhVertex>& vertices)
+	{
+		((VESoftBodyMesh*)m_pMesh)->updateVertices(vertices);
+	}
+
+
 } // namespace ve

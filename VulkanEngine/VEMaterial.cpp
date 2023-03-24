@@ -244,4 +244,90 @@ namespace ve
 			vmaDestroyImage(getEnginePointer()->getRenderer()->getVmaAllocator(), m_image, m_deviceAllocation);
 	}
 
+	//--------------------------------------Soft-Body-Stuff-----------------------------------------
+	// Felix Neumann
+
+	VEMesh::VEMesh(std::string name) : VENamedClass(name) {}
+
+	VESoftBodyMesh::VESoftBodyMesh(std::string name, const aiMesh* paiMesh) : VEMesh::VEMesh(name)
+	{
+		loadFromAiMesh(paiMesh);
+		updateBoundingSphere();
+		createBuffers();
+	}
+
+	VESoftBodyMesh::~VESoftBodyMesh()
+	{
+		vmaUnmapMemory(getEnginePointer()->getRenderer()->getVmaAllocator(),
+			m_stagingBufferAllocation);
+
+		vmaDestroyBuffer(getEnginePointer()->getRenderer()->getVmaAllocator(),
+			m_stagingBuffer, m_stagingBufferAllocation);
+	}
+
+	void VESoftBodyMesh::updateVertices(std::vector<vh::vhVertex>& vertices)
+	{
+		// TODO
+	}
+
+	const std::vector<vh::vhVertex>& VESoftBodyMesh::getVertices() const
+	{
+		return m_vertices;
+	}
+	
+	void VESoftBodyMesh::loadFromAiMesh(const aiMesh* paiMesh)
+	{
+		// Copy the vertices
+		for (uint32_t i = 0; i < paiMesh->mNumVertices; i++)
+		{
+			vh::vhVertex vertex;
+			vertex.pos.x = paiMesh->mVertices[i].x; //copy 3D position in local space
+			vertex.pos.y = paiMesh->mVertices[i].y;
+			vertex.pos.z = paiMesh->mVertices[i].z;
+
+			if (paiMesh->HasNormals())
+			{ //copy normals
+				vertex.normal.x = paiMesh->mNormals[i].x;
+				vertex.normal.y = paiMesh->mNormals[i].y;
+				vertex.normal.z = paiMesh->mNormals[i].z;
+			}
+
+			if (paiMesh->HasTangentsAndBitangents() && paiMesh->mTangents)
+			{ //copy tangents
+				vertex.tangent.x = paiMesh->mTangents[i].x;
+				vertex.tangent.y = paiMesh->mTangents[i].y;
+				vertex.tangent.z = paiMesh->mTangents[i].z;
+			}
+
+			if (paiMesh->HasTextureCoords(0))
+			{ //copy texture coordinates
+				vertex.texCoord.x = paiMesh->mTextureCoords[0][i].x;
+				vertex.texCoord.y = paiMesh->mTextureCoords[0][i].y;
+			}
+
+			m_vertices.push_back(vertex);
+		}
+
+		// Copy the indices
+		for (uint32_t i = 0; i < paiMesh->mNumFaces; i++)
+		{
+			for (uint32_t j = 0; j < paiMesh->mFaces[i].mNumIndices; j++)
+			{
+				m_indices.push_back(paiMesh->mFaces[i].mIndices[j]);
+			}
+		}
+
+		m_indexCount = static_cast<uint32_t>(m_indices.size());
+	}
+
+	void VESoftBodyMesh::updateBoundingSphere()
+	{
+		// TODO
+	}
+
+	void VESoftBodyMesh::createBuffers()
+	{
+		// TODO
+	}
+
 } // namespace ve

@@ -82,6 +82,9 @@ namespace ve
 
 	class VEMesh : public VENamedClass
 	{
+	protected:
+		VEMesh(std::string name);																	// MOD!
+																									// VVE Base Code Modification. Reason: VESoftBodyMesh needs to create buffers in its own way
 	public:
 		uint32_t m_vertexCount = 0; ///<Number of vertices in the vertex buffer
 		uint32_t m_indexCount = 0; ///<Number of indices in the index buffer
@@ -96,8 +99,35 @@ namespace ve
 
 		VEMesh(std::string name, std::vector<vh::vhVertex> &vertices, std::vector<uint32_t> &indices);
 
-		~VEMesh();
+		virtual ~VEMesh();																			// MOD!
+																									// VVE Base Code Modification: Reason: ~VESoftBodyMesh needs to be called also when working with VEMesh Pointers
 	};
+
+
+	//--------------------------------------Soft-Body-Stuff-----------------------------------------
+	// Felix Neumann
+
+	class VESoftBodyMesh : public VEMesh {
+	private:
+		VkBuffer m_stagingBuffer = VK_NULL_HANDLE;
+		VmaAllocation m_stagingBufferAllocation = nullptr;
+		VkDeviceSize m_bufferSize = 0;
+		std::vector<vh::vhVertex> m_vertices;
+		std::vector<uint32_t> m_indices;
+	public:
+		VESoftBodyMesh(std::string name, const aiMesh* paiMesh);
+
+		virtual ~VESoftBodyMesh();
+
+		void updateVertices(std::vector<vh::vhVertex>& vertices);
+
+		const std::vector<vh::vhVertex>& getVertices() const;
+	private:
+		void loadFromAiMesh(const aiMesh* paiMesh);
+		void updateBoundingSphere();
+		void createBuffers();
+	};
+
 } // namespace ve
 
 #endif
