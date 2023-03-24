@@ -530,6 +530,27 @@ namespace vh
 
 	void vhSetupDebugCallback(VkInstance instance, VkDebugReportCallbackEXT *callback);
 
+
+	//--------------------------------------Soft-Body-Stuff-----------------------------------------
+	// Felix Neumann
+
+	// Current Soft Body vertex buffer approach:
+	// CPU staging buffer with mapped memory and GPU buffer to copy to
+	// Different possible approach: GPU buffer with mapped memory and write there directly
+	// might try later and compare performance/usability
+
+	VkResult vhBufCreateSoftBodyVertexBuffer(VkDevice device, VmaAllocator allocator,
+		VkQueue graphicsQueue, VkCommandPool commandPool, std::vector<vh::vhVertex>& vertices,
+		VkBuffer* vertexBuffer, VmaAllocation* vertexBufferAllocation, VkBuffer* stagingBuffer,
+		VmaAllocation* stagingBufferAllocation, void** ptrToStageBufMem, VkDeviceSize* bufferSize);
+
+	VkResult updateSoftBodyStagingBuffer(std::vector<vh::vhVertex>& vertices,
+		VkDeviceSize bufferSize, void* ptrToStageBufMem);
+
+	VkResult updateSoftBodyVertexBuffer(VkDevice device, VmaAllocator allocator,
+		VkQueue graphicsQueue, VkCommandPool commandPool, VkBuffer vertexBuffer,
+		VkBuffer stagingBuffer, VkDeviceSize bufferSize);
+
 } // namespace vh
 
 #include "nuklear-glfw-vulkan.h"
