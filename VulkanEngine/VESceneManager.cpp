@@ -1330,10 +1330,15 @@ namespace ve
 		Assimp::Importer importer;
 		std::string filekey = basedir + "/" + filename;
 
+		// Ignore normals (need to be calculated dynamically)
+		// and textures (!for now!), since they lead to vertex duplication which makes the
+		// synchronization of the render body with the physics world body much harder
+		importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS,
+			aiComponent_NORMALS | aiComponent_TEXCOORDS);
+
 		// Load the scene from the file
 		const aiScene* pScene = importer.ReadFile(filekey,
-			aiProcess_GenNormals | aiProcess_CalcTangentSpace |
-			aiProcess_Triangulate);
+			aiProcess_RemoveComponent | aiProcess_JoinIdenticalVertices);
 
 		// Check if the loaded scene is valid
 		if (!pScene)
@@ -1344,6 +1349,8 @@ namespace ve
 
 		// Get the model (first (and idealy only) child) from the scene
 		auto node = pScene->mRootNode->mChildren[FIRST_MESH_INDEX];
+
+		std::cout << pScene->mMeshes[FIRST_MESH_INDEX]->mNumVertices << std::endl;
 
 		// Create a SoftBodyMesh
 		VESoftBodyMesh* pSoftBodyMesh = new VESoftBodyMesh("Soft_Body_Mesh",
