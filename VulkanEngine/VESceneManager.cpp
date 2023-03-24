@@ -1306,6 +1306,80 @@ namespace ve
 		}
 	}
 
+
+	//--------------------------------------Soft-Body-Stuff-----------------------------------------
+	// Felix Neumann
+
+	VESceneNode* VESceneManager::loadSoftBodyModel(std::string entityName, std::string basedir,
+		std::string filename)
+	{
+		// The Soft Body assumes that the aiScene contains only one child (at
+		// index 0) with only one mesh (at index 0)
+		// Other meshes will not be loaded. The corresponding material is stored
+		// at index 1 (0 is a default material).
+		constexpr size_t FIRST_MESH_INDEX = 0;
+
+		std::lock_guard<std::mutex> lock(m_mutex);
+
+		// If an entity with this name already exists return it
+		if (m_sceneNodes.count(entityName) > 0)
+		{
+			return m_sceneNodes[entityName];
+		}
+
+		Assimp::Importer importer;
+		std::string filekey = basedir + "/" + filename;
+
+		// Load the scene from the file
+		const aiScene* pScene = importer.ReadFile(filekey,
+			aiProcess_GenNormals | aiProcess_CalcTangentSpace |
+			aiProcess_Triangulate);
+
+		// Check if the loaded scene is valid
+		if (!pScene)
+		{
+			std::string error = importer.GetErrorString();
+		}
+		VECHECKPOINTER((void*)pScene);
+
+		// Get the model (first (and idealy only) child) from the scene
+		auto node = pScene->mRootNode->mChildren[FIRST_MESH_INDEX];
+
+		// Create a SoftBodyMesh
+		VESoftBodyMesh* pSoftBodyMesh = new VESoftBodyMesh("Soft_Body_Mesh",
+			pScene->mMeshes[FIRST_MESH_INDEX]);
+
+		// Create materials if there are any
+		std::vector<VEMaterial*> materials;
+		createMaterials(pScene, basedir, filekey, materials);
+
+		VEMaterial* pMaterial = materials[materials.size() - 1];
+		glm::mat4* pMatrix = (glm::mat4*)&node->mTransformation;
+
+		// Create the SoftBodyEntity
+		VESoftBodyEntity* pEntity = new VESoftBodyEntity(entityName,
+			pSoftBodyMesh, pMaterial, *pMatrix);
+
+		// Reserve an UBO
+		VESceneObject* pObject = (VESceneObject*)pEntity;
+		if (pObject->m_memoryHandle.owner == nullptr)
+		{
+			vh::vhMemBlockListAdd(m_memoryBlockMap[pObject->getObjectType()],
+				pObject, &pObject->m_memoryHandle);
+		}
+
+		// Store the Entity in the node list
+		m_sceneNodes[pEntity->getName()] = pEntity;
+
+		// Add the Entity to the Subrenderer
+		getEnginePointer()->getRenderer()->addEntityToSubrenderer(pEntity);
+
+		// Notify the Renderer to rerecord the cmd buffers
+		sceneGraphChanged2();
+
+		return pEntity;
+	}
+
 	//---------------------------------------------------------------------------------------------
 	//deprecated
 

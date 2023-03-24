@@ -227,6 +227,13 @@ namespace ve
 		//deprecated
 		//VESceneNode *	createCubemap(std::string entityName, std::string basedir, std::string filename);
 		//VESceneNode *	createCubemap(std::string entityName, std::string basedir, std::vector<std::string> filenames);
+
+
+		//--------------------------------------Soft-Body-Stuff-----------------------------------------
+		// Felix Neumann
+		
+		VESceneNode* loadSoftBodyModel(std::string entityName, std::string basedir,
+			std::string filename);
 	};
 
 } // namespace ve
