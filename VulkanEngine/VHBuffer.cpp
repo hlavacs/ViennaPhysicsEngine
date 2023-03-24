@@ -1059,4 +1059,59 @@ namespace vh
 		return VK_SUCCESS;
 	}
 
+
+	//--------------------------------------Soft-Body-Stuff-----------------------------------------
+	// Felix Neumann
+
+	// Current Soft Body vertex buffer approach:
+	// CPU staging buffer with mapped memory and GPU buffer to copy to
+	// Different possible approach: GPU buffer with mapped memory and write there directly
+	// might try later and compare performance/usability
+
+	VkResult vhBufCreateSoftBodyVertexBuffer(VkDevice device,
+		VmaAllocator allocator, VkQueue graphicsQueue, VkCommandPool commandPool,
+		std::vector<vh::vhVertex>& vertices, VkBuffer* vertexBuffer,
+		VmaAllocation* vertexBufferAllocation, VkBuffer* stagingBuffer,
+		VmaAllocation* stagingBufferAllocation, void** ptrToStageBufMem, VkDeviceSize* bufferSize)
+	{
+		*bufferSize = sizeof(vertices[0]) * vertices.size();
+
+		VHCHECKRESULT(vhBufCreateBuffer(allocator, *bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VMA_MEMORY_USAGE_CPU_ONLY, stagingBuffer, stagingBufferAllocation));
+
+		VHCHECKRESULT(vmaMapMemory(allocator, *stagingBufferAllocation, ptrToStageBufMem));
+
+		memcpy(*ptrToStageBufMem, vertices.data(), (size_t)*bufferSize);
+
+		VHCHECKRESULT(vhBufCreateBuffer(allocator, *bufferSize,
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+			VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VMA_MEMORY_USAGE_GPU_ONLY, vertexBuffer,
+			vertexBufferAllocation));
+
+		VHCHECKRESULT(vhBufCopyBuffer(device, graphicsQueue, commandPool, *stagingBuffer,
+			*vertexBuffer, *bufferSize));
+
+		return VK_SUCCESS;
+	}
+
+	VkResult updateSoftBodyStagingBuffer(std::vector<vh::vhVertex>& vertices,
+		VkDeviceSize bufferSize, void* ptrToStageBufMem)
+	{
+		memcpy(ptrToStageBufMem, vertices.data(), (size_t)bufferSize);
+
+		return VK_SUCCESS;
+	}
+
+	VkResult updateSoftBodyVertexBuffer(VkDevice device, VmaAllocator allocator,
+		VkQueue graphicsQueue, VkCommandPool commandPool, VkBuffer vertexBuffer,
+		VkBuffer stagingBuffer, VkDeviceSize bufferSize)
+	{
+		VHCHECKRESULT(vhBufCopyBuffer(device, graphicsQueue, commandPool, stagingBuffer,
+			vertexBuffer, bufferSize));
+
+		return VK_SUCCESS;
+	}
+
 } // namespace vh
