@@ -244,6 +244,7 @@ namespace ve
 			vmaDestroyImage(getEnginePointer()->getRenderer()->getVmaAllocator(), m_image, m_deviceAllocation);
 	}
 
+
 	//--------------------------------------Soft-Body-Stuff-----------------------------------------
 	// Felix Neumann
 
@@ -267,7 +268,14 @@ namespace ve
 
 	void VESoftBodyMesh::updateVertices(std::vector<vh::vhVertex>& vertices)
 	{
-		// TODO
+		VECHECKRESULT(vh::updateSoftBodyStagingBuffer(vertices, m_bufferSize, m_ptrToStageBufMem));
+
+		VECHECKRESULT(vh::updateSoftBodyVertexBuffer(
+			getEnginePointer()->getRenderer()->getDevice(),
+			getEnginePointer()->getRenderer()->getVmaAllocator(),
+			getEnginePointer()->getRenderer()->getGraphicsQueue(),
+			getEnginePointer()->getRenderer()->getCommandPool(),
+			m_vertexBuffer, m_stagingBuffer, m_bufferSize));
 	}
 
 	const std::vector<vh::vhVertex>& VESoftBodyMesh::getVertices() const
@@ -281,7 +289,7 @@ namespace ve
 		for (uint32_t i = 0; i < paiMesh->mNumVertices; i++)
 		{
 			vh::vhVertex vertex;
-			vertex.pos.x = paiMesh->mVertices[i].x; //copy 3D position in local space
+			vertex.pos.x = paiMesh->mVertices[i].x;
 			vertex.pos.y = paiMesh->mVertices[i].y;
 			vertex.pos.z = paiMesh->mVertices[i].z;
 
@@ -327,7 +335,22 @@ namespace ve
 
 	void VESoftBodyMesh::createBuffers()
 	{
-		// TODO
+		VECHECKRESULT(vh::vhBufCreateSoftBodyVertexBuffer(
+			getEnginePointer()->getRenderer()->getDevice(),
+			getEnginePointer()->getRenderer()->getVmaAllocator(),
+			getEnginePointer()->getRenderer()->getGraphicsQueue(),
+			getEnginePointer()->getRenderer()->getCommandPool(),
+			m_vertices, &m_vertexBuffer, &m_vertexBufferAllocation,
+			&m_stagingBuffer, &m_stagingBufferAllocation, &m_ptrToStageBufMem,
+			&m_bufferSize));
+
+		//create the index buffer
+		VECHECKRESULT(vh::vhBufCreateIndexBuffer(
+			getEnginePointer()->getRenderer()->getDevice(),
+			getEnginePointer()->getRenderer()->getVmaAllocator(),
+			getEnginePointer()->getRenderer()->getGraphicsQueue(),
+			getEnginePointer()->getRenderer()->getCommandPool(),
+			m_indices, &m_indexBuffer, &m_indexBufferAllocation));
 	}
 
 } // namespace ve

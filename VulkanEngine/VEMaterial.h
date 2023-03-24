@@ -114,6 +114,7 @@ namespace ve
 		VkDeviceSize m_bufferSize = 0;
 		std::vector<vh::vhVertex> m_vertices;
 		std::vector<uint32_t> m_indices;
+		void* m_ptrToStageBufMem = nullptr;
 	public:
 		VESoftBodyMesh(std::string name, const aiMesh* paiMesh);
 
