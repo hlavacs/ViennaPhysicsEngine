@@ -126,7 +126,7 @@ namespace ve
 	private:
 		void loadFromAiMesh(const aiMesh* paiMesh);
 		void updateBoundingSphere();
-		void updateNormalsAndTangents(std::vector<vh::vhVertex>& vertices);
+		void updateNormals(std::vector<vh::vhVertex>& vertices);
 		void createBuffers();
 	};
 

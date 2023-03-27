@@ -268,7 +268,7 @@ namespace ve
 
 	void VESoftBodyMesh::updateVertices(std::vector<vh::vhVertex>& vertices)
 	{
-		updateNormalsAndTangents(vertices);
+		updateNormals(vertices);
 
 		VECHECKRESULT(vh::updateSoftBodyStagingBuffer(vertices, m_bufferSize, m_ptrToStageBufMem));
 
@@ -315,7 +315,7 @@ namespace ve
 
 		m_indexCount = static_cast<uint32_t>(m_indices.size());
 		
-		updateNormalsAndTangents(m_vertices);
+		updateNormals(m_vertices);
 	}
 
 	void VESoftBodyMesh::updateBoundingSphere()
@@ -323,7 +323,7 @@ namespace ve
 		// TODO
 	}
 
-	void VESoftBodyMesh::updateNormalsAndTangents(std::vector<vh::vhVertex>& vertices)
+	void VESoftBodyMesh::updateNormals(std::vector<vh::vhVertex>& vertices)
 	{
 		for (size_t i = 0; i < m_indices.size(); i += 3)
 		{
@@ -331,19 +331,11 @@ namespace ve
 			glm::vec3 p1 = vertices[m_indices[i + 1]].pos;
 			glm::vec3 p2 = vertices[m_indices[i + 2]].pos;
 
-			glm::vec3 tangent = p0 - p1;
-
-			glm::vec3 normal = glm::normalize(glm::cross(tangent, p0 - p2)) * -1.0f;
+			glm::vec3 normal = glm::normalize(glm::cross(p0 - p1, p0 - p2)) * -1.0f;
 
 			vertices[m_indices[i]].normal = normal;
 			vertices[m_indices[i + 1]].normal = normal;
 			vertices[m_indices[i + 2]].normal = normal;
-
-			std::cout << normal.x << " " << normal.y << " " << normal.z << " " << std::endl;
-
-			vertices[m_indices[i]].tangent = tangent;
-			vertices[m_indices[i + 1]].tangent = tangent;
-			vertices[m_indices[i + 2]].tangent = tangent;
 		}
 	}
 
