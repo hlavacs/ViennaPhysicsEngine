@@ -268,6 +268,8 @@ namespace ve
 
 	void VESoftBodyMesh::updateVertices(std::vector<vh::vhVertex>& vertices)
 	{
+		updateNormalsAndTangents(vertices);
+
 		VECHECKRESULT(vh::updateSoftBodyStagingBuffer(vertices, m_bufferSize, m_ptrToStageBufMem));
 
 		VECHECKRESULT(vh::updateSoftBodyVertexBuffer(
@@ -293,22 +295,8 @@ namespace ve
 			vertex.pos.y = paiMesh->mVertices[i].y;
 			vertex.pos.z = paiMesh->mVertices[i].z;
 
-			if (paiMesh->HasNormals())
-			{ //copy normals
-				vertex.normal.x = paiMesh->mNormals[i].x;
-				vertex.normal.y = paiMesh->mNormals[i].y;
-				vertex.normal.z = paiMesh->mNormals[i].z;
-			}
-
-			if (paiMesh->HasTangentsAndBitangents() && paiMesh->mTangents)
-			{ //copy tangents
-				vertex.tangent.x = paiMesh->mTangents[i].x;
-				vertex.tangent.y = paiMesh->mTangents[i].y;
-				vertex.tangent.z = paiMesh->mTangents[i].z;
-			}
-
 			if (paiMesh->HasTextureCoords(0))
-			{ //copy texture coordinates
+			{
 				vertex.texCoord.x = paiMesh->mTextureCoords[0][i].x;
 				vertex.texCoord.y = paiMesh->mTextureCoords[0][i].y;
 			}
@@ -326,11 +314,37 @@ namespace ve
 		}
 
 		m_indexCount = static_cast<uint32_t>(m_indices.size());
+		
+		updateNormalsAndTangents(m_vertices);
 	}
 
 	void VESoftBodyMesh::updateBoundingSphere()
 	{
 		// TODO
+	}
+
+	void VESoftBodyMesh::updateNormalsAndTangents(std::vector<vh::vhVertex>& vertices)
+	{
+		for (size_t i = 0; i < m_indices.size(); i += 3)
+		{
+			glm::vec3 p0 = vertices[m_indices[i]].pos;
+			glm::vec3 p1 = vertices[m_indices[i + 1]].pos;
+			glm::vec3 p2 = vertices[m_indices[i + 2]].pos;
+
+			glm::vec3 tangent = p0 - p1;
+
+			glm::vec3 normal = glm::normalize(glm::cross(tangent, p0 - p2)) * -1.0f;
+
+			vertices[m_indices[i]].normal = normal;
+			vertices[m_indices[i + 1]].normal = normal;
+			vertices[m_indices[i + 2]].normal = normal;
+
+			std::cout << normal.x << " " << normal.y << " " << normal.z << " " << std::endl;
+
+			vertices[m_indices[i]].tangent = tangent;
+			vertices[m_indices[i + 1]].tangent = tangent;
+			vertices[m_indices[i + 2]].tangent = tangent;
+		}
 	}
 
 	void VESoftBodyMesh::createBuffers()

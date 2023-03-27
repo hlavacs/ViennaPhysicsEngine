@@ -509,6 +509,27 @@ namespace ve {
 
 			getSceneManagerPointer()->getSceneNode("StandardCameraParent")->setPosition({0,1,-4});
 
+			VESceneNode* e1, * eParent;
+			eParent = getSceneManagerPointer()->createSceneNode(
+				"The Cube Parent", pScene, glm::mat4(1.0));
+
+			VECHECKPOINTER(e1 = getSceneManagerPointer()->loadSoftBodyModel(
+				"The Cube0", "media/models/softbody/crate0", "cube.obj"));
+
+			eParent->multiplyTransform(glm::translate(glm::mat4(1.0f),
+				glm::vec3(-10.0f, 1.0f, 10.0f)));
+
+			eParent->addChild(e1);
+
+			VESoftBodyEntity* softBodyEntity = (VESoftBodyEntity*)e1;
+			VESoftBodyMesh* softBodyMesh = (VESoftBodyMesh*)(softBodyEntity->m_pMesh);
+
+			auto vertices = softBodyMesh->getVertices();
+
+			//vertices[0].pos.x += 0;
+
+			softBodyEntity->updateMesh(vertices);
+
 			//VESceneNode *e1,*eParent;
 			//eParent = getSceneManagerPointer()->createSceneNode("The Cube Parent", pScene, glm::mat4(1.0));
 			//VECHECKPOINTER(e1 = getSceneManagerPointer()->loadModel("The Cube0", "media/models/test/crate0", "cube.obj"));
