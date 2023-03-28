@@ -1598,7 +1598,65 @@ namespace geometry {
 				}
 			}
 		}
-	}
+	} 
 }
 
+namespace vpe {
+	class Softbody {
+	private:
 
+		struct VertexMapping {
+			// TODO
+			// A datastructure which stores which mass points maps to which vertices (1:m)
+		};
+
+		class MassPoint
+		{
+		private:
+			glm::vec3 m_pos;
+			glm::vec3 m_vel = { 0, 0, 0 };
+			glm::vec3 m_force = { 0, 0, 0 };
+			real m_mass;
+		public:
+			MassPoint(glm::vec3 pos, real mass) : m_pos{ pos }, m_mass{ mass } {}
+
+			const glm::vec3& getPos()
+			{
+				return m_pos;
+			}
+		};
+
+		class Spring
+		{
+		private:
+			MassPoint& m_point0;
+			MassPoint& m_point1;
+
+			real m_length;
+			real m_stiffness;
+			real m_damping;
+		public:
+			Spring(MassPoint& point0, MassPoint& point1, real stiffness, real damping)
+				: m_point0{ point0 }, m_point1{ point1 }, m_stiffness { stiffness},
+				m_damping{ damping }
+			{
+				m_length = glm::distance(point0.getPos(), point1.getPos());
+			}
+		};
+
+	public:
+
+		Softbody(std::vector<vh::vhVertex> vertices)
+		{
+			// TODO
+			// Transform vertices into mass points and springs
+				// Remove duplicates and save mapping
+				// Store position data
+		}
+
+		std::vector<vh::vhVertex> getVertices() {
+			// TODO
+			// Map data from mass points to vertices
+		}
+	};
+}
