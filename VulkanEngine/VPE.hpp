@@ -1602,23 +1602,23 @@ namespace geometry {
 }
 
 namespace vpe {
-	class Softbody {
+	class SoftBody {
+	
 	private:
-
-		struct VertexMapping {
-			// TODO
-			// A datastructure which stores which mass points maps to which vertices (1:m)
-		};
-
 		class MassPoint
 		{
+		public:
+			// Indices of all vertices of VESoftBodyEntity at this mass point
+			std::vector<int> m_associatedVertices{};
+
 		private:
 			glm::vec3 m_pos;
 			glm::vec3 m_vel = { 0, 0, 0 };
 			glm::vec3 m_force = { 0, 0, 0 };
-			real m_mass;
+			real m_mass = 1.0f;
+			
 		public:
-			MassPoint(glm::vec3 pos, real mass) : m_pos{ pos }, m_mass{ mass } {}
+			MassPoint(glm::vec3 pos) : m_pos{ pos } {}
 
 			const glm::vec3& getPos()
 			{
@@ -1644,14 +1644,39 @@ namespace vpe {
 			}
 		};
 
+		std::vector<MassPoint> m_massPoints{};
+		std::vector<Spring> m_springs{};
+
 	public:
 
-		Softbody(std::vector<vh::vhVertex> vertices)
+		SoftBody(std::vector<vh::vhVertex> vertices)
 		{
-			// TODO
-			// Transform vertices into mass points and springs
-				// Remove duplicates and save mapping
-				// Store position data
+			// Already stored positions for duplicate removal
+			// first is the position, second the index of the corresponding mass point
+			std::map<std::vector<real>, int> alreadyAddedPositions{};
+
+			for (size_t i = 0; i < vertices.size(); ++i)
+			{
+				// Convert glm::vec3 to std::vector for stl algorithms to work
+				glm::vec3 vertexPosGlm = vertices[i].pos;
+				std::vector vertexPos = { vertexPosGlm.x, vertexPosGlm.y, vertexPosGlm.z };
+
+				if (alreadyAddedPositions.count(vertexPos))
+				{
+					int massPointIndex = alreadyAddedPositions[vertexPos];
+					m_massPoints[massPointIndex].m_associatedVertices.push_back(i);
+				}
+				else
+				{
+					alreadyAddedPositions[vertexPos] = m_massPoints.size();
+
+					// Convert from std::vector back to glm::vec3
+					glm::vec3 vertexPosGlm = { vertexPos[0], vertexPos[1], vertexPos[2] };
+
+					MassPoint massPoint(vertexPosGlm);
+					m_massPoints.push_back(massPoint);
+				}
+			}
 		}
 
 		std::vector<vh::vhVertex> getVertices() {
