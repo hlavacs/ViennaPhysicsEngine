@@ -1615,7 +1615,7 @@ namespace vpe {
 			glm::vec3 m_pos;
 			glm::vec3 m_vel = { 0, 0, 0 };
 			glm::vec3 m_force = { 0, 0, 0 };
-			real m_mass = 1.0f;
+			real m_mass = 1.0f;			// TODO
 			
 		public:
 			MassPoint(glm::vec3 pos) : m_pos{ pos } {}
@@ -1633,12 +1633,11 @@ namespace vpe {
 			MassPoint& m_point1;
 
 			real m_length;
-			real m_stiffness;
-			real m_damping;
+			real m_stiffness = 1.0f;	// TODO
+			real m_damping = 1.0f;		// TODO
 		public:
-			Spring(MassPoint& point0, MassPoint& point1, real stiffness, real damping)
-				: m_point0{ point0 }, m_point1{ point1 }, m_stiffness { stiffness},
-				m_damping{ damping }
+			Spring(MassPoint& point0, MassPoint& point1)
+				: m_point0{ point0 }, m_point1{ point1 }
 			{
 				m_length = glm::distance(point0.getPos(), point1.getPos());
 			}
@@ -1649,7 +1648,20 @@ namespace vpe {
 
 	public:
 
-		SoftBody(std::vector<vh::vhVertex> vertices)
+		SoftBody(const std::vector<vh::vhVertex>& vertices)
+		{
+			createMassPoints(vertices);
+			assert(m_massPoints.size() > 3);
+			createSprings();
+		}
+
+		std::vector<vh::vhVertex> getVertices() {
+			// TODO
+			// Map data from mass points to vertices
+		}
+
+	private:
+		void createMassPoints(const std::vector<vh::vhVertex>& vertices)
 		{
 			// Already stored positions for duplicate removal
 			// first is the position, second the index of the corresponding mass point
@@ -1679,9 +1691,38 @@ namespace vpe {
 			}
 		}
 
-		std::vector<vh::vhVertex> getVertices() {
-			// TODO
-			// Map data from mass points to vertices
+		void createSprings()
+		{
+			// TODO Optimize Algorithm
+			// For each mass point create 3 springs to nearest neighbors
+			for (size_t pointIndex = 0; pointIndex < m_massPoints.size(); ++pointIndex)
+			{
+				std::cout << "Point #" << pointIndex << std::endl;
+
+				// First is distance
+				// Second is point index
+				std::map<real, int> distances{};
+
+				for (size_t neighborIndex = 0; neighborIndex < m_massPoints.size(); ++neighborIndex)
+				{
+					real distance = glm::distance(m_massPoints[pointIndex].getPos(),
+						m_massPoints[neighborIndex].getPos());
+
+					// Add some margin if the distance is already key of the map
+					while (distances.count(distance))
+					{
+						distance += 0.01;
+					}
+
+					distances[distance] = neighborIndex;
+				}
+
+				// Chose index 1 to 3 (0 is point itself) -> 3 nearest neighbors
+				for (auto it = ++distances.begin(); it != std::next(distances.begin(), 2); ++it)
+				{
+					Spring spring(m_massPoints[pointIndex], m_massPoints[it->second]);
+				}
+			}
 		}
 	};
 }
