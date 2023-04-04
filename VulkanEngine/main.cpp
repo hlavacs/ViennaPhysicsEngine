@@ -48,6 +48,13 @@ namespace ve {
 		cube->setTransform(VPEWorld::Body::computeModel(pos, orient, body->m_scale));	//Set the scene node data
 	};
 
+	inline VPEWorld::callback_move_soft_body onMoveSoftBody = [&](double dt, std::shared_ptr<VPEWorld::SoftBody> softBody) {
+		VESoftBodyEntity* softBodyOwner = static_cast<VESoftBodyEntity*>(softBody->m_owner);
+		auto vertices = softBody->generateVertices();
+		softBodyOwner->updateMesh(vertices);
+		// TODO extrapolate
+	};
+
 	/// <summary>
 	/// This callback is called if the body is intentionally deleted. It is not called if the engine shuts down
 	/// and all bodies are deleted.
@@ -79,13 +86,29 @@ namespace ve {
 		/// </summary>
 		void onFrameStarted(veEvent event) {
 			m_physics->tick(event.dt);
+
+			/*
+			static VESoftBodyEntity* p_softBodyEntity = (VESoftBodyEntity*)getSceneManagerPointer()
+				->getSceneNode("Soft Body");
+			static VESoftBodyMesh* softBodyMesh = (VESoftBodyMesh*)(p_softBodyEntity->m_pMesh);
+
+			static auto vertices = softBodyMesh->getVertices();
+
+			for (size_t i = 0; i < vertices.size(); ++i)
+			{
+				vertices[i].pos.x += 2 * event.dt;
+			}
+
+			p_softBodyEntity->updateMesh(vertices);
+			*/
 		}
 
 		VPEWorld* m_physics;	//Pointer to the physics world
+		VESoftBodyEntity* p_softBodyEntity;
 
 	public:
 		///Constructor of class EventListenerCollision
-		VEEventListenerPhysics(std::string name, VPEWorld* physics) : VEEventListener(name), m_physics{ physics } { };
+		VEEventListenerPhysics(std::string name, VPEWorld* physics) : VEEventListener(name), m_physics{ physics } {};
 
 		///Destructor of class EventListenerCollision
 		virtual ~VEEventListenerPhysics() {};
@@ -487,54 +510,49 @@ namespace ve {
 		///The engine uses Y-UP, Left-handed
 		virtual void loadLevel( uint32_t numLevel=1) {
 
-			VEEngine::loadLevel(numLevel );			//create standard cameras and lights
+			VEEngine::loadLevel(numLevel);
+			getSceneManagerPointer()->getSceneNode("StandardCameraParent")->setPosition({ 0,1,-4 });
 
 			VESceneNode *pScene;
 			VECHECKPOINTER( pScene = getSceneManagerPointer()->createSceneNode("Level 1", getRoot()) );
-	
-			//scene models
+			
+			//Sky and Ground Plane
+			{
+				VESceneNode* sp1;
+				VECHECKPOINTER(sp1 = getSceneManagerPointer()->createSkybox("The Sky", "media/models/test/sky/cloudy",
+					{ "bluecloud_ft.jpg", "bluecloud_bk.jpg", "bluecloud_up.jpg",
+						"bluecloud_dn.jpg", "bluecloud_rt.jpg", "bluecloud_lf.jpg" }, pScene));
 
-			VESceneNode *sp1;
-			VECHECKPOINTER( sp1 = getSceneManagerPointer()->createSkybox("The Sky", "media/models/test/sky/cloudy",
-										{	"bluecloud_ft.jpg", "bluecloud_bk.jpg", "bluecloud_up.jpg", 
-											"bluecloud_dn.jpg", "bluecloud_rt.jpg", "bluecloud_lf.jpg" }, pScene)  );
+				VESceneNode* e4;
+				VECHECKPOINTER(e4 = getSceneManagerPointer()->loadModel("The Plane", "media/models/test/plane", "plane_t_n_s.obj", 0, pScene));
+				e4->setTransform(glm::scale(glm::translate(glm::vec3{ 0,0,0, }), glm::vec3(1000.0f, 1.0f, 1000.0f)));
 
-			VESceneNode *e4;
-			VECHECKPOINTER( e4 = getSceneManagerPointer()->loadModel("The Plane", "media/models/test/plane", "plane_t_n_s.obj",0, pScene) );
-			e4->setTransform(glm::scale( glm::translate( glm::vec3{ 0,0,0,}) , glm::vec3(1000.0f, 1.0f, 1000.0f)));
+				VEEntity* pE4;
+				VECHECKPOINTER(pE4 = (VEEntity*)getSceneManagerPointer()->getSceneNode("The Plane/plane_t_n_s.obj/plane/Entity_0"));
+				pE4->setParam(glm::vec4(1000.0f, 1000.0f, 0.0f, 0.0f));
+			}
 
-			VEEntity *pE4;
-			VECHECKPOINTER( pE4 = (VEEntity*)getSceneManagerPointer()->getSceneNode("The Plane/plane_t_n_s.obj/plane/Entity_0") );
-			pE4->setParam( glm::vec4(1000.0f, 1000.0f, 0.0f, 0.0f) );
+			VESceneNode* softBodySceneNode, * softBodyParent;
 
-			getSceneManagerPointer()->getSceneNode("StandardCameraParent")->setPosition({0,1,-4});
+			VECHECKPOINTER( softBodySceneNode = getSceneManagerPointer()->loadSoftBodyModel(
+				"Soft Body", "media/models/softbody/crate0", "cube.obj"));
 
-			VESceneNode* e1, * eParent;
-			eParent = getSceneManagerPointer()->createSceneNode(
-				"The Cube Parent", pScene, glm::mat4(1.0));
+			softBodyParent = getSceneManagerPointer()->createSceneNode(
+				"Soft Body Parent", pScene, glm::mat4(1.0));
 
-			VECHECKPOINTER(e1 = getSceneManagerPointer()->loadSoftBodyModel(
-				"The Cube0", "media/models/softbody/crate0", "cube.obj"));
-
-			eParent->multiplyTransform(glm::translate(glm::mat4(1.0f),
+			softBodyParent->multiplyTransform(glm::translate(glm::mat4(1.0f),
 				glm::vec3(-10.0f, 1.0f, 10.0f)));
 
-			eParent->addChild(e1);
+			softBodyParent->addChild(softBodySceneNode);
 
-			VESoftBodyEntity* softBodyEntity = (VESoftBodyEntity*)e1;
-			VESoftBodyMesh* softBodyMesh = (VESoftBodyMesh*)(softBodyEntity->m_pMesh);
+			VESoftBodyEntity* softBodyEntity = (VESoftBodyEntity*) softBodySceneNode;
+			auto vertices = ((VESoftBodyMesh*)(softBodyEntity->m_pMesh))->getVertices();
 
-			auto vertices = softBodyMesh->getVertices();
+			auto softBody = std::make_shared<VPEWorld::SoftBody>(&m_physics,
+				"SoftBody" + std::to_string(m_physics.m_bodies.size()), softBodyEntity,
+				onMoveSoftBody, vertices);
 
-			//vertices[0].pos.x += 0;
-
-			softBodyEntity->updateMesh(vertices);
-
-			//VESceneNode *e1,*eParent;
-			//eParent = getSceneManagerPointer()->createSceneNode("The Cube Parent", pScene, glm::mat4(1.0));
-			//VECHECKPOINTER(e1 = getSceneManagerPointer()->loadModel("The Cube0", "media/models/test/crate0", "cube.obj"));
-			//eParent->multiplyTransform(glm::translate(glm::mat4(1.0f), glm::vec3(-10.0f, 1.0f, 10.0f)));
-			//eParent->addChild(e1);
+			m_physics.addSoftBody(softBody);
 		};
 	};
 }

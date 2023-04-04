@@ -418,7 +418,7 @@ namespace vpe {
 			glmvec3		m_linear_velocityW{ 0,0,0 };	//linear velocity at time slot in world space
 			glmvec3		m_angular_velocityW{ 0,0,0 };	//angular velocity at time slot in world space
 			callback_move  m_on_move = nullptr;			//called if the body moves
-			callback_erase m_on_erase = nullptr;			//called if the body is erased
+			callback_erase m_on_erase = nullptr;		//called if the body is erased
 			real		m_mass_inv{ 0 };				//1 over mass
 			real		m_restitution{ 0 };				//coefficient of restitution eps
 			real		m_friction{ 1 };				//coefficient of friction mu
@@ -975,40 +975,62 @@ namespace vpe {
 		/// </summary>
 		/// <param name="event">The event data.</param>
 		void tick(double dt) {
-			if (m_mode == SIMULATION_MODE_REALTIME) {		//if the engine is in realtime mode, advance time
-				m_current_time = m_last_time + dt;	//advance time by the time that went by since the last loop
-				if (dt != 0.0) m_fps = 1.0_real / (real)dt; //estimate for frames per second
+			if (m_mode == SIMULATION_MODE_REALTIME) {												// if the engine is in realtime mode, advance time
+				m_current_time = m_last_time + dt;													// advance time by the time that went by since the last loop
+				if (dt != 0.0) m_fps = 1.0_real / (real)dt;											// estimate for frames per second
 			}
 
 			auto last_loop = m_loop;
-			while (m_current_time > m_next_slot) {	//compute position/vel only at time slots
-				++m_loop;				//increase loop counter
-				uint_t num_active{ 0 };	//set number currently active objects to 0
-				broadPhase();			//run the broad phase
-				narrowPhase();			//Run the narrow phase
-				warmStart();			//Warm start the resting contacts if possible
+			while (m_current_time > m_next_slot) {													// compute position/vel only at time slots
+				++m_loop;																			// increase loop counter
+				
+				// Rigid Bodies
+				uint_t num_active{ 0 };																// set number currently active objects to 0
+				broadPhase();																		// run the broad phase
+				narrowPhase();																		// Run the narrow phase
+				warmStart();																		// Warm start the resting contacts if possible
 
-				for (auto& body : m_bodies) { body.second->stepVelocity(m_sim_delta_time); }		//Integration step for velocity
-				calculateImpulses(m_loops, m_sim_delta_time);	//Calculate and apply impulses
+				for (auto& body : m_bodies) { body.second->stepVelocity(m_sim_delta_time); }		// Integration step for velocity
+				calculateImpulses(m_loops, m_sim_delta_time);										// Calculate and apply impulses
 
-				for (auto& body : m_bodies) {	//integrate positions and update the matrices for the bodies
-					if (body.second->stepPosition(m_sim_delta_time, body.second->m_positionW, body.second->m_orientationLW)) ++num_active;
+				for (auto& body : m_bodies) {														// integrate positions and update the matrices for the bodies
+					if (body.second->stepPosition(m_sim_delta_time, body.second->m_positionW,
+						body.second->m_orientationLW)) ++num_active;
 					body.second->updateMatrices();
 				}
-				m_num_active = 0.9_real * m_num_active + 0.1_real * num_active; //smooth the number of active nodies
-				if (m_num_active < c_small) m_num_active = 0;					//If near 0, set to 0
-				m_last_slot = m_next_slot;			//Remember last slot
-				m_next_slot += m_sim_delta_time;	//Move to next time slot as slong as we do not surpass current time
+
+				m_num_active = 0.9_real * m_num_active + 0.1_real * num_active;						// smooth the number of active nodies
+				if (m_num_active < c_small) m_num_active = 0;										// If near 0, set to 0
+				
+				// Soft Bodies
+				for (auto& softBody : m_softBodies)
+				{
+					softBody.second->integrate(m_sim_delta_time);
+				}
+
+				m_last_slot = m_next_slot;															// Remember last slot
+				m_next_slot += m_sim_delta_time;													// Move to next time slot as slong as we do not surpass current time
 			}
-			if (m_loop > last_loop) {	//if we have entered a new time slot bodies might have moved, so update broadphase grid
-				for (auto& body : m_bodies) { moveBodyInGrid(body.second); } //update grid
+
+			if (m_loop > last_loop) {																// if we have entered a new time slot bodies might have moved, 
+				for (auto& body : m_bodies)															// so update broadphase grid
+					{ moveBodyInGrid(body.second); }												// update grid			
 			}
-			for (auto& body : m_bodies) {	//predict pos/vel at slot + delta, this is only a prediction for rendering, this is not stored anywhere
-				if (body.second->m_on_move) {
-					body.second->m_on_move(m_current_time - m_last_slot, body.second); //predict new pos/orient
+
+			for (auto& body : m_bodies) {															// predict pos/vel at slot + delta, this is only a prediction for rendering
+				if (body.second->m_on_move) {														// this is not stored anywhere
+					body.second->m_on_move(m_current_time - m_last_slot, body.second);				//predict new pos/orient
 				}
 			}
-			m_last_time = m_current_time;	//save last time
+
+			// Soft Bodies
+			for (auto& softBody : m_softBodies) {
+				if (softBody.second->m_on_move) {											
+					softBody.second->m_on_move(m_current_time - m_last_slot, softBody.second);			
+				}
+			}
+
+			m_last_time = m_current_time;															//save last time
 		};
 
 		/// <summary>
@@ -1498,6 +1520,170 @@ namespace vpe {
 		
 		VPEWorld() {};				///Constructor of class VPEWorld
 		virtual ~VPEWorld() {};		///Destructor of class VPEWorld
+
+	//--------------------------------------Soft-Body-Stuff-----------------------------------------
+	// Felix Neumann
+	public:
+		class SoftBody;
+		using callback_move_soft_body = std::function<void(double, std::shared_ptr<SoftBody>)>;			//call this function when the soft body moves
+
+		class SoftBody {
+		public:
+			VPEWorld* m_physics;
+			std::string	m_name;
+			void* m_owner;
+			callback_move_soft_body m_on_move;
+		// Nested Classes
+		private:
+			class MassPoint
+			{
+			public:
+				// Indices of all vertices of VESoftBodyEntity at this mass point
+				std::vector<int> m_associatedVertices{};
+
+			private:
+				glm::vec3 m_pos;
+				glm::vec3 m_vel = { 0, 0, 0 };
+				glm::vec3 m_force = { 0, 0, 0 };
+				real m_mass = 1.0f;			// TODO
+
+			public:
+				MassPoint(glm::vec3 pos) : m_pos{ pos } {}
+
+				const glm::vec3& getPos() const
+				{
+					return m_pos;
+				}
+			};
+
+			class Spring
+			{
+			private:
+				MassPoint& m_point0;
+				MassPoint& m_point1;
+
+				real m_length;
+				real m_stiffness = 1.0f;	// TODO
+				real m_damping = 1.0f;		// TODO
+			public:
+				Spring(MassPoint& point0, MassPoint& point1)
+					: m_point0{ point0 }, m_point1{ point1 }
+				{
+					m_length = glm::distance(point0.getPos(), point1.getPos());
+				}
+			};
+
+		private:
+
+			std::vector<MassPoint> m_massPoints{};
+			std::vector<Spring> m_springs{};
+			std::vector<vh::vhVertex> m_vertices;
+
+		// Methods
+		public:
+			SoftBody(VPEWorld* physics, std::string name, void* owner,
+				callback_move_soft_body on_move, std::vector<vh::vhVertex> vertices)
+				: m_physics{ physics }, m_name{ name }, m_owner{ owner }, m_on_move{ on_move },
+				m_vertices { vertices }
+			{
+				createMassPoints(vertices);
+				assert(m_massPoints.size() > 3);
+				createSprings();
+			}
+
+			void integrate(double dt) {
+				// TODO
+			}
+
+			// Synchronizes and returns the vertices with the mass points
+			std::vector<vh::vhVertex> generateVertices()
+			{
+				for (const MassPoint& massPoint : m_massPoints)
+				{
+					for (const size_t vertexIndex : massPoint.m_associatedVertices)
+					{
+						m_vertices[vertexIndex].pos = massPoint.getPos();
+					}
+				}
+
+				return m_vertices;
+			}
+
+		private:
+			void createMassPoints(const std::vector<vh::vhVertex>& vertices)
+			{
+				// Already stored positions for duplicate removal
+				// first is the position, second the index of the corresponding mass point
+				std::map<std::vector<real>, int> alreadyAddedPositions{};
+
+				for (size_t i = 0; i < vertices.size(); ++i)
+				{
+					// Convert glm::vec3 to std::vector for stl algorithms to work
+					glm::vec3 vertexPosGlm = vertices[i].pos;
+					std::vector vertexPos = { vertexPosGlm.x, vertexPosGlm.y, vertexPosGlm.z };
+
+					if (alreadyAddedPositions.count(vertexPos))
+					{
+						int massPointIndex = alreadyAddedPositions[vertexPos];
+						m_massPoints[massPointIndex].m_associatedVertices.push_back(i);
+					}
+					else
+					{
+						alreadyAddedPositions[vertexPos] = m_massPoints.size();
+
+						// Convert from std::vector back to glm::vec3
+						glm::vec3 vertexPosGlm = { vertexPos[0], vertexPos[1], vertexPos[2] };
+
+						MassPoint massPoint(vertexPosGlm);
+						m_massPoints.push_back(massPoint);
+					}
+				}
+			}
+
+			// Creates springs between mass points
+			// Only works well for convex shapes 
+			void createSprings()
+			{
+				// TODO Optimize Algorithm
+				// For each mass point create 3 springs to nearest neighbors
+				for (size_t pointIndex = 0; pointIndex < m_massPoints.size(); ++pointIndex)
+				{
+					std::cout << "Point #" << pointIndex << std::endl;
+
+					// First is distance
+					// Second is point index
+					std::map<real, int> distances{};
+
+					for (size_t neighborIndex = 0; neighborIndex < m_massPoints.size(); ++neighborIndex)
+					{
+						real distance = glm::distance(m_massPoints[pointIndex].getPos(),
+							m_massPoints[neighborIndex].getPos());
+
+						// Add some margin if the distance is already key of the map
+						while (distances.count(distance))
+						{
+							distance += 0.01;
+						}
+
+						distances[distance] = neighborIndex;
+					}
+
+					// Chose index 1 to 3 (0 is point itself) -> 3 nearest neighbors
+					for (auto it = ++distances.begin(); it != std::next(distances.begin(), 2); ++it)
+					{
+						Spring spring(m_massPoints[pointIndex], m_massPoints[it->second]);
+					}
+				}
+			}
+		};
+		
+	// VPEWorld Members
+	public:
+		std::unordered_map<void*, std::shared_ptr<VPEWorld::SoftBody>> m_softBodies;
+
+		void addSoftBody(std::shared_ptr<VPEWorld::SoftBody> pSoftBody) {
+			m_softBodies.insert({ pSoftBody->m_owner, pSoftBody });
+		}
 	};
 
 };
@@ -1599,130 +1785,4 @@ namespace geometry {
 			}
 		}
 	} 
-}
-
-namespace vpe {
-	class SoftBody {
-	
-	private:
-		class MassPoint
-		{
-		public:
-			// Indices of all vertices of VESoftBodyEntity at this mass point
-			std::vector<int> m_associatedVertices{};
-
-		private:
-			glm::vec3 m_pos;
-			glm::vec3 m_vel = { 0, 0, 0 };
-			glm::vec3 m_force = { 0, 0, 0 };
-			real m_mass = 1.0f;			// TODO
-			
-		public:
-			MassPoint(glm::vec3 pos) : m_pos{ pos } {}
-
-			const glm::vec3& getPos()
-			{
-				return m_pos;
-			}
-		};
-
-		class Spring
-		{
-		private:
-			MassPoint& m_point0;
-			MassPoint& m_point1;
-
-			real m_length;
-			real m_stiffness = 1.0f;	// TODO
-			real m_damping = 1.0f;		// TODO
-		public:
-			Spring(MassPoint& point0, MassPoint& point1)
-				: m_point0{ point0 }, m_point1{ point1 }
-			{
-				m_length = glm::distance(point0.getPos(), point1.getPos());
-			}
-		};
-
-		std::vector<MassPoint> m_massPoints{};
-		std::vector<Spring> m_springs{};
-
-	public:
-
-		SoftBody(const std::vector<vh::vhVertex>& vertices)
-		{
-			createMassPoints(vertices);
-			assert(m_massPoints.size() > 3);
-			createSprings();
-		}
-
-		std::vector<vh::vhVertex> getVertices() {
-			// TODO
-			// Map data from mass points to vertices
-		}
-
-	private:
-		void createMassPoints(const std::vector<vh::vhVertex>& vertices)
-		{
-			// Already stored positions for duplicate removal
-			// first is the position, second the index of the corresponding mass point
-			std::map<std::vector<real>, int> alreadyAddedPositions{};
-
-			for (size_t i = 0; i < vertices.size(); ++i)
-			{
-				// Convert glm::vec3 to std::vector for stl algorithms to work
-				glm::vec3 vertexPosGlm = vertices[i].pos;
-				std::vector vertexPos = { vertexPosGlm.x, vertexPosGlm.y, vertexPosGlm.z };
-
-				if (alreadyAddedPositions.count(vertexPos))
-				{
-					int massPointIndex = alreadyAddedPositions[vertexPos];
-					m_massPoints[massPointIndex].m_associatedVertices.push_back(i);
-				}
-				else
-				{
-					alreadyAddedPositions[vertexPos] = m_massPoints.size();
-
-					// Convert from std::vector back to glm::vec3
-					glm::vec3 vertexPosGlm = { vertexPos[0], vertexPos[1], vertexPos[2] };
-
-					MassPoint massPoint(vertexPosGlm);
-					m_massPoints.push_back(massPoint);
-				}
-			}
-		}
-
-		void createSprings()
-		{
-			// TODO Optimize Algorithm
-			// For each mass point create 3 springs to nearest neighbors
-			for (size_t pointIndex = 0; pointIndex < m_massPoints.size(); ++pointIndex)
-			{
-				std::cout << "Point #" << pointIndex << std::endl;
-
-				// First is distance
-				// Second is point index
-				std::map<real, int> distances{};
-
-				for (size_t neighborIndex = 0; neighborIndex < m_massPoints.size(); ++neighborIndex)
-				{
-					real distance = glm::distance(m_massPoints[pointIndex].getPos(),
-						m_massPoints[neighborIndex].getPos());
-
-					// Add some margin if the distance is already key of the map
-					while (distances.count(distance))
-					{
-						distance += 0.01;
-					}
-
-					distances[distance] = neighborIndex;
-				}
-
-				// Chose index 1 to 3 (0 is point itself) -> 3 nearest neighbors
-				for (auto it = ++distances.begin(); it != std::next(distances.begin(), 2); ++it)
-				{
-					Spring spring(m_massPoints[pointIndex], m_massPoints[it->second]);
-				}
-			}
-		}
-	};
 }
