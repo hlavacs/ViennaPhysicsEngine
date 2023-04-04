@@ -1523,63 +1523,68 @@ namespace vpe {
 
 	//--------------------------------------Soft-Body-Stuff-----------------------------------------
 	// Felix Neumann
+	
 	public:
 		class SoftBody;
-		using callback_move_soft_body = std::function<void(double, std::shared_ptr<SoftBody>)>;			//call this function when the soft body moves
+		using callback_move_soft_body = std::function<void(double, std::shared_ptr<SoftBody>)>;
+
+		std::unordered_map<void*, std::shared_ptr<VPEWorld::SoftBody>> m_softBodies;
+
+		void addSoftBody(std::shared_ptr<VPEWorld::SoftBody> pSoftBody) {
+			m_softBodies.insert({ pSoftBody->m_owner, pSoftBody });
+		}
+
+		class SoftBodyMassPoint
+		{
+		public:
+			// Indices of all vertices of VESoftBodyEntity at this mass point
+			std::vector<int> m_associatedVertices{};
+
+		private:
+			glm::vec3 m_pos;
+			glm::vec3 m_vel = { 0, 0, 0 };
+			glm::vec3 m_force = { 0, 0, 0 };
+			real m_mass = 1.0f;			// TODO
+
+		public:
+			SoftBodyMassPoint(glm::vec3 pos) : m_pos{ pos } {}
+
+			const glm::vec3& getPos() const
+			{
+				return m_pos;
+			}
+		};
+
+		class SoftBodySpring
+		{
+		private:
+			SoftBodyMassPoint& m_point0;
+			SoftBodyMassPoint& m_point1;
+
+			real m_length;
+			real m_stiffness = 1.0f;	// TODO
+			real m_damping = 1.0f;		// TODO
+		public:
+			SoftBodySpring(SoftBodyMassPoint& point0, SoftBodyMassPoint& point1)
+				: m_point0{ point0 }, m_point1{ point1 }
+			{
+				m_length = glm::distance(point0.getPos(), point1.getPos());
+			}
+		};
 
 		class SoftBody {
+		
 		public:
 			VPEWorld* m_physics;
 			std::string	m_name;
 			void* m_owner;
 			callback_move_soft_body m_on_move;
-		// Nested Classes
+		
 		private:
-			class MassPoint
-			{
-			public:
-				// Indices of all vertices of VESoftBodyEntity at this mass point
-				std::vector<int> m_associatedVertices{};
-
-			private:
-				glm::vec3 m_pos;
-				glm::vec3 m_vel = { 0, 0, 0 };
-				glm::vec3 m_force = { 0, 0, 0 };
-				real m_mass = 1.0f;			// TODO
-
-			public:
-				MassPoint(glm::vec3 pos) : m_pos{ pos } {}
-
-				const glm::vec3& getPos() const
-				{
-					return m_pos;
-				}
-			};
-
-			class Spring
-			{
-			private:
-				MassPoint& m_point0;
-				MassPoint& m_point1;
-
-				real m_length;
-				real m_stiffness = 1.0f;	// TODO
-				real m_damping = 1.0f;		// TODO
-			public:
-				Spring(MassPoint& point0, MassPoint& point1)
-					: m_point0{ point0 }, m_point1{ point1 }
-				{
-					m_length = glm::distance(point0.getPos(), point1.getPos());
-				}
-			};
-
-		private:
-
-			std::vector<MassPoint> m_massPoints{};
-			std::vector<Spring> m_springs{};
+			std::vector<SoftBodyMassPoint> m_massPoints{};
+			std::vector<SoftBodySpring> m_springs{};
 			std::vector<vh::vhVertex> m_vertices;
 
-		// Methods
 		public:
 			SoftBody(VPEWorld* physics, std::string name, void* owner,
 				callback_move_soft_body on_move, std::vector<vh::vhVertex> vertices)
@@ -1598,7 +1603,7 @@ namespace vpe {
 			// Synchronizes and returns the vertices with the mass points
 			std::vector<vh::vhVertex> generateVertices()
 			{
-				for (const MassPoint& massPoint : m_massPoints)
+				for (const SoftBodyMassPoint& massPoint : m_massPoints)
 				{
 					for (const size_t vertexIndex : massPoint.m_associatedVertices)
 					{
@@ -1634,7 +1639,7 @@ namespace vpe {
 						// Convert from std::vector back to glm::vec3
 						glm::vec3 vertexPosGlm = { vertexPos[0], vertexPos[1], vertexPos[2] };
 
-						MassPoint massPoint(vertexPosGlm);
+						SoftBodyMassPoint massPoint(vertexPosGlm);
 						m_massPoints.push_back(massPoint);
 					}
 				}
@@ -1671,19 +1676,12 @@ namespace vpe {
 					// Chose index 1 to 3 (0 is point itself) -> 3 nearest neighbors
 					for (auto it = ++distances.begin(); it != std::next(distances.begin(), 2); ++it)
 					{
-						Spring spring(m_massPoints[pointIndex], m_massPoints[it->second]);
+						SoftBodySpring spring(m_massPoints[pointIndex], m_massPoints[it->second]);
 					}
 				}
 			}
 		};
 		
-	// VPEWorld Members
-	public:
-		std::unordered_map<void*, std::shared_ptr<VPEWorld::SoftBody>> m_softBodies;
-
-		void addSoftBody(std::shared_ptr<VPEWorld::SoftBody> pSoftBody) {
-			m_softBodies.insert({ pSoftBody->m_owner, pSoftBody });
-		}
 	};
 
 };
