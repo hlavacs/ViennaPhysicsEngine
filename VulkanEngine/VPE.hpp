@@ -1669,7 +1669,8 @@ namespace vpe {
 					// Second is point index
 					std::map<real, int> distances{};
 
-					for (size_t neighborIndex = 0; neighborIndex < m_massPoints.size(); ++neighborIndex)
+					for (size_t neighborIndex = 0; neighborIndex < m_massPoints.size();
+						++neighborIndex)
 					{
 						real distance = glm::distance(m_massPoints[pointIndex].getPos(),
 							m_massPoints[neighborIndex].getPos());
@@ -1684,9 +1685,15 @@ namespace vpe {
 					}
 
 					// Chose index 1 to 3 (0 is point itself) -> 3 nearest neighbors
-					for (auto it = ++distances.begin(); it != std::next(distances.begin(), 2); ++it)
+					//for (auto it = ++distances.begin(); it != std::next(distances.begin(), 2); ++it)
+					for (size_t neighborSortedIndex = 1; neighborSortedIndex < 4;
+						++neighborSortedIndex)
 					{
-						SoftBodySpring spring(m_massPoints[pointIndex], m_massPoints[it->second]);
+						SoftBodySpring spring(m_massPoints[pointIndex],
+							m_massPoints[std::next(distances.begin(),
+								neighborSortedIndex)->second]);
+						
+						m_springs.push_back(spring);
 					}
 				}
 			}
