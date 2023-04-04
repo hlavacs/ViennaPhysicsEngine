@@ -1541,17 +1541,21 @@ namespace vpe {
 			std::vector<int> m_associatedVertices{};
 
 		private:
-			glm::vec3 m_pos;
-			glm::vec3 m_vel = { 0, 0, 0 };
-			glm::vec3 m_force = { 0, 0, 0 };
-			real m_mass = 1.0f;			// TODO
-
+			glmvec3 m_pos;
+			glmvec3 m_vel = { 0, 0, 0 };
+			real m_mass = 0.1f;			// TODO
+			
 		public:
 			SoftBodyMassPoint(glm::vec3 pos) : m_pos{ pos } {}
 
-			const glm::vec3& getPos() const
+			const glmvec3& getPos() const { return m_pos; }
+
+			// TODO only gravity should probably be multiplied with m_mess
+			void integrate(glmvec3 force, real dt)
 			{
-				return m_pos;
+				force = force * m_mass;	// / m_mass
+				m_vel += (dt * force);
+				m_pos += dt * m_vel;
 			}
 		};
 
@@ -1596,18 +1600,25 @@ namespace vpe {
 				createSprings();
 			}
 
-			void integrate(double dt) {
-				// TODO
+			void integrate(float dt) {
+				for (SoftBodyMassPoint& massPoint : m_massPoints)
+				{
+					glmvec3 force = { 0, m_physics->c_gravity, 0 };
+					massPoint.integrate(force, dt);
+				}
 			}
 
 			// Synchronizes and returns the vertices with the mass points
 			std::vector<vh::vhVertex> generateVertices()
 			{
+				int vertexCount = 0;
+
 				for (const SoftBodyMassPoint& massPoint : m_massPoints)
 				{
 					for (const size_t vertexIndex : massPoint.m_associatedVertices)
 					{
 						m_vertices[vertexIndex].pos = massPoint.getPos();
+						vertexCount++;
 					}
 				}
 
@@ -1641,6 +1652,7 @@ namespace vpe {
 
 						SoftBodyMassPoint massPoint(vertexPosGlm);
 						m_massPoints.push_back(massPoint);
+						m_massPoints[m_massPoints.size() - 1].m_associatedVertices.push_back(i);
 					}
 				}
 			}
@@ -1653,8 +1665,6 @@ namespace vpe {
 				// For each mass point create 3 springs to nearest neighbors
 				for (size_t pointIndex = 0; pointIndex < m_massPoints.size(); ++pointIndex)
 				{
-					std::cout << "Point #" << pointIndex << std::endl;
-
 					// First is distance
 					// Second is point index
 					std::map<real, int> distances{};

@@ -546,6 +546,7 @@ namespace ve {
 			softBodyParent->addChild(softBodySceneNode);
 
 			VESoftBodyEntity* softBodyEntity = (VESoftBodyEntity*) softBodySceneNode;
+			
 			auto vertices = ((VESoftBodyMesh*)(softBodyEntity->m_pMesh))->getVertices();
 
 			auto softBody = std::make_shared<VPEWorld::SoftBody>(&m_physics,
