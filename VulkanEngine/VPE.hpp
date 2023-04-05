@@ -1534,45 +1534,83 @@ namespace vpe {
 			m_softBodies.insert({ pSoftBody->m_owner, pSoftBody });
 		}
 
+		class SoftBodySpring;
+
 		class SoftBodyMassPoint
 		{
 		public:
 			// Indices of all vertices of VESoftBodyEntity at this mass point
 			std::vector<int> m_associatedVertices{};
-
+			std::vector<SoftBodySpring*> m_springs;
+			glmvec3 m_position;
 		private:
-			glmvec3 m_pos;
-			glmvec3 m_vel = { 0, 0, 0 };
-			real m_mass = 0.1f;			// TODO
+			glmvec3 m_velocity = { 0, 0, 0 };
+			real m_mass = 0.02f;			// TODO
 			
 		public:
-			SoftBodyMassPoint(glm::vec3 pos) : m_pos{ pos } {}
+			SoftBodyMassPoint(glm::vec3 position) : m_position{ position } {}
 
-			const glmvec3& getPos() const { return m_pos; }
+			const glmvec3& getVelocity() const { return m_velocity; }
 
 			// TODO only gravity should probably be multiplied with m_mess
-			void integrate(glmvec3 force, real dt)
+			void integrate(glmvec3 externalForce, real dt)
 			{
-				force = force * m_mass;	// / m_mass
-				m_vel += (dt * force);
-				m_pos += dt * m_vel;
+				glmvec3 force = externalForce * m_mass + internalForce();	// / m_mass
+				m_velocity += (dt * force);
+				m_position += dt * m_velocity;
+			}
+
+		private:
+			glmvec3 internalForce() const
+			{
+				glmvec3 internalForce = { 0, 0, 0 };
+
+				for (SoftBodySpring* pSpring : m_springs)
+				{
+					internalForce += pSpring->getForce();
+				}
+
+				return internalForce;
 			}
 		};
 
 		class SoftBodySpring
 		{
 		private:
-			SoftBodyMassPoint& m_point0;
-			SoftBodyMassPoint& m_point1;
+			SoftBodyMassPoint* m_point0;
+			SoftBodyMassPoint* m_point1;
 
 			real m_length;
 			real m_stiffness = 1.0f;	// TODO
 			real m_damping = 1.0f;		// TODO
 		public:
-			SoftBodySpring(SoftBodyMassPoint& point0, SoftBodyMassPoint& point1)
+			SoftBodySpring(SoftBodyMassPoint* point0, SoftBodyMassPoint* point1)
 				: m_point0{ point0 }, m_point1{ point1 }
 			{
-				m_length = glm::distance(point0.getPos(), point1.getPos());
+				m_length = glm::distance(point0->m_position, point1->m_position);
+			}
+
+			glmvec3 getForce() const
+			{
+				real distanceBetweenPoints =
+					glm::distance(m_point1->m_position, m_point0->m_position);
+				glmvec3 vectorBetweenPoints = m_point1->m_position - m_point0->m_position;
+
+				glmvec3 dampingForce = m_damping *
+					(m_point1->getVelocity() - m_point0->getVelocity()) *
+					vectorBetweenPoints / distanceBetweenPoints;
+
+				glmvec3 springForce = m_stiffness *
+					(distanceBetweenPoints - m_length) *
+					vectorBetweenPoints / distanceBetweenPoints;
+
+				return dampingForce * springForce;
+			}
+
+			bool containsPoints(SoftBodyMassPoint* point0, SoftBodyMassPoint* point1) const
+			{
+				return ((m_point0 == point0 && m_point1 == point1)
+					|| (m_point0 == point1 && m_point1 == point0));
 			}
 		};
 
@@ -1585,8 +1623,8 @@ namespace vpe {
 			callback_move_soft_body m_on_move;
 		
 		private:
-			std::vector<SoftBodyMassPoint> m_massPoints{};
-			std::vector<SoftBodySpring> m_springs{};
+			std::vector<SoftBodyMassPoint*> m_massPoints{};
+			std::vector<SoftBodySpring*> m_springs{};
 			std::vector<vh::vhVertex> m_vertices;
 
 		public:
@@ -1600,11 +1638,36 @@ namespace vpe {
 				createSprings();
 			}
 
+			~SoftBody()
+			{
+				for (auto pMassPoint : m_massPoints)
+					delete pMassPoint;
+				
+				m_massPoints.clear();
+
+				for (auto pSpring : m_springs)
+					delete pSpring;
+
+				m_springs.clear();
+			}
+
 			void integrate(float dt) {
-				for (SoftBodyMassPoint& massPoint : m_massPoints)
+				for (SoftBodyMassPoint* massPoint : m_massPoints)
 				{
-					glmvec3 force = { 0, m_physics->c_gravity, 0 };
-					massPoint.integrate(force, dt);
+					// Apply gravity and spring force
+					glmvec3 externalForce = { 0, m_physics->c_gravity, 0 };
+					massPoint->integrate(externalForce, dt);
+
+					// Collisions
+					// Broad Phase
+
+					// Raycasting
+
+					// Ground Check
+					if (massPoint->m_position.y < -1)
+					{
+						massPoint->m_position.y = -1;
+					}
 				}
 			}
 
@@ -1613,11 +1676,11 @@ namespace vpe {
 			{
 				int vertexCount = 0;
 
-				for (const SoftBodyMassPoint& massPoint : m_massPoints)
+				for (const SoftBodyMassPoint* massPoint : m_massPoints)
 				{
-					for (const size_t vertexIndex : massPoint.m_associatedVertices)
+					for (const size_t vertexIndex : massPoint->m_associatedVertices)
 					{
-						m_vertices[vertexIndex].pos = massPoint.getPos();
+						m_vertices[vertexIndex].pos = massPoint->m_position;
 						vertexCount++;
 					}
 				}
@@ -1641,7 +1704,7 @@ namespace vpe {
 					if (alreadyAddedPositions.count(vertexPos))
 					{
 						int massPointIndex = alreadyAddedPositions[vertexPos];
-						m_massPoints[massPointIndex].m_associatedVertices.push_back(i);
+						m_massPoints[massPointIndex]->m_associatedVertices.push_back(i);
 					}
 					else
 					{
@@ -1650,9 +1713,9 @@ namespace vpe {
 						// Convert from std::vector back to glm::vec3
 						glm::vec3 vertexPosGlm = { vertexPos[0], vertexPos[1], vertexPos[2] };
 
-						SoftBodyMassPoint massPoint(vertexPosGlm);
+						SoftBodyMassPoint* massPoint = new SoftBodyMassPoint(vertexPosGlm);
 						m_massPoints.push_back(massPoint);
-						m_massPoints[m_massPoints.size() - 1].m_associatedVertices.push_back(i);
+						m_massPoints[m_massPoints.size() - 1]->m_associatedVertices.push_back(i);
 					}
 				}
 			}
@@ -1672,8 +1735,8 @@ namespace vpe {
 					for (size_t neighborIndex = 0; neighborIndex < m_massPoints.size();
 						++neighborIndex)
 					{
-						real distance = glm::distance(m_massPoints[pointIndex].getPos(),
-							m_massPoints[neighborIndex].getPos());
+						real distance = glm::distance(m_massPoints[pointIndex]->m_position,
+							m_massPoints[neighborIndex]->m_position);
 
 						// Add some margin if the distance is already key of the map
 						while (distances.count(distance))
@@ -1684,16 +1747,40 @@ namespace vpe {
 						distances[distance] = neighborIndex;
 					}
 
-					// Chose index 1 to 3 (0 is point itself) -> 3 nearest neighbors
-					//for (auto it = ++distances.begin(); it != std::next(distances.begin(), 2); ++it)
-					for (size_t neighborSortedIndex = 1; neighborSortedIndex < 4;
+					// Create 3 Springs with the nearest neighbors the current point does not yet
+					// form a spring with (Start at index 1 since 0 is the point itself);
+					int springsCreatedCount = 0;
+
+					for (size_t neighborSortedIndex = 1; springsCreatedCount < 3;
 						++neighborSortedIndex)
 					{
-						SoftBodySpring spring(m_massPoints[pointIndex],
-							m_massPoints[std::next(distances.begin(),
-								neighborSortedIndex)->second]);
+						int neighborIndex =
+							std::next(distances.begin(), neighborSortedIndex)->second;
 						
-						m_springs.push_back(spring);
+						bool springExistsAlready = false;
+
+						for (const SoftBodySpring* const spring : m_springs)
+						{
+							if (spring->containsPoints(m_massPoints[pointIndex],
+								m_massPoints[neighborIndex]))
+							{
+								springExistsAlready = true;
+								break;
+							}
+						}
+
+						if (!springExistsAlready)
+						{
+							SoftBodySpring* spring = new SoftBodySpring(m_massPoints[pointIndex],
+								m_massPoints[neighborIndex]);
+
+							m_springs.push_back(spring);
+
+							m_massPoints[pointIndex]->m_springs.push_back(spring);
+							m_massPoints[neighborIndex]->m_springs.push_back(spring);
+
+							++springsCreatedCount;
+						}
 					}
 				}
 			}
