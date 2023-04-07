@@ -541,7 +541,7 @@ namespace ve {
 				"Soft Body Parent", pScene, glm::mat4(1.0));
 
 			softBodyParent->multiplyTransform(glm::translate(glm::mat4(1.0f),
-				glm::vec3(0.0f, 2.0f, 10.0f)));
+				glm::vec3(0.0f, 10.0f, 10.0f)));
 
 			softBodyParent->addChild(softBodySceneNode);
 

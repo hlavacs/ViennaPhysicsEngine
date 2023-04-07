@@ -34,8 +34,8 @@
 //If SINGLE_ACCURACY is defined then use single accuracy
 //Time is always in double.
 
-#define VPE_SINGLE_ACCURACY
-//#define VPE_DOUBLE_ACCURACY
+//#define VPE_SINGLE_ACCURACY
+#define VPE_DOUBLE_ACCURACY
 
 #ifdef VPE_DOUBLE_ACCURACY
 using real = double;
@@ -1541,8 +1541,9 @@ namespace vpe {
 			// Indices of all vertices of VESoftBodyEntity at this mass point
 			std::vector<int> m_associatedVertices{};
 			glmvec3 pos;
+			glmvec3 prevPos;
 			glmvec3 vel = { 0, 0, 0 };
-			real m_mass = 1.0f;
+			real invMass = 0.5;
 
 			SoftBodyMassPoint(glm::vec3 pos) : pos{ pos } {}
 		};
@@ -1552,6 +1553,7 @@ namespace vpe {
 			SoftBodyMassPoint* point0;
 			SoftBodyMassPoint* point1;
 			real length;
+			real compliance = 0;	// inverse of stiffness
 
 			SoftBodyConstraint(SoftBodyMassPoint* point0, SoftBodyMassPoint* point1)
 				: point0{ point0 }, point1{ point1 }
@@ -1564,6 +1566,37 @@ namespace vpe {
 			{
 				return ((point0 == p0 && point1 == p1)
 					|| (point0 == p1 && point1 == p0));
+			}
+
+			void solve(real dt) const
+			{
+				real lengthBetweenPoints = glm::distance(point0->pos, point1->pos);
+				real lengthDifference = lengthBetweenPoints - length;
+				
+				if (point0->pos.x == point1->pos.x && point0->pos.z == point1->pos.z)
+				{
+					std::cout << lengthDifference << std::endl;
+				}
+
+				if (std::abs(lengthDifference) > 0.0001)
+				{
+					glmvec3 directionBetweenPoints = (point1->pos - point0->pos) /
+						lengthBetweenPoints;
+
+					real lambda = -lengthDifference /
+						(point0->invMass + point1->invMass + compliance / (dt * dt));
+
+					glmvec3 correctionVec0 = -lambda * point0->invMass * directionBetweenPoints;  
+					glmvec3 correctionVec1 = lambda * point1->invMass * directionBetweenPoints;  
+
+					std::cout << correctionVec0.x << ", " << correctionVec0.y << ", " <<
+						correctionVec0.z << std::endl;
+					std::cout << correctionVec1.x << ", " << correctionVec1.y << ", " <<
+						correctionVec1.z << std::endl;
+
+					point0->pos += correctionVec0;
+					point1->pos += correctionVec1;
+				}
 			}
 		};
 
@@ -1593,10 +1626,35 @@ namespace vpe {
 
 			~SoftBody() {}
 
-			void integrate(float dt) {
+			void integrate(double dt) {
+				// TODO add sub steps
+
+				real rDt = (real)dt;
+				
 				for (SoftBodyMassPoint& massPoint : m_massPoints)
 				{
+					massPoint.vel.y += m_physics->c_gravity * rDt;
+					massPoint.prevPos = massPoint.pos;
+					massPoint.pos += massPoint.vel * rDt;
+				}
+
+				for (const SoftBodyConstraint& constraint : m_constraints)
+				{
+					constraint.solve(rDt);
+				}
+
+				for (SoftBodyMassPoint& massPoint : m_massPoints)
+				{
+					massPoint.vel = (massPoint.pos - massPoint.prevPos) / rDt;
+
+					std::cout << "Vel y: " << massPoint.vel.y << std::endl;
 					
+					// Ground Collision Check
+					if (massPoint.pos.y < -10)
+					{
+						std::cout << "Collision" << std::endl;
+						massPoint.pos.y += (- 10 - massPoint.pos.y);
+					}
 				}
 			}
 
@@ -1627,7 +1685,7 @@ namespace vpe {
 				for (size_t i = 0; i < vertices.size(); ++i)
 				{
 					// Convert glm::vec3 to std::vector for stl algorithms to work
-					glm::vec3 vertexPosGlm = vertices[i].pos;
+					glmvec3 vertexPosGlm = vertices[i].pos;
 					std::vector vertexPos = { vertexPosGlm.x, vertexPosGlm.y, vertexPosGlm.z };
 
 					if (alreadyAddedPositions.count(vertexPos))
@@ -1653,6 +1711,7 @@ namespace vpe {
 			// Only works well for convex shapes 
 			void generateConstraints()
 			{
+				/*
 				// TODO Optimize Algorithm
 				// For each mass point create 3 constraints to nearest neighbors
 				for (size_t pointIndex = 0; pointIndex < m_massPoints.size(); ++pointIndex)
@@ -1708,6 +1767,24 @@ namespace vpe {
 						}
 					}
 				}
+				*/
+				
+				for (auto& massPoint : m_massPoints)
+				{
+					for (auto& neighborMassPoint : m_massPoints)
+					{
+						if (massPoint.pos.y < neighborMassPoint.pos.y &&
+							massPoint.pos.x == neighborMassPoint.pos.x &&
+							massPoint.pos.z == neighborMassPoint.pos.z)
+						{
+							SoftBodyConstraint constraint(&massPoint, &neighborMassPoint);
+
+							m_constraints.push_back(constraint);
+							std::cout << "Created DEBUG constraint!" << std::endl;
+						}
+					}
+				}
+				
 			}
 		};
 		
