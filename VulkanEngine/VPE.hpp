@@ -1545,7 +1545,7 @@ namespace vpe {
 			glmvec3 m_position;
 		private:
 			glmvec3 m_velocity = { 0, 0, 0 };
-			real m_mass = 0.02f;			// TODO
+			real m_mass = 0.05f;			// TODO
 			
 		public:
 			SoftBodyMassPoint(glm::vec3 position) : m_position{ position } {}
@@ -1555,7 +1555,7 @@ namespace vpe {
 			// TODO only gravity should probably be multiplied with m_mess
 			void integrate(glmvec3 externalForce, real dt)
 			{
-				glmvec3 force = externalForce * m_mass + internalForce();	// / m_mass
+				glmvec3 force = externalForce * m_mass + internalForce(); // / m_mass
 				m_velocity += (dt * force);
 				m_position += dt * m_velocity;
 			}
@@ -1567,7 +1567,12 @@ namespace vpe {
 
 				for (SoftBodySpring* pSpring : m_springs)
 				{
-					internalForce += pSpring->getForce();
+					internalForce += pSpring->getForce(this);
+				}
+
+				if (internalForce.y > 0.0001)
+				{
+					internalForce.y = 9;
 				}
 
 				return internalForce;
@@ -1581,8 +1586,9 @@ namespace vpe {
 			SoftBodyMassPoint* m_point1;
 
 			real m_length;
-			real m_stiffness = 1.0f;	// TODO
-			real m_damping = 1.0f;		// TODO
+			real m_stiffness = 2.0f;
+			real m_damping = 0.005f;	
+			real m_tinyValue = 0.1f;
 		public:
 			SoftBodySpring(SoftBodyMassPoint* point0, SoftBodyMassPoint* point1)
 				: m_point0{ point0 }, m_point1{ point1 }
@@ -1590,24 +1596,31 @@ namespace vpe {
 				m_length = glm::distance(point0->m_position, point1->m_position);
 			}
 
-			glmvec3 getForce() const
+			glmvec3 getForce(const SoftBodyMassPoint* point) const
 			{
+				SoftBodyMassPoint* otherPoint = (point == m_point1) ? m_point0 : m_point1;
+
 				real distanceBetweenPoints =
-					glm::distance(m_point1->m_position, m_point0->m_position);
-				glmvec3 vectorBetweenPoints = m_point1->m_position - m_point0->m_position;
+					glm::distance(point->m_position, otherPoint->m_position);
+
+				real lengthDifference = distanceBetweenPoints - m_length;
+
+				if (std::abs(lengthDifference) < m_tinyValue)
+					return { 0, 0, 0 };
+
+				glmvec3 dirBetweenPoints = otherPoint->m_position - point->m_position
+					/ distanceBetweenPoints;
+
+				glmvec3 springForce = m_stiffness * lengthDifference * dirBetweenPoints;
 
 				glmvec3 dampingForce = m_damping *
-					(m_point1->getVelocity() - m_point0->getVelocity()) *
-					vectorBetweenPoints / distanceBetweenPoints;
+					(otherPoint->getVelocity() - point->getVelocity()) * dirBetweenPoints;
 
-				glmvec3 springForce = m_stiffness *
-					(distanceBetweenPoints - m_length) *
-					vectorBetweenPoints / distanceBetweenPoints;
-
-				return dampingForce * springForce;
+				return springForce * dampingForce;
 			}
 
-			bool containsPoints(SoftBodyMassPoint* point0, SoftBodyMassPoint* point1) const
+			bool containsPoints(const SoftBodyMassPoint* point0, const SoftBodyMassPoint* point1)
+				const
 			{
 				return ((m_point0 == point0 && m_point1 == point1)
 					|| (m_point0 == point1 && m_point1 == point0));
@@ -1658,16 +1671,16 @@ namespace vpe {
 					glmvec3 externalForce = { 0, m_physics->c_gravity, 0 };
 					massPoint->integrate(externalForce, dt);
 
+					// Ground Check
+					if (massPoint->m_position.y < -2)
+					{
+						massPoint->m_position.y = -2;
+					}
+
 					// Collisions
 					// Broad Phase
 
 					// Raycasting
-
-					// Ground Check
-					if (massPoint->m_position.y < -1)
-					{
-						massPoint->m_position.y = -1;
-					}
 				}
 			}
 

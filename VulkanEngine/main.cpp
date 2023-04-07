@@ -502,7 +502,7 @@ namespace ve {
 
 			registerEventListener(m_physics_listener = new VEEventListenerPhysics("Physics", &m_physics), { veEvent::VE_EVENT_FRAME_STARTED });
 			registerEventListener(m_physics_listener_keys = new VEEventListenerPhysicsKeys("Physics Keys", &m_physics), { veEvent::VE_EVENT_KEYBOARD });
-			registerEventListener(m_physics_listener_gui = new VEEventListenerPhysicsGUI("Physics GUI",&m_physics), { veEvent::VE_EVENT_DRAW_OVERLAY });
+			//registerEventListener(m_physics_listener_gui = new VEEventListenerPhysicsGUI("Physics GUI",&m_physics), { veEvent::VE_EVENT_DRAW_OVERLAY });
 		};
 		
 
@@ -541,7 +541,7 @@ namespace ve {
 				"Soft Body Parent", pScene, glm::mat4(1.0));
 
 			softBodyParent->multiplyTransform(glm::translate(glm::mat4(1.0f),
-				glm::vec3(-10.0f, 1.0f, 10.0f)));
+				glm::vec3(0.0f, 2.0f, 10.0f)));
 
 			softBodyParent->addChild(softBodySceneNode);
 
