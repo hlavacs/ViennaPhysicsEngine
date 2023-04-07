@@ -1540,30 +1540,30 @@ namespace vpe {
 		{
 			// Indices of all vertices of VESoftBodyEntity at this mass point
 			std::vector<int> m_associatedVertices{};
-			glmvec3 m_position;
-			glmvec3 m_velocity = { 0, 0, 0 };
+			glmvec3 pos;
+			glmvec3 vel = { 0, 0, 0 };
 			real m_mass = 1.0f;
 
-			SoftBodyMassPoint(glm::vec3 position) : m_position{ position } {}
+			SoftBodyMassPoint(glm::vec3 pos) : pos{ pos } {}
 		};
 
 		struct SoftBodyConstraint
 		{
-			SoftBodyMassPoint* m_point0;
-			SoftBodyMassPoint* m_point1;
-			real m_length;
+			SoftBodyMassPoint* point0;
+			SoftBodyMassPoint* point1;
+			real length;
 
 			SoftBodyConstraint(SoftBodyMassPoint* point0, SoftBodyMassPoint* point1)
-				: m_point0{ point0 }, m_point1{ point1 }
+				: point0{ point0 }, point1{ point1 }
 			{
-				m_length = glm::distance(point0->m_position, point1->m_position);
+				length = glm::distance(point0->pos, point1->pos);
 			}
 
-			bool containsPoints(const SoftBodyMassPoint* point0, const SoftBodyMassPoint* point1)
+			bool containsPoints(const SoftBodyMassPoint* p0, const SoftBodyMassPoint* p1)
 				const
 			{
-				return ((m_point0 == point0 && m_point1 == point1)
-					|| (m_point0 == point1 && m_point1 == point0));
+				return ((point0 == p0 && point1 == p1)
+					|| (point0 == p1 && point1 == p0));
 			}
 		};
 
@@ -1609,7 +1609,7 @@ namespace vpe {
 				{
 					for (const size_t vertexIndex : massPoint.m_associatedVertices)
 					{
-						m_vertices[vertexIndex].pos = massPoint.m_position;
+						m_vertices[vertexIndex].pos = massPoint.pos;
 						vertexCount++;
 					}
 				}
@@ -1664,8 +1664,8 @@ namespace vpe {
 					for (size_t neighborIndex = 0; neighborIndex < m_massPoints.size();
 						++neighborIndex)
 					{
-						real distance = glm::distance(m_massPoints[pointIndex].m_position,
-							m_massPoints[neighborIndex].m_position);
+						real distance = glm::distance(m_massPoints[pointIndex].pos,
+							m_massPoints[neighborIndex].pos);
 
 						// Add some margin if the distance is already key of the map
 						while (distances.count(distance))
