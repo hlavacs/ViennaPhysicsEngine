@@ -1545,7 +1545,7 @@ namespace vpe {
 			glmvec3 vel = { 0, 0, 0 };
 			real invMass = 0.5;
 
-			SoftBodyMassPoint(glm::vec3 pos) : pos{ pos } {}
+			SoftBodyMassPoint(glm::vec3 pos) : pos{ pos }, prevPos{ pos } {}
 		};
 
 		struct SoftBodyConstraint
@@ -1572,11 +1572,6 @@ namespace vpe {
 			{
 				real lengthBetweenPoints = glm::distance(point0->pos, point1->pos);
 				real lengthDifference = lengthBetweenPoints - length;
-				
-				if (point0->pos.x == point1->pos.x && point0->pos.z == point1->pos.z)
-				{
-					std::cout << lengthDifference << std::endl;
-				}
 
 				if (std::abs(lengthDifference) > 0.0001)
 				{
@@ -1587,12 +1582,7 @@ namespace vpe {
 						(point0->invMass + point1->invMass + compliance / (dt * dt));
 
 					glmvec3 correctionVec0 = -lambda * point0->invMass * directionBetweenPoints;  
-					glmvec3 correctionVec1 = lambda * point1->invMass * directionBetweenPoints;  
-
-					std::cout << correctionVec0.x << ", " << correctionVec0.y << ", " <<
-						correctionVec0.z << std::endl;
-					std::cout << correctionVec1.x << ", " << correctionVec1.y << ", " <<
-						correctionVec1.z << std::endl;
+					glmvec3 correctionVec1 = lambda * point1->invMass * directionBetweenPoints;
 
 					point0->pos += correctionVec0;
 					point1->pos += correctionVec1;
@@ -1646,14 +1636,11 @@ namespace vpe {
 				for (SoftBodyMassPoint& massPoint : m_massPoints)
 				{
 					massPoint.vel = (massPoint.pos - massPoint.prevPos) / rDt;
-
-					std::cout << "Vel y: " << massPoint.vel.y << std::endl;
 					
 					// Ground Collision Check
-					if (massPoint.pos.y < -10)
+					if (massPoint.pos.y < -5)
 					{
-						std::cout << "Collision" << std::endl;
-						massPoint.pos.y += (- 10 - massPoint.pos.y);
+						massPoint.pos.y += (- 5 - massPoint.pos.y);
 					}
 				}
 			}
@@ -1711,9 +1698,9 @@ namespace vpe {
 			// Only works well for convex shapes 
 			void generateConstraints()
 			{
-				/*
 				// TODO Optimize Algorithm
 				// For each mass point create 3 constraints to nearest neighbors
+				
 				for (size_t pointIndex = 0; pointIndex < m_massPoints.size(); ++pointIndex)
 				{
 					// First is distance
@@ -1767,8 +1754,9 @@ namespace vpe {
 						}
 					}
 				}
-				*/
 				
+
+				/*
 				for (auto& massPoint : m_massPoints)
 				{
 					for (auto& neighborMassPoint : m_massPoints)
@@ -1784,7 +1772,7 @@ namespace vpe {
 						}
 					}
 				}
-				
+				*/
 			}
 		};
 		

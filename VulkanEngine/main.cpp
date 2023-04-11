@@ -535,13 +535,16 @@ namespace ve {
 			VESceneNode* softBodySceneNode, * softBodyParent;
 
 			VECHECKPOINTER( softBodySceneNode = getSceneManagerPointer()->loadSoftBodyModel(
-				"Soft Body", "media/models/softbody/crate0", "cube.obj"));
+				"Soft Body", "media/models/softbody/cloth0", "cloth.obj"));
 
 			softBodyParent = getSceneManagerPointer()->createSceneNode(
 				"Soft Body Parent", pScene, glm::mat4(1.0));
 
+			softBodyParent->multiplyTransform(glm::rotate(glm::mat4(1.0f), glm::radians(90.0f),
+				glm::vec3(0.0f, 1.0f, 0.0f)));
+
 			softBodyParent->multiplyTransform(glm::translate(glm::mat4(1.0f),
-				glm::vec3(0.0f, 10.0f, 10.0f)));
+				glm::vec3(0.0f, 5.0f, 10.0f)));
 
 			softBodyParent->addChild(softBodySceneNode);
 
@@ -566,7 +569,7 @@ using namespace ve;
 int main() {
 	bool debug = true;
 
-	MyVulkanEngine mve(veRendererType::VE_RENDERER_TYPE_FORWARD, debug);	//enable or disable debugging (=callback, validation layers)
+	MyVulkanEngine mve(veRendererType::VE_RENDERER_TYPE_FORWARD, debug);
 	mve.initEngine();
 	mve.loadLevel(1);
 	mve.run();
