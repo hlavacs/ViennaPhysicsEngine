@@ -1539,7 +1539,7 @@ namespace vpe {
 		struct SoftBodyMassPoint
 		{
 			// Indices of all vertices of VESoftBodyEntity at this mass point
-			std::vector<int> m_associatedVertices{};
+			std::vector<uint32_t> m_associatedVertices{};
 			glmvec3 pos;
 			glmvec3 prevPos;
 			glmvec3 vel = { 0, 0, 0 };
@@ -1548,8 +1548,9 @@ namespace vpe {
 			SoftBodyMassPoint(glm::vec3 pos) : pos{ pos }, prevPos{ pos } {}
 		};
 
-		struct SoftBodyConstraint
+		class SoftBodyConstraint
 		{
+		public:
 			SoftBodyMassPoint* point0;
 			SoftBodyMassPoint* point1;
 			real length;
@@ -1566,6 +1567,11 @@ namespace vpe {
 			{
 				return ((point0 == p0 && point1 == p1)
 					|| (point0 == p1 && point1 == p0));
+			}
+
+			bool equals(const SoftBodyConstraint& other) const
+			{
+				return containsPoints(other.point0, other.point1);
 			}
 
 			void solve(real dt) const
@@ -1590,8 +1596,15 @@ namespace vpe {
 			}
 		};
 
-		class SoftBody {
-		
+		struct SoftBodyTriangle
+		{
+			size_t massPoint0Index;
+			size_t massPoint1Index;
+			size_t massPoint2Index;
+		};
+
+		class SoftBody
+		{
 		public:
 			VPEWorld* m_physics;
 			std::string	m_name;
@@ -1600,17 +1613,20 @@ namespace vpe {
 		
 		private:
 			std::vector<SoftBodyMassPoint> m_massPoints{};
-			std::vector<SoftBodyConstraint> m_constraints{};
+			std::vector<SoftBodyTriangle> m_triangles{};
+			std::vector<SoftBodyConstraint> m_edgeConstraints{};
+			std::vector<SoftBodyConstraint> m_bendingConstraints{};
 			std::vector<vh::vhVertex> m_vertices;
 
 		public:
 			SoftBody(VPEWorld* physics, std::string name, void* owner,
-				callback_move_soft_body on_move, std::vector<vh::vhVertex> vertices)
+				callback_move_soft_body on_move, std::vector<vh::vhVertex> vertices,
+				std::vector<uint32_t> indices)
 				: m_physics{ physics }, m_name{ name }, m_owner{ owner }, m_on_move{ on_move },
 				m_vertices { vertices }
 			{
 				createMassPoints(vertices);
-				assert(m_massPoints.size() > 3);
+				createTriangles(indices);
 				generateConstraints();
 			}
 
@@ -1628,10 +1644,12 @@ namespace vpe {
 					massPoint.pos += massPoint.vel * rDt;
 				}
 
+				/*
 				for (const SoftBodyConstraint& constraint : m_constraints)
 				{
 					constraint.solve(rDt);
 				}
+				*/
 
 				for (SoftBodyMassPoint& massPoint : m_massPoints)
 				{
@@ -1694,10 +1712,80 @@ namespace vpe {
 				}
 			}
 
+			void createTriangles(std::vector<uint32_t> indices)
+			{
+				SoftBodyTriangle triangle{};
+
+				// Iterate over all vertex indices, 3 vertices in a row form a triangle
+				for (size_t indicesIndex = 0; indicesIndex < indices.size(); ++indicesIndex)
+				{
+					uint32_t vertexIndex = indices[indicesIndex];
+
+					// Find the mass point corresponding to the vertex index
+					for (size_t massPointIndex = 0; massPointIndex < m_massPoints.size();
+						++massPointIndex)
+					{
+						bool isAssociatedMassPoint = false;
+
+						// Iterate over its associated vertex indices
+						for (uint32_t associatedIndex :
+							m_massPoints[massPointIndex].m_associatedVertices)
+						{
+							if (associatedIndex == vertexIndex)
+							{
+								isAssociatedMassPoint = true;
+								break;
+							}
+						}
+
+						if (isAssociatedMassPoint)
+						{
+							if (indicesIndex % 3 == 0)
+								triangle.massPoint0Index = massPointIndex;
+							else if (indicesIndex % 3 == 1)
+								triangle.massPoint1Index = massPointIndex;
+							else
+								triangle.massPoint2Index = massPointIndex;
+							break;
+						}
+					}
+
+					// If it was the third vertex of a triangle, add a copy of the triangle to the
+					// triangle vector
+					if (indicesIndex % 3 == 2)
+					{
+						m_triangles.push_back(triangle);
+					}
+				}
+
+				std::cout << "Triangles Count: " << m_triangles.size() << std::endl;
+			}
+
 			// Creates Constraints between mass points
 			// Only works well for convex shapes 
 			void generateConstraints()
 			{
+				
+					
+
+				/*
+				// For each Triangle
+				for (size_t indicesIndex = 0; indicesIndex < indices.size(); indicesIndex += 3)
+				{
+					// Create Edge Constraints
+					SoftBodyConstraint(vertices[])
+
+					
+					// Remove Duplicates
+					
+
+					// Find Neighbor (Go through all triangles)
+						// Remove Duplicates
+				}
+				*/
+					
+
+				/*
 				// TODO Optimize Algorithm
 				// For each mass point create 3 constraints to nearest neighbors
 				
@@ -1754,7 +1842,7 @@ namespace vpe {
 						}
 					}
 				}
-				
+				*/
 
 				/*
 				for (auto& massPoint : m_massPoints)

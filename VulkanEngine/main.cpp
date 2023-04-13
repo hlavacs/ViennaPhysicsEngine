@@ -551,10 +551,11 @@ namespace ve {
 			VESoftBodyEntity* softBodyEntity = (VESoftBodyEntity*) softBodySceneNode;
 			
 			auto vertices = ((VESoftBodyMesh*)(softBodyEntity->m_pMesh))->getVertices();
+			auto indices = ((VESoftBodyMesh*)(softBodyEntity->m_pMesh))->getIndices();
 
 			auto softBody = std::make_shared<VPEWorld::SoftBody>(&m_physics,
 				"SoftBody" + std::to_string(m_physics.m_bodies.size()), softBodyEntity,
-				onMoveSoftBody, vertices);
+				onMoveSoftBody, vertices, indices);
 
 			m_physics.addSoftBody(softBody);
 		};

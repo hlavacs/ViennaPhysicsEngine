@@ -123,6 +123,7 @@ namespace ve
 		void updateVertices(std::vector<vh::vhVertex>& vertices);
 
 		const std::vector<vh::vhVertex>& getVertices() const;
+		const std::vector<uint32_t>& getIndices() const;
 	private:
 		void loadFromAiMesh(const aiMesh* paiMesh);
 		void updateBoundingSphere();

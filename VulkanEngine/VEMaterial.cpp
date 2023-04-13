@@ -284,6 +284,11 @@ namespace ve
 	{
 		return m_vertices;
 	}
+
+	const std::vector<uint32_t>& VESoftBodyMesh::getIndices() const
+	{
+		return m_indices;
+	}
 	
 	void VESoftBodyMesh::loadFromAiMesh(const aiMesh* paiMesh)
 	{
