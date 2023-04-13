@@ -1598,9 +1598,20 @@ namespace vpe {
 
 		struct SoftBodyTriangle
 		{
-			size_t massPoint0Index;
-			size_t massPoint1Index;
-			size_t massPoint2Index;
+			uint32_t massPoint0Index;
+			uint32_t massPoint1Index;
+			uint32_t massPoint2Index;
+
+			uint32_t getOtherPointIndex(uint32_t point0, uint32_t point1)
+			{
+				std::vector<uint32_t> points =
+				{ massPoint0Index , massPoint1Index , massPoint2Index };
+
+				points.erase(std::remove(points.begin(), points.end(), point0), points.end());
+				points.erase(std::remove(points.begin(), points.end(), point1), points.end());
+
+				return points[0];
+			}
 		};
 
 		class SoftBody
@@ -1717,12 +1728,12 @@ namespace vpe {
 				SoftBodyTriangle triangle{};
 
 				// Iterate over all vertex indices, 3 vertices in a row form a triangle
-				for (size_t indicesIndex = 0; indicesIndex < indices.size(); ++indicesIndex)
+				for (uint32_t indicesIndex = 0; indicesIndex < indices.size(); ++indicesIndex)
 				{
 					uint32_t vertexIndex = indices[indicesIndex];
 
 					// Find the mass point corresponding to the vertex index
-					for (size_t massPointIndex = 0; massPointIndex < m_massPoints.size();
+					for (uint32_t massPointIndex = 0; massPointIndex < m_massPoints.size();
 						++massPointIndex)
 					{
 						bool isAssociatedMassPoint = false;
@@ -1765,102 +1776,62 @@ namespace vpe {
 			// Only works well for convex shapes 
 			void generateConstraints()
 			{
-				
-					
+				// Create Edge Vector
+				// An entry contains an edges two mass point indices in sorted order
+				// and the third mass point index of the triangle
+				std::vector<std::array<uint32_t, 3>> edges;
 
-				/*
-				// For each Triangle
-				for (size_t indicesIndex = 0; indicesIndex < indices.size(); indicesIndex += 3)
+				for (uint32_t triangleIndex = 0; triangleIndex < m_triangles.size();
+					++triangleIndex)
 				{
-					// Create Edge Constraints
-					SoftBodyConstraint(vertices[])
-
+					SoftBodyTriangle triangle = m_triangles[triangleIndex];
 					
-					// Remove Duplicates
-					
+					std::array<uint32_t, 3> edge0 = {
+						std::min(triangle.massPoint0Index, triangle.massPoint1Index),
+						std::max(triangle.massPoint0Index, triangle.massPoint1Index),
+						triangle.massPoint2Index,
+					};
 
-					// Find Neighbor (Go through all triangles)
-						// Remove Duplicates
+					std::array<uint32_t, 3> edge1 = {
+						std::min(triangle.massPoint1Index, triangle.massPoint2Index),
+						std::max(triangle.massPoint1Index, triangle.massPoint2Index),
+						triangle.massPoint0Index,
+					};
+
+					std::array<uint32_t, 3> edge2 = {
+						std::min(triangle.massPoint0Index, triangle.massPoint2Index),
+						std::max(triangle.massPoint0Index, triangle.massPoint2Index),
+						triangle.massPoint1Index,
+					};
+
+					edges.push_back(edge0);
+					edges.push_back(edge1);
+					edges.push_back(edge2);
 				}
-				*/
-					
 
-				/*
-				// TODO Optimize Algorithm
-				// For each mass point create 3 constraints to nearest neighbors
-				
-				for (size_t pointIndex = 0; pointIndex < m_massPoints.size(); ++pointIndex)
+				std::sort(edges.begin(), edges.end());
+
+				// Iterate over all edges
+				for (uint32_t edgeIndex = 0; edgeIndex < edges.size(); ++edgeIndex)
 				{
-					// First is distance
-					// Second is point index
-					std::map<real, int> distances{};
-
-					for (size_t neighborIndex = 0; neighborIndex < m_massPoints.size();
-						++neighborIndex)
+					// For unique edges:
+					// Create edge constraints
+					if (edgeIndex == edges.size() - 1 ||
+						edges[edgeIndex][0] != edges[edgeIndex + 1][0] ||
+						edges[edgeIndex][1] != edges[edgeIndex + 1][1])
 					{
-						real distance = glm::distance(m_massPoints[pointIndex].pos,
-							m_massPoints[neighborIndex].pos);
-
-						// Add some margin if the distance is already key of the map
-						while (distances.count(distance))
-						{
-							distance += 0.01;
-						}
-
-						distances[distance] = neighborIndex;
+						SoftBodyConstraint newEdgeConstraint(&m_massPoints[edges[edgeIndex][0]],
+							&m_massPoints[edges[edgeIndex][1]]);
+						m_edgeConstraints.push_back(newEdgeConstraint);
 					}
-
-					// Create 3 constraints with the nearest neighbors the current point does not yet
-					// form a constraint with (Start at index 1 since 0 is the point itself);
-					int constraintsCreatedCount = 0;
-
-					for (size_t neighborSortedIndex = 1; constraintsCreatedCount < 3;
-						++neighborSortedIndex)
+					// For duplicates create a bending constraint
+					else
 					{
-						int neighborIndex =
-							std::next(distances.begin(), neighborSortedIndex)->second;
-						
-						bool constraintExistsAlready = false;
-
-						for (const SoftBodyConstraint& constraint : m_constraints)
-						{
-							if (constraint.containsPoints(&m_massPoints[pointIndex],
-								&m_massPoints[neighborIndex]))
-							{
-								constraintExistsAlready = true;
-								break;
-							}
-						}
-
-						if (!constraintExistsAlready)
-						{
-							SoftBodyConstraint constraint(&m_massPoints[pointIndex],
-								&m_massPoints[neighborIndex]);
-
-							m_constraints.push_back(constraint);
-							++constraintsCreatedCount;
-						}
+						SoftBodyConstraint newBendingConstraint(&m_massPoints[edges[edgeIndex][2]],
+							&m_massPoints[edges[edgeIndex + 1][2]]);
+						m_bendingConstraints.push_back(newBendingConstraint);
 					}
 				}
-				*/
-
-				/*
-				for (auto& massPoint : m_massPoints)
-				{
-					for (auto& neighborMassPoint : m_massPoints)
-					{
-						if (massPoint.pos.y < neighborMassPoint.pos.y &&
-							massPoint.pos.x == neighborMassPoint.pos.x &&
-							massPoint.pos.z == neighborMassPoint.pos.z)
-						{
-							SoftBodyConstraint constraint(&massPoint, &neighborMassPoint);
-
-							m_constraints.push_back(constraint);
-							std::cout << "Created DEBUG constraint!" << std::endl;
-						}
-					}
-				}
-				*/
 			}
 		};
 		
