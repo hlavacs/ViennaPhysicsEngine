@@ -1544,8 +1544,20 @@ namespace vpe {
 			glmvec3 prevPos;
 			glmvec3 vel = { 0, 0, 0 };
 			real invMass = 0.5;
+			double isFixed;
 
-			SoftBodyMassPoint(glm::vec3 pos) : pos{ pos }, prevPos{ pos } {}
+			SoftBodyMassPoint(glm::vec3 pos, double isFixed = false) : pos{ pos }, prevPos{ pos },
+				isFixed{ isFixed } {}
+
+			void applyExternalForce(glmvec3 force, real dt)
+			{
+				if (!isFixed)
+				{
+					vel += force * dt;
+					prevPos = pos;
+					pos += vel * dt;
+				}
+			}
 		};
 
 		class SoftBodyConstraint
@@ -1554,10 +1566,11 @@ namespace vpe {
 			SoftBodyMassPoint* point0;
 			SoftBodyMassPoint* point1;
 			real length;
-			real compliance = 0;	// inverse of stiffness
+			real compliance;
 
-			SoftBodyConstraint(SoftBodyMassPoint* point0, SoftBodyMassPoint* point1)
-				: point0{ point0 }, point1{ point1 }
+			SoftBodyConstraint(SoftBodyMassPoint* point0, SoftBodyMassPoint* point1,
+				real compliance)
+				: point0{ point0 }, point1{ point1 }, compliance{ compliance }
 			{
 				length = glm::distance(point0->pos, point1->pos);
 			}
@@ -1590,8 +1603,11 @@ namespace vpe {
 					glmvec3 correctionVec0 = -lambda * point0->invMass * directionBetweenPoints;  
 					glmvec3 correctionVec1 = lambda * point1->invMass * directionBetweenPoints;
 
-					point0->pos += correctionVec0;
-					point1->pos += correctionVec1;
+					if (!point0->isFixed)
+						point0->pos += correctionVec0;
+
+					if (!point1->isFixed)
+						point1->pos += correctionVec1;
 				}
 			}
 		};
@@ -1614,6 +1630,14 @@ namespace vpe {
 			}
 		};
 
+		enum FixationMode
+		{
+			NONE,
+			TOP2,
+			LEFT2,
+			RIGHT2
+		};
+
 		class SoftBody
 		{
 		public:
@@ -1625,18 +1649,18 @@ namespace vpe {
 		private:
 			std::vector<SoftBodyMassPoint> m_massPoints{};
 			std::vector<SoftBodyTriangle> m_triangles{};
-			std::vector<SoftBodyConstraint> m_edgeConstraints{};
-			std::vector<SoftBodyConstraint> m_bendingConstraints{};
+			std::vector<SoftBodyConstraint> m_constraints{};
 			std::vector<vh::vhVertex> m_vertices;
 
 		public:
 			SoftBody(VPEWorld* physics, std::string name, void* owner,
 				callback_move_soft_body on_move, std::vector<vh::vhVertex> vertices,
-				std::vector<uint32_t> indices)
+				std::vector<uint32_t> indices, FixationMode fixationMode)
 				: m_physics{ physics }, m_name{ name }, m_owner{ owner }, m_on_move{ on_move },
 				m_vertices { vertices }
 			{
 				createMassPoints(vertices);
+				chooseFixedPoints(fixationMode);
 				createTriangles(indices);
 				generateConstraints();
 			}
@@ -1647,20 +1671,16 @@ namespace vpe {
 				// TODO add sub steps
 
 				real rDt = (real)dt;
-				
+
 				for (SoftBodyMassPoint& massPoint : m_massPoints)
 				{
-					massPoint.vel.y += m_physics->c_gravity * rDt;
-					massPoint.prevPos = massPoint.pos;
-					massPoint.pos += massPoint.vel * rDt;
+					massPoint.applyExternalForce(glmvec3{ 0, m_physics->c_gravity, 0 }, dt);
 				}
 
-				/*
 				for (const SoftBodyConstraint& constraint : m_constraints)
 				{
 					constraint.solve(rDt);
 				}
-				*/
 
 				for (SoftBodyMassPoint& massPoint : m_massPoints)
 				{
@@ -1704,11 +1724,13 @@ namespace vpe {
 					glmvec3 vertexPosGlm = vertices[i].pos;
 					std::vector vertexPos = { vertexPosGlm.x, vertexPosGlm.y, vertexPosGlm.z };
 
+					// Add an associated vertex to the mass point if it already exists
 					if (alreadyAddedPositions.count(vertexPos))
 					{
 						int massPointIndex = alreadyAddedPositions[vertexPos];
 						m_massPoints[massPointIndex].m_associatedVertices.push_back(i);
 					}
+					// Create a new mass point if none exists yet
 					else
 					{
 						alreadyAddedPositions[vertexPos] = m_massPoints.size();
@@ -1717,12 +1739,28 @@ namespace vpe {
 						glm::vec3 vertexPosGlm = { vertexPos[0], vertexPos[1], vertexPos[2] };
 
 						SoftBodyMassPoint massPoint(vertexPosGlm);
+
 						m_massPoints.push_back(massPoint);
 						m_massPoints[m_massPoints.size() - 1].m_associatedVertices.push_back(i);
 					}
 				}
 			}
 
+			void chooseFixedPoints(FixationMode fixationMode)
+			{
+				if (fixationMode == FixationMode::NONE)
+					return;
+
+				// Create a convex hull (Graham Scan)
+				//std::vector<SoftBodyMassPoint&> convexHull;
+
+				// Fixate
+
+				// temp
+				if (fixationMode != FixationMode::NONE)
+					m_massPoints[0].isFixed = true;
+			}
+			
 			void createTriangles(std::vector<uint32_t> indices)
 			{
 				SoftBodyTriangle triangle{};
@@ -1821,15 +1859,15 @@ namespace vpe {
 						edges[edgeIndex][1] != edges[edgeIndex + 1][1])
 					{
 						SoftBodyConstraint newEdgeConstraint(&m_massPoints[edges[edgeIndex][0]],
-							&m_massPoints[edges[edgeIndex][1]]);
-						m_edgeConstraints.push_back(newEdgeConstraint);
+							&m_massPoints[edges[edgeIndex][1]], 0);
+						m_constraints.push_back(newEdgeConstraint);
 					}
 					// For duplicates create a bending constraint
 					else
 					{
 						SoftBodyConstraint newBendingConstraint(&m_massPoints[edges[edgeIndex][2]],
-							&m_massPoints[edges[edgeIndex + 1][2]]);
-						m_bendingConstraints.push_back(newBendingConstraint);
+							&m_massPoints[edges[edgeIndex + 1][2]], 1);
+						m_constraints.push_back(newBendingConstraint);
 					}
 				}
 			}

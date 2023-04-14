@@ -555,7 +555,7 @@ namespace ve {
 
 			auto softBody = std::make_shared<VPEWorld::SoftBody>(&m_physics,
 				"SoftBody" + std::to_string(m_physics.m_bodies.size()), softBodyEntity,
-				onMoveSoftBody, vertices, indices);
+				onMoveSoftBody, vertices, indices, vpe::VPEWorld::FixationMode::TOP2);
 
 			m_physics.addSoftBody(softBody);
 		};

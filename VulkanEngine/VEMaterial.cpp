@@ -336,8 +336,16 @@ namespace ve
 			glm::vec3 p1 = vertices[m_indices[i + 1]].pos;
 			glm::vec3 p2 = vertices[m_indices[i + 2]].pos;
 
-			glm::vec3 normal = glm::normalize(glm::cross(p0 - p1, p0 - p2)) * -1.0f;
+			/*
+			std::cout << "p0: " << p0.x << ", " << p0.y << ", " << p0.z << std::endl
+				<< "p1: " << p1.x << ", " << p1.y << ", " << p1.z << std::endl
+				<< "p2: " << p2.x << ", " << p2.y << ", " << p2.z << std::endl;
+			*/
 
+			glm::vec3 normal = glm::normalize(glm::cross(p0 - p1, p0 - p2)) * -1.f;
+
+			//std::cout << "normal: " << normal.x << ", " << normal.y << ", " << normal.z << std::endl;
+			
 			vertices[m_indices[i]].normal = normal;
 			vertices[m_indices[i + 1]].normal = normal;
 			vertices[m_indices[i + 2]].normal = normal;
