@@ -1655,14 +1655,15 @@ namespace vpe {
 		public:
 			SoftBody(VPEWorld* physics, std::string name, void* owner,
 				callback_move_soft_body on_move, std::vector<vh::vhVertex> vertices,
-				std::vector<uint32_t> indices, FixationMode fixationMode)
+				std::vector<uint32_t> indices, double bendingCompliance = 1,
+				FixationMode fixationMode = FixationMode::NONE)
 				: m_physics{ physics }, m_name{ name }, m_owner{ owner }, m_on_move{ on_move },
 				m_vertices { vertices }
 			{
 				createMassPoints(vertices);
 				chooseFixedPoints(fixationMode);
 				createTriangles(indices);
-				generateConstraints();
+				generateConstraints(bendingCompliance);
 			}
 
 			~SoftBody() {}
@@ -1687,9 +1688,9 @@ namespace vpe {
 					massPoint.vel = (massPoint.pos - massPoint.prevPos) / rDt;
 					
 					// Ground Collision Check
-					if (massPoint.pos.y < -5)
+					if (massPoint.pos.y < 0)
 					{
-						massPoint.pos.y += (- 5 - massPoint.pos.y);
+						massPoint.pos.y = 0 + m_physics->c_small;
 					}
 				}
 			}
@@ -1821,7 +1822,7 @@ namespace vpe {
 
 			// Creates Constraints between mass points
 			// Only works well for convex shapes 
-			void generateConstraints()
+			void generateConstraints(real bendingCompliance)
 			{
 				// Create Edge Vector
 				// An entry contains an edges two mass point indices in sorted order
@@ -1875,7 +1876,7 @@ namespace vpe {
 					else
 					{
 						SoftBodyConstraint newBendingConstraint(&m_massPoints[edges[edgeIndex][2]],
-							&m_massPoints[edges[edgeIndex + 1][2]], 1);
+							&m_massPoints[edges[edgeIndex + 1][2]], bendingCompliance);
 						m_constraints.push_back(newBendingConstraint);
 					}
 				}

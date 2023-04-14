@@ -104,21 +104,6 @@ namespace ve {
 		/// </summary>
 		void onFrameStarted(veEvent event) {
 			m_physics->tick(event.dt);
-
-			/*
-			static VESoftBodyEntity* p_softBodyEntity = (VESoftBodyEntity*)getSceneManagerPointer()
-				->getSceneNode("Soft Body");
-			static VESoftBodyMesh* softBodyMesh = (VESoftBodyMesh*)(p_softBodyEntity->m_pMesh);
-
-			static auto vertices = softBodyMesh->getVertices();
-
-			for (size_t i = 0; i < vertices.size(); ++i)
-			{
-				vertices[i].pos.x += 2 * event.dt;
-			}
-
-			p_softBodyEntity->updateMesh(vertices);
-			*/
 		}
 
 		VPEWorld* m_physics;	//Pointer to the physics world
@@ -144,6 +129,8 @@ namespace ve {
 
 		std::default_random_engine rnd_gen{ 12345 };					//Random numbers
 		std::uniform_real_distribution<> rnd_unif{ 0.0f, 1.0f };		//Random numbers
+
+		static constexpr float SPEED = 5.0f;
 
 	public:
 
@@ -212,6 +199,31 @@ namespace ve {
 				body->m_on_move = onMove;
 				body->m_on_erase = onErase;
 				m_physics->addBody(body);
+			}
+
+			// Soft Body Controls // Temp
+			if (event.idata1 == GLFW_KEY_I) {
+				VESceneNode* softBodyParent = getSceneManagerPointer()->
+					getSceneNode("Soft Body Parent");
+				softBodyParent->setPosition( { 0, SPEED * event.dt, 0 } );
+			}
+
+			if (event.idata1 == GLFW_KEY_K) {
+				VESceneNode* softBodyParent = getSceneManagerPointer()->
+					getSceneNode("Soft Body Parent");
+				softBodyParent->setPosition({ 0, -SPEED * event.dt, 0 });
+			}
+
+			if (event.idata1 == GLFW_KEY_J) {
+				VESceneNode* softBodyParent = getSceneManagerPointer()->
+					getSceneNode("Soft Body Parent");
+				softBodyParent->setPosition({ -SPEED * event.dt, 0, 0 });
+			}
+
+			if (event.idata1 == GLFW_KEY_L) {
+				VESceneNode* softBodyParent = getSceneManagerPointer()->
+					getSceneNode("Soft Body Parent");
+				softBodyParent->setPosition({ SPEED * event.dt, 0, 0 });
 			}
 
 			return false;
@@ -526,13 +538,14 @@ namespace ve {
 
 		///Load the first level into the game engine
 		///The engine uses Y-UP, Left-handed
-		virtual void loadLevel( uint32_t numLevel=1) {
-
+		virtual void loadLevel(uint32_t numLevel = 1) {
 			VEEngine::loadLevel(numLevel);
-			getSceneManagerPointer()->getSceneNode("StandardCameraParent")->setPosition({ 0,1,-4 });
+			getSceneManagerPointer()->getSceneNode("StandardCameraParent")->
+				setPosition({ 0,1,-4 });
 
 			VESceneNode *pScene;
-			VECHECKPOINTER( pScene = getSceneManagerPointer()->createSceneNode("Level 1", getRoot()) );
+			VECHECKPOINTER(pScene = getSceneManagerPointer()->
+				createSceneNode("Level 1", getRoot()));
 			
 			//Sky and Ground Plane
 			{
@@ -550,32 +563,37 @@ namespace ve {
 				pE4->setParam(glm::vec4(1000.0f, 1000.0f, 0.0f, 0.0f));
 			}
 
-			VESceneNode* softBodySceneNode, * softBodyParent;
+			// Soft Body Cloth
+			{
+				VESceneNode* softBodySceneNode, * softBodyParent;
 
-			VECHECKPOINTER( softBodySceneNode = getSceneManagerPointer()->loadSoftBodyModel(
-				"Soft Body", "media/models/softbody/cloth0", "cloth.obj"));
+				VECHECKPOINTER(softBodySceneNode = getSceneManagerPointer()->loadSoftBodyModel(
+					"Soft Body", "media/models/softbody/cloth0", "cloth.obj"));
 
-			softBodyParent = getSceneManagerPointer()->createSceneNode(
-				"Soft Body Parent", pScene, glm::mat4(1.0));
+				softBodyParent = getSceneManagerPointer()->createSceneNode(
+					"Soft Body Parent", pScene, glm::mat4(1.0));
 
-			softBodyParent->multiplyTransform(glm::rotate(glm::mat4(1.0f), glm::radians(90.0f),
-				glm::vec3(0.0f, 1.0f, 0.0f)));
+				softBodyParent->multiplyTransform(glm::rotate(glm::mat4(1.0f), glm::radians(90.0f),
+					glm::vec3(0.0f, 1.0f, 0.0f)));
 
-			softBodyParent->multiplyTransform(glm::translate(glm::mat4(1.0f),
-				glm::vec3(0.0f, 5.0f, 10.0f)));
+				softBodyParent->multiplyTransform(glm::translate(glm::mat4(1.0f),
+					glm::vec3(0.0f, 2.0f, 10.0f)));
 
-			softBodyParent->addChild(softBodySceneNode);
+				softBodyParent->addChild(softBodySceneNode);
 
-			VESoftBodyEntity* softBodyEntity = (VESoftBodyEntity*) softBodySceneNode;
-			
-			auto vertices = ((VESoftBodyMesh*)(softBodyEntity->m_pMesh))->getVertices();
-			auto indices = ((VESoftBodyMesh*)(softBodyEntity->m_pMesh))->getIndices();
+				VESoftBodyEntity* softBodyEntity = (VESoftBodyEntity*)softBodySceneNode;
 
-			auto softBody = std::make_shared<VPEWorld::SoftBody>(&m_physics,
-				"SoftBody" + std::to_string(m_physics.m_bodies.size()), softBodyEntity,
-				onMoveSoftBody, vertices, indices, vpe::VPEWorld::FixationMode::TOP2);
+				auto vertices = ((VESoftBodyMesh*)(softBodyEntity->m_pMesh))->getVertices();
+				auto indices = ((VESoftBodyMesh*)(softBodyEntity->m_pMesh))->getIndices();
 
-			m_physics.addSoftBody(softBody);
+				auto softBody = std::make_shared<VPEWorld::SoftBody>(&m_physics,
+					"SoftBody" + std::to_string(m_physics.m_bodies.size()), softBodyEntity,
+					onMoveSoftBody, vertices, indices, 100, vpe::VPEWorld::FixationMode::TOP2);
+
+				m_physics.addSoftBody(softBody);
+			}
+
+
 		};
 	};
 }
