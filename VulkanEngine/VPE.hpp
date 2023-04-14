@@ -1711,6 +1711,15 @@ namespace vpe {
 				return m_vertices;
 			}
 
+			void applyTransformation(glmmat4 transformation, bool forFixedOnly)
+			{
+				for (SoftBodyMassPoint& massPoint : m_massPoints)
+				{
+					if (!forFixedOnly || massPoint.isFixed)
+						massPoint.pos = transformation * glmvec4(massPoint.pos, 1);
+				}
+			}
+
 		private:
 			void createMassPoints(const std::vector<vh::vhVertex>& vertices)
 			{
@@ -1871,6 +1880,7 @@ namespace vpe {
 					}
 				}
 			}
+
 		};
 		
 	};

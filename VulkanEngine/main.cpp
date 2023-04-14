@@ -53,6 +53,24 @@ namespace ve {
 		auto vertices = softBody->generateVertices();
 		softBodyOwner->updateMesh(vertices);
 		// TODO extrapolate
+
+		// TODO move to a different place or rename function
+		// Apply VVE transformations to the soft body
+		// Apply the first (initial transformation) to all mass points
+		// Then only to the fixed ones
+		static bool initialTransformation = true;
+
+		glmmat4 transformation = softBodyOwner->getParent()->getTransform();
+		if (transformation != (glmmat4) glm::mat4(1.0f))
+		{
+			// Apply tranformation to soft body
+			softBody->applyTransformation(transformation, !initialTransformation);
+
+			// Reset the transformation
+			softBodyOwner->getParent()->setTransform((glmmat4) glm::mat4(1.0f));
+
+			initialTransformation = false;
+		}
 	};
 
 	/// <summary>
