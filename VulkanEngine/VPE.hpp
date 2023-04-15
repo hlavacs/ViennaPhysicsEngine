@@ -1719,7 +1719,7 @@ namespace vpe {
 			{
 				for (SoftBodyMassPoint& massPoint : m_massPoints)
 				{
-					// Apply the full transformation of the point is fixed or movement is not
+					// Apply the full transformation if the point is fixed or movement is not
 					// simulated
 					if (!simulateMovement || massPoint.isFixed)
 						massPoint.pos = transformation * glmvec4(massPoint.pos, 1);
@@ -1773,14 +1773,57 @@ namespace vpe {
 				if (fixationMode == FixationMode::NONE)
 					return;
 
-				// Create a convex hull (Graham Scan)
-				//std::vector<SoftBodyMassPoint&> convexHull;
+				if (fixationMode == FixationMode::TOP2)
+				{
+					std::vector<uint32_t> topRowPointIndices{};
 
-				// Fixate
+					for (uint32_t i = 0; i < m_massPoints.size(); ++i)
+					{
+						if (topRowPointIndices.empty()
+							|| m_massPoints[i].pos.y >
+								m_massPoints[topRowPointIndices[0]].pos.y)
+						{
+							topRowPointIndices.clear();
+							topRowPointIndices.push_back(i);
+						}
+						else if (m_massPoints[i].pos.y ==
+							m_massPoints[topRowPointIndices[0]].pos.y)
+						{
+							topRowPointIndices.push_back(i);
+						}
+					}
 
-				// temp
-				if (fixationMode != FixationMode::NONE)
-					m_massPoints[0].isFixed = true;
+					if (topRowPointIndices.empty())
+						return;
+
+					std::cout << topRowPointIndices.size() << std::endl;
+
+					uint32_t leftPointIndex = topRowPointIndices[0];
+					uint32_t rightPointIndex = topRowPointIndices[0];
+
+					for (uint32_t topRowPointIndex : topRowPointIndices)
+					{
+						std::cout << "Left x before: " << m_massPoints[leftPointIndex].pos.x << 
+							"Left compared: " << m_massPoints[topRowPointIndex].pos.x << std::endl;
+
+						if (m_massPoints[topRowPointIndex].pos.x <
+							m_massPoints[leftPointIndex].pos.x)
+						{
+							leftPointIndex = topRowPointIndex;
+						}
+
+						if (m_massPoints[topRowPointIndex].pos.x >
+							m_massPoints[rightPointIndex].pos.x)
+						{
+							rightPointIndex = topRowPointIndex;
+						}
+					}
+
+					std::cout << "Default: " << topRowPointIndices[0] << ", Left: " << leftPointIndex << ", Right: " << rightPointIndex << std::endl;
+
+					m_massPoints[leftPointIndex].isFixed = true;
+					m_massPoints[rightPointIndex].isFixed = true;
+				}
 			}
 			
 			void createTriangles(std::vector<uint32_t> indices)
