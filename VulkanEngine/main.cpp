@@ -568,7 +568,7 @@ namespace ve {
 				VESceneNode* softBodySceneNode, * softBodyParent;
 
 				VECHECKPOINTER(softBodySceneNode = getSceneManagerPointer()->loadSoftBodyModel(
-					"Soft Body", "media/models/softbody/cloth0", "cloth.obj"));
+					"Soft Body", "media/models/softbody/cloth1", "cloth.obj"));
 
 				softBodyParent = getSceneManagerPointer()->createSceneNode(
 					"Soft Body Parent", pScene, glm::mat4(1.0));

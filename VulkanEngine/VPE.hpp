@@ -1542,8 +1542,8 @@ namespace vpe {
 			std::vector<uint32_t> m_associatedVertices{};
 			glmvec3 pos;
 			glmvec3 prevPos;
-			glmvec3 vel = { 0, 0, 0 };
-			real invMass = 0.5;
+			glmvec3 vel = { 0., 0., 0. };
+			real invMass = 0.;
 			double isFixed;
 
 			SoftBodyMassPoint(glm::vec3 pos, double isFixed = false) : pos{ pos }, prevPos{ pos },
@@ -1670,27 +1670,30 @@ namespace vpe {
 
 			void integrate(double dt) {
 				// TODO add sub steps
+				static const int SUBSTEPS = 2;
+				static real rDt = dt / SUBSTEPS;
 
-				real rDt = (real)dt;
-
-				for (SoftBodyMassPoint& massPoint : m_massPoints)
+				for (int i = 0; i < SUBSTEPS; ++i)
 				{
-					massPoint.applyExternalForce(glmvec3{ 0, m_physics->c_gravity, 0 }, dt);
-				}
-
-				for (const SoftBodyConstraint& constraint : m_constraints)
-				{
-					constraint.solve(rDt);
-				}
-
-				for (SoftBodyMassPoint& massPoint : m_massPoints)
-				{
-					massPoint.vel = (massPoint.pos - massPoint.prevPos) / rDt;
-					
-					// Ground Collision Check
-					if (massPoint.pos.y < 0)
+					for (SoftBodyMassPoint& massPoint : m_massPoints)
 					{
-						massPoint.pos.y = 0 + m_physics->c_small;
+						massPoint.applyExternalForce(glmvec3{ 0, m_physics->c_gravity, 0 }, rDt);
+					}
+
+					for (const SoftBodyConstraint& constraint : m_constraints)
+					{
+						constraint.solve(rDt);
+					}
+
+					for (SoftBodyMassPoint& massPoint : m_massPoints)
+					{
+						massPoint.vel = (massPoint.pos - massPoint.prevPos) / rDt;
+
+						// Ground Collision Check
+						if (massPoint.pos.y < 0)
+						{
+							massPoint.pos.y = 0 + m_physics->c_small;
+						}
 					}
 				}
 			}
@@ -1712,12 +1715,21 @@ namespace vpe {
 				return m_vertices;
 			}
 
-			void applyTransformation(glmmat4 transformation, bool forFixedOnly)
+			void applyTransformation(glmmat4 transformation, bool simulateMovement)
 			{
 				for (SoftBodyMassPoint& massPoint : m_massPoints)
 				{
-					if (!forFixedOnly || massPoint.isFixed)
+					// Apply the full transformation of the point is fixed or movement is not
+					// simulated
+					if (!simulateMovement || massPoint.isFixed)
 						massPoint.pos = transformation * glmvec4(massPoint.pos, 1);
+					// Elsewise interpolate points not fixed
+					else if (simulateMovement && !massPoint.isFixed)
+					{
+						glmvec3 transformedPos = transformation * glmvec4(massPoint.pos, 1);
+						glmvec3 posToTransPos = transformedPos - massPoint.pos;
+						massPoint.pos = massPoint.pos + posToTransPos * 0.8;						// TODO Magic Number
+					}
 				}
 			}
 
@@ -1810,9 +1822,28 @@ namespace vpe {
 					}
 
 					// If it was the third vertex of a triangle, add a copy of the triangle to the
-					// triangle vector
+					// triangle vector and calculate the mass points' masses
 					if (indicesIndex % 3 == 2)
 					{
+						SoftBodyMassPoint& p0 = m_massPoints[triangle.massPoint0Index];
+						SoftBodyMassPoint& p1 = m_massPoints[triangle.massPoint1Index];
+						SoftBodyMassPoint& p2 = m_massPoints[triangle.massPoint2Index];
+
+						real d0 = glm::distance(p0.pos, p1.pos);
+						real d1 = glm::distance(p1.pos, p2.pos);
+						real d2 = glm::distance(p2.pos, p0.pos);
+
+						real semiPerimeter = (d0 + d1 + d2) / 2;
+
+						real area = std::sqrt(semiPerimeter * (semiPerimeter - d0) *
+							(semiPerimeter - d1) * (semiPerimeter - d2));
+
+						real invMass = 1 / area / 3;
+
+						p0.invMass = invMass;
+						p1.invMass = invMass;
+						p2.invMass = invMass;
+
 						m_triangles.push_back(triangle);
 					}
 				}
