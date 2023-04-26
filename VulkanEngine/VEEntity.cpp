@@ -1188,7 +1188,7 @@ namespace ve
 
 	VESoftBodyEntity::VESoftBodyEntity(std::string name,
 		VESoftBodyMesh* pSoftBodyMesh, VEMaterial* pMat, glm::mat4 transf)
-		: VEEntity::VEEntity(name, VEEntity::veEntityType::VE_ENTITY_TYPE_NORMAL, pSoftBodyMesh,
+		: VEEntity::VEEntity(name, VEEntity::veEntityType::VE_ENTITY_TYPE_SOFTBODY, pSoftBodyMesh,
 			pMat, transf) {}
 
 	VESoftBodyEntity::~VESoftBodyEntity() {

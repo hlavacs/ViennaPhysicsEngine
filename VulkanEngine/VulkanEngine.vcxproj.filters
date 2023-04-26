@@ -191,6 +191,9 @@
     <ClInclude Include="VPE.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="VESubrenderFW_Softbody.h">
+      <Filter>Header Files\VESubrender</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="VEEngine.cpp">
@@ -357,6 +360,9 @@
     </ClCompile>
     <ClCompile Include="VHRayTracing.cpp">
       <Filter>Source Files\VHelper</Filter>
+    </ClCompile>
+    <ClCompile Include="VESubrenderFW_Softbody.cpp">
+      <Filter>Source Files\VESubrender</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

@@ -217,13 +217,13 @@ namespace ve {
 			if (event.idata1 == GLFW_KEY_J) {
 				VESceneNode* softBodyParent = getSceneManagerPointer()->
 					getSceneNode("Soft Body Parent");
-				softBodyParent->setPosition({ -SPEED * event.dt, 0, 0 });
+				softBodyParent->setPosition({ 0, 0, -SPEED * event.dt });
 			}
 
 			if (event.idata1 == GLFW_KEY_L) {
 				VESceneNode* softBodyParent = getSceneManagerPointer()->
 					getSceneNode("Soft Body Parent");
-				softBodyParent->setPosition({ SPEED * event.dt, 0, 0 });
+				softBodyParent->setPosition({ 0, 0, SPEED * event.dt });
 			}
 
 			return false;
@@ -573,8 +573,8 @@ namespace ve {
 				softBodyParent = getSceneManagerPointer()->createSceneNode(
 					"Soft Body Parent", pScene, glm::mat4(1.0));
 
-				softBodyParent->multiplyTransform(glm::rotate(glm::mat4(1.0f), glm::radians(90.0f),
-					glm::vec3(0.0f, 1.0f, 0.0f)));
+				//softBodyParent->multiplyTransform(glm::rotate(glm::mat4(1.0f), glm::radians(90.0f),
+				//	glm::vec3(0.0f, 1.0f, 0.0f)));
 
 				softBodyParent->multiplyTransform(glm::translate(glm::mat4(1.0f),
 					glm::vec3(0.0f, 2.0f, 10.0f)));
@@ -592,8 +592,6 @@ namespace ve {
 
 				m_physics.addSoftBody(softBody);
 			}
-
-
 		};
 	};
 }

@@ -1633,9 +1633,7 @@ namespace vpe {
 		enum FixationMode
 		{
 			NONE,
-			TOP2,
-			LEFT2,
-			RIGHT2
+			TOP2
 		};
 
 		class SoftBody
@@ -1670,7 +1668,7 @@ namespace vpe {
 
 			void integrate(double dt) {
 				// TODO add sub steps
-				static const int SUBSTEPS = 2;
+				static const int SUBSTEPS = 5;
 				static real rDt = dt / SUBSTEPS;
 
 				for (int i = 0; i < SUBSTEPS; ++i)
@@ -1894,8 +1892,6 @@ namespace vpe {
 				std::cout << "Triangles Count: " << m_triangles.size() << std::endl;
 			}
 
-			// Creates Constraints between mass points
-			// Only works well for convex shapes 
 			void generateConstraints(real bendingCompliance)
 			{
 				// Create Edge Vector
