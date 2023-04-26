@@ -262,7 +262,7 @@ namespace vpe {
 		struct Face {
 			uint_t					m_id;						//Unique number within a polytope
 			std::vector<Vertex*>	m_face_vertex_ptrs{};		//pointers to the vertices of this face in correct orientation
-			std::vector<glmvec2>	m_face_vertex2D_T{};	//vertex 2D coordinates in tangent space
+			std::vector<glmvec2>	m_face_vertex2D_T{};		//vertex 2D coordinates in tangent space
 			std::vector<SignedEdge>	m_face_edge_ptrs{};			//pointers to the edges of this face and orientation factors
 			glmvec3					m_normalL{};				//normal vector in local space
 			glmmat4					m_LtoT;						//local to face tangent space
@@ -404,7 +404,7 @@ namespace vpe {
 		class Body {
 
 		public:
-			VPEWorld* m_physics;			//Pointer to the physics world to access parameters
+			VPEWorld* m_physics;						//Pointer to the physics world to access parameters
 			std::string	m_name;							//The name of this body
 
 			//-----------------------------------------------------------------------------
@@ -1005,7 +1005,7 @@ namespace vpe {
 				// Soft Bodies
 				for (auto& softBody : m_softBodies)
 				{
-					softBody.second->integrate(m_sim_delta_time);
+					softBody.second->integrate(m_sim_delta_time, m_bodies);
 				}
 
 				m_last_slot = m_next_slot;															// Remember last slot
@@ -1536,8 +1536,9 @@ namespace vpe {
 
 		class SoftBodyConstraint;
 
-		struct SoftBodyMassPoint
+		class SoftBodyMassPoint
 		{
+		public:
 			// Indices of all vertices of VESoftBodyEntity at this mass point
 			std::vector<uint32_t> m_associatedVertices{};
 			glmvec3 pos;
@@ -1556,6 +1557,26 @@ namespace vpe {
 					vel += force * dt;
 					prevPos = pos;
 					pos += vel * dt;
+				}
+			}
+
+			void solveCollisions(const body_map& bodies)
+			{
+				std::vector<std::shared_ptr<Body>> bodiesVec;
+				std::transform(bodies.begin(), bodies.end(), std::back_inserter(bodiesVec),
+					[](const auto& body) { return body.second; });
+
+				int i = 0;
+
+				for (const std::shared_ptr<Body>& body : bodiesVec)
+				{
+					//if (body->)
+				}
+
+				// Ground Collision Check
+				if (pos.y < 0)
+				{
+					pos.y = 0;
 				}
 			}
 		};
@@ -1666,7 +1687,7 @@ namespace vpe {
 
 			~SoftBody() {}
 
-			void integrate(double dt) {
+			void integrate(double dt, const body_map& bodies) {
 				// TODO add sub steps
 				static const int SUBSTEPS = 5;
 				static real rDt = dt / SUBSTEPS;
@@ -1687,11 +1708,7 @@ namespace vpe {
 					{
 						massPoint.vel = (massPoint.pos - massPoint.prevPos) / rDt;
 
-						// Ground Collision Check
-						if (massPoint.pos.y < 0)
-						{
-							massPoint.pos.y = 0 + m_physics->c_small;
-						}
+						massPoint.solveCollisions(bodies);
 					}
 				}
 			}
