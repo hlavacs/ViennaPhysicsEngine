@@ -377,13 +377,13 @@ namespace vpe {
 		inline static Polytope g_cube {
 			{ { -0.5_real,-0.5_real,-0.5_real }, { -0.5_real,-0.5_real,0.5_real }, { -0.5_real,0.5_real,0.5_real }, { -0.5_real,0.5_real,-0.5_real },
 			{ 0.5_real,-0.5_real,0.5_real }, { 0.5_real,-0.5_real,-0.5_real }, { 0.5_real,0.5_real,-0.5_real }, { 0.5_real,0.5_real,0.5_real } },
-			{ {0,1}, {1,2}, {2,3}, {3,0}, {4,5}, {5,6}, {6,7}, {7,0}, {5,0}, {1,4}, {3,6}, {7,2} }, //edges
+			{ {0,1}, {1,2}, {2,3}, {3,0}, {4,5}, {5,6}, {6,7}, {7,4}, {5,0}, {1,4}, {3,6}, {7,2} }, //edges													// MOD! Fixed a mistake {7,0} -> {7,4}
 			{	{ {0}, {1}, {2}, {3} },					//face 0
 				{ {4}, {5}, {6}, {7} },					//face 1
 				{ {0,-1}, {8,-1},  {4,-1}, {9,-1} },	//face 2
 				{ {2,-1}, {11,-1}, {6,-1}, {10,-1} },	//face 3
-				{ {3,-1}, {10},    {5,-1}, {8} },		//face 4
-				{ {1,-1}, {9},     {7,-1}, {11} }		//face 5
+				{ {8},    {3, -1}, {10},   {5, -1} },	//face 4
+				{ {9},    {7, -1}, {11},   {1, -1} }	//face 5
 			},
 			[&](real mass, glmvec3& s) { //callback for calculating the inertia tensor of this polytope
 				return mass * glmmat3{ {s.y * s.y + s.z * s.z,0,0}, {0,s.x * s.x + s.z * s.z,0}, {0,0,s.x * s.x + s.y * s.y} } / 12.0_real;
@@ -1559,26 +1559,6 @@ namespace vpe {
 					pos += vel * dt;
 				}
 			}
-
-			void solveCollisions(const body_map& bodies)
-			{
-				std::vector<std::shared_ptr<Body>> bodiesVec;
-				std::transform(bodies.begin(), bodies.end(), std::back_inserter(bodiesVec),
-					[](const auto& body) { return body.second; });
-
-				int i = 0;
-
-				for (const std::shared_ptr<Body>& body : bodiesVec)
-				{
-					//if (body->)
-				}
-
-				// Ground Collision Check
-				if (pos.y < 0)
-				{
-					pos.y = 0;
-				}
-			}
 		};
 
 		class SoftBodyConstraint
@@ -1670,6 +1650,7 @@ namespace vpe {
 			std::vector<SoftBodyTriangle> m_triangles{};
 			std::vector<SoftBodyConstraint> m_constraints{};
 			std::vector<vh::vhVertex> m_vertices;
+			int m_maxMassPointDistance;
 
 		public:
 			SoftBody(VPEWorld* physics, std::string name, void* owner,
@@ -1683,6 +1664,7 @@ namespace vpe {
 				chooseFixedPoints(fixationMode);
 				createTriangles(indices);
 				generateConstraints(bendingCompliance);
+				calcMaxMassPointDistance();
 			}
 
 			~SoftBody() {}
@@ -1708,7 +1690,154 @@ namespace vpe {
 					{
 						massPoint.vel = (massPoint.pos - massPoint.prevPos) / rDt;
 
-						massPoint.solveCollisions(bodies);
+						// Ground Collision
+						if (massPoint.pos.y < 0)
+							massPoint.pos.y = 0;
+					}
+
+					// Rigid Body Collisions
+					auto it = bodies.begin();
+					while (it != bodies.end())
+					{
+						const std::shared_ptr<Body> body = it->second;
+
+						for (SoftBodyMassPoint& massPoint : m_massPoints)
+						{
+							glmvec3 massPointLocalPos = body->m_model_inv *
+								glmvec4(massPoint.pos, 1);
+
+							if (glm::distance(glmvec3(0, 0, 0), massPointLocalPos) <
+								body->boundingSphereRadius())
+							{
+								bool pointIsBehindAllFaces = true;
+
+								int tempFaceCount = 0;
+
+								for (const Face& face : body->m_polytope->m_faces)
+								{
+									// Calculate normal and see if it's towards the point
+									const auto& faceVertices = face.m_face_vertex_ptrs;
+
+									glmvec3 edgeVec0 = faceVertices[1]->m_positionL -
+										faceVertices[0]->m_positionL;
+									glmvec3 edgeVec1 = faceVertices[2]->m_positionL -
+										faceVertices[0]->m_positionL;
+
+									glmvec3 faceNormal = glm::cross(edgeVec0, edgeVec1);			// Points outwards
+
+									glmvec3 dirPointToFace = faceVertices[0]->m_positionL -			// Always points outwards if the point is within the polytope
+										massPointLocalPos;
+
+									bool pointBehindFace = glm::dot(faceNormal, dirPointToFace)
+										> m_physics->c_small;
+
+									if (!pointBehindFace)
+									{
+										pointIsBehindAllFaces = false;
+										break;
+									}
+
+									++tempFaceCount;
+								}
+
+								if (pointIsBehindAllFaces)
+									std::cout << "Collision" << std::endl;
+
+								
+
+								/* Old Code
+								glmvec3 secondPointOnRay = massPointLocalPos;						// Define a second point for ray casting
+								secondPointOnRay.z += bodyBoundingSphereRadius;						// Outside of bounding sphere
+								glmvec3 rayDir = glm::normalize(secondPointOnRay -
+									massPointLocalPos);
+								
+								// count all ray face intersections
+								int faceIntersectionCount{ 0 };
+								const Face& closestFace{};
+								const real distanceToClosestFace = INFINITY;
+								
+								for (const Face& face : body->m_polytope->m_faces)
+								{
+									
+									// Check if the ray intersects
+									// Calculate plane intersection
+									real denominator = glm::dot(face.m_normalL, rayDir);
+
+									if (std::abs(denominator) < m_physics->c_small)
+										continue;
+
+									real t = dot(face.m_face_vertex_ptrs[0]->m_positionL - 
+										massPointLocalPos, face.m_normalL) /
+										denominator;
+									
+									if (t < m_physics->c_small)
+										continue;
+									
+									glmvec3 planeIntersectionPoint = massPointLocalPos + t * rayDir;
+
+									// for all triangles of face
+									
+									// get barycentric coordinates
+									glmvec3 vec0 = face.m_face_vertex_ptrs[1]->m_positionL -
+										face.m_face_vertex_ptrs[0]->m_positionL;
+									glmvec3 vec1 = face.m_face_vertex_ptrs[2]->m_positionL -
+										face.m_face_vertex_ptrs[0]->m_positionL;
+									glmvec3 vec2 = planeIntersectionPoint -
+										face.m_face_vertex_ptrs[0]->m_positionL;
+									real dot00 = glm::dot(vec0, vec0);
+									real dot01 = glm::dot(vec0, vec1);
+									real dot11 = glm::dot(vec1, vec1);
+									real dot20 = glm::dot(vec2, vec0);
+									real dot21 = glm::dot(vec2, vec1);
+									
+									denominator = dot00 * dot11 - dot01 * dot01;
+
+									real v = (dot11 * dot20 - dot01 * dot21) / denominator;
+									real w = (dot00 * dot21 - dot01 * dot20) / denominator;
+									real u = 1.0f - v - w;
+
+									if (v >= 0 && w >= 0 && u >= 0)
+										++faceIntersectionCount;
+									else {
+										glmvec3 vec0 = face.m_face_vertex_ptrs[3]->m_positionL -
+											face.m_face_vertex_ptrs[2]->m_positionL;
+										glmvec3 vec1 = face.m_face_vertex_ptrs[0]->m_positionL -
+											face.m_face_vertex_ptrs[2]->m_positionL;
+										glmvec3 vec2 = planeIntersectionPoint -
+											face.m_face_vertex_ptrs[2]->m_positionL;
+										real dot00 = glm::dot(vec0, vec0);
+										real dot01 = glm::dot(vec0, vec1);
+										real dot11 = glm::dot(vec1, vec1);
+										real dot20 = glm::dot(vec2, vec0);
+										real dot21 = glm::dot(vec2, vec1);
+
+										denominator = dot00 * dot11 - dot01 * dot01;
+
+										real v = (dot11 * dot20 - dot01 * dot21) / denominator;
+										real w = (dot00 * dot21 - dot01 * dot20) / denominator;
+										real u = 1.0f - v - w;
+
+										if (v >= 0 && w >= 0 && u >= 0)
+											++faceIntersectionCount;
+									}
+
+									// real distanceToFace = glm::distance(massPointLocalPos, face.
+
+									// if distanceToFace < distanceToClosestFace
+										// closestFace = face;
+										// distanceToClosestFace = distanceToFace;
+								}
+								*/
+
+								// if intersection count % 2 != 0 (meaning collision)
+									// then move point to closest intersection with closest face
+
+								//if (faceIntersectionCount % 2 != 0)
+								//	;
+							}
+						}
+
+						++it;
 					}
 				}
 			}
@@ -1811,16 +1940,11 @@ namespace vpe {
 					if (topRowPointIndices.empty())
 						return;
 
-					std::cout << topRowPointIndices.size() << std::endl;
-
 					uint32_t leftPointIndex = topRowPointIndices[0];
 					uint32_t rightPointIndex = topRowPointIndices[0];
 
 					for (uint32_t topRowPointIndex : topRowPointIndices)
 					{
-						std::cout << "Left x before: " << m_massPoints[leftPointIndex].pos.x << 
-							"Left compared: " << m_massPoints[topRowPointIndex].pos.x << std::endl;
-
 						if (m_massPoints[topRowPointIndex].pos.x <
 							m_massPoints[leftPointIndex].pos.x)
 						{
@@ -1834,13 +1958,28 @@ namespace vpe {
 						}
 					}
 
-					std::cout << "Default: " << topRowPointIndices[0] << ", Left: " << leftPointIndex << ", Right: " << rightPointIndex << std::endl;
-
 					m_massPoints[leftPointIndex].isFixed = true;
 					m_massPoints[rightPointIndex].isFixed = true;
 				}
 			}
 			
+			void calcMaxMassPointDistance()
+			{
+				int maxDistance = 0;
+
+				for (const SoftBodyMassPoint& point0 : m_massPoints)
+				{
+					for (const SoftBodyMassPoint& point1 : m_massPoints)
+					{
+						int distance = glm::distance(point0.pos, point1.pos);
+						if (distance > maxDistance)
+							maxDistance = distance;
+					}
+				}
+
+				m_maxMassPointDistance = maxDistance;
+			}
+
 			void createTriangles(std::vector<uint32_t> indices)
 			{
 				SoftBodyTriangle triangle{};
