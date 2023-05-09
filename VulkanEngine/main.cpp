@@ -130,7 +130,7 @@ namespace ve {
 		std::default_random_engine rnd_gen{ 12345 };					//Random numbers
 		std::uniform_real_distribution<> rnd_unif{ 0.0f, 1.0f };		//Random numbers
 
-		static constexpr float SPEED = 5.0f;
+		static constexpr float SPEED = 3.0f;
 
 	public:
 
@@ -205,10 +205,22 @@ namespace ve {
 			if (event.idata1 == GLFW_KEY_I) {
 				VESceneNode* softBodyParent = getSceneManagerPointer()->
 					getSceneNode("Soft Body Parent");
-				softBodyParent->setPosition( { 0, SPEED * event.dt, 0 } );
+				softBodyParent->setPosition( { SPEED * event.dt, 0, 0 } );
 			}
 
 			if (event.idata1 == GLFW_KEY_K) {
+				VESceneNode* softBodyParent = getSceneManagerPointer()->
+					getSceneNode("Soft Body Parent");
+				softBodyParent->setPosition({ -SPEED * event.dt, 0, 0 });
+			}
+
+			if (event.idata1 == GLFW_KEY_O) {
+				VESceneNode* softBodyParent = getSceneManagerPointer()->
+					getSceneNode("Soft Body Parent");
+				softBodyParent->setPosition({ 0, SPEED * event.dt, 0 });
+			}
+
+			if (event.idata1 == GLFW_KEY_U) {
 				VESceneNode* softBodyParent = getSceneManagerPointer()->
 					getSceneNode("Soft Body Parent");
 				softBodyParent->setPosition({ 0, -SPEED * event.dt, 0 });
@@ -568,7 +580,7 @@ namespace ve {
 				VESceneNode* softBodySceneNode, * softBodyParent;
 
 				VECHECKPOINTER(softBodySceneNode = getSceneManagerPointer()->loadSoftBodyModel(
-					"Soft Body", "media/models/softbody/clothCollisionTesting", "cloth.obj"));
+					"Soft Body", "media/models/softbody/cloth1", "cloth.obj"));
 
 				softBodyParent = getSceneManagerPointer()->createSceneNode(
 					"Soft Body Parent", pScene, glm::mat4(1.0));
@@ -588,7 +600,7 @@ namespace ve {
 
 				auto softBody = std::make_shared<VPEWorld::SoftBody>(&m_physics,
 					"SoftBody" + std::to_string(m_physics.m_bodies.size()), softBodyEntity,
-					onMoveSoftBody, vertices, indices, 100, vpe::VPEWorld::FixationMode::TOP2);
+					onMoveSoftBody, vertices, indices, 100, vpe::VPEWorld::FixationMode::TOP2, 5);
 
 				m_physics.addSoftBody(softBody);
 			}
