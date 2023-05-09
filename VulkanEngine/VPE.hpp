@@ -1546,6 +1546,7 @@ namespace vpe {
 			glmvec3 vel {};
 			real invMass = 0.;
 			double isFixed;
+			const real c_small = 0.01_real;
 
 			SoftBodyMassPoint(glm::vec3 pos, double isFixed = false) : pos{ pos }, prevPos{ pos },
 				isFixed{ isFixed } {}
@@ -1560,12 +1561,19 @@ namespace vpe {
 				}
 			}
 
+			void resolveGroundCollision()
+			{
+				if (pos.y < 0)
+				{
+					pos.y = 0 + c_small;
+					vel.y = 0;
+				}
+			}
+
 			void resolveCollisions(const body_map& bodies)
 			{
 				if (isFixed)
 					return;
-
-				const static real SMALL_DELTA = 0.01;
 
 				auto it = bodies.begin();
 				while (it != bodies.end())
@@ -1588,7 +1596,7 @@ namespace vpe {
 								face.m_face_vertex_ptrs[0]->m_positionL - massPointLocalPos;
 
 							bool pointBehindFace =
-								glm::dot(face.m_normalL, dirPointToFace) > SMALL_DELTA;
+								glm::dot(face.m_normalL, dirPointToFace) > c_small;
 
 							if (!pointBehindFace)
 							{
@@ -1601,46 +1609,6 @@ namespace vpe {
 
 						if (collision)
 						{
-							/* Correction towards -vel
-							glmvec3 rayDir = glm::normalize(-vel);
-							std::vector<std::pair<glmvec3, glmvec3>> planeIntersectionPoints{};
-
-							for (const Face& face : body->m_polytope->m_faces)
-							{
-								// ray casting collision detection -vel with planes of faces
-								real denominator = glm::dot(face.m_normalL, rayDir);
-
-								if (std::abs(denominator) < SMALL_DELTA)
-									continue;
-								real t = dot(face.m_face_vertex_ptrs[0]->m_positionL -
-									massPointLocalPos, face.m_normalL) /
-									denominator;
-
-								if (t < SMALL_DELTA)
-									continue;
-
-								planeIntersectionPoints.push_back({
-									massPointLocalPos + t * rayDir, face.m_normalL });
-							}
-
-							std::pair<glmvec3, glmvec3> nearestIntersectionPoint = *std::min_element(
-								planeIntersectionPoints.begin(),
-								planeIntersectionPoints.end(),
-								[&](const auto& p0, const auto& p1)
-								{
-									return glm::distance(p0.first, massPointLocalPos) <
-										glm::distance(p1.first, massPointLocalPos);
-								});
-
-							pos = body->m_model * glmvec4(nearestIntersectionPoint.first, 1);
-								//+ glmvec4(rayDir, 0) * 0.1;
-							
-
-							//tempActive = false;
-							real dot = glm::dot(vel, nearestIntersectionPoint.second);
-							vel = vel - dot * nearestIntersectionPoint.second;
-							*/
-
 							// Correction towards nearest plane
 							std::vector<std::pair<glmvec3, glmvec3>> planeIntersectionPoints{};
 
@@ -1649,7 +1617,7 @@ namespace vpe {
 								real t = dot(face.m_face_vertex_ptrs[0]->m_positionL -
 									massPointLocalPos, face.m_normalL);
 
-								if (t < SMALL_DELTA)
+								if (t < c_small)
 									continue;
 
 								planeIntersectionPoints.push_back({
@@ -1674,10 +1642,6 @@ namespace vpe {
 
 					++it;
 				}
-
-				// Ground Collision
-				if (pos.y < 0)
-					pos.y = 0 + SMALL_DELTA;
 			}
 		};
 
@@ -1808,6 +1772,7 @@ namespace vpe {
 					{
 						massPoint.applyExternalForce(glmvec3{ 0, m_physics->c_gravity, 0 }, rDt);
 						massPoint.resolveCollisions(bodies);
+						massPoint.resolveGroundCollision();
 					}
 
 					for (const SoftBodyConstraint& constraint : m_constraints)
