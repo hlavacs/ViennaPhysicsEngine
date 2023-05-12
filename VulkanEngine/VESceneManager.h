@@ -229,10 +229,10 @@ namespace ve
 		//VESceneNode *	createCubemap(std::string entityName, std::string basedir, std::vector<std::string> filenames);
 
 
-		//--------------------------------------Soft-Body-Stuff-----------------------------------------
-		// Felix Neumann
+		//--------------------------------Cloth-Simulation-Stuff------------------------------------
+		// by Felix Neumann
 		
-		VESceneNode* loadSoftBodyModel(std::string entityName, std::string basedir,
+		VESceneNode* loadClothModel(std::string entityName, std::string basedir,
 			std::string filename);
 	};
 

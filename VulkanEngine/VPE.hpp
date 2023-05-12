@@ -1003,9 +1003,9 @@ namespace vpe {
 				if (m_num_active < c_small) m_num_active = 0;										// If near 0, set to 0
 				
 				// Soft Bodies
-				for (auto& softBody : m_softBodies)
+				for (auto& cloth : m_softBodies)
 				{
-					softBody.second->integrate(m_sim_delta_time, m_bodies);
+					cloth.second->integrate(m_sim_delta_time, m_bodies);
 				}
 
 				m_last_slot = m_next_slot;															// Remember last slot
@@ -1024,9 +1024,9 @@ namespace vpe {
 			}
 
 			// Soft Bodies
-			for (auto& softBody : m_softBodies) {
-				if (softBody.second->m_on_move) {											
-					softBody.second->m_on_move(m_current_time - m_last_slot, softBody.second);			
+			for (auto& cloth : m_softBodies) {
+				if (cloth.second->m_on_move) {											
+					cloth.second->m_on_move(m_current_time - m_last_slot, cloth.second);			
 				}
 			}
 
@@ -1521,25 +1521,24 @@ namespace vpe {
 		VPEWorld() {};				///Constructor of class VPEWorld
 		virtual ~VPEWorld() {};		///Destructor of class VPEWorld
 
-	//--------------------------------------Soft-Body-Stuff-----------------------------------------
-	// Felix Neumann
+	//----------------------------------Cloth-Simulation-Stuff--------------------------------------
+	// by Felix Neumann
 	
 	public:
-		class SoftBody;
-		using callback_move_soft_body = std::function<void(double, std::shared_ptr<SoftBody>)>;
+		class Cloth;
+		class ClothConstraint;
+		using callback_move_soft_body = std::function<void(double, std::shared_ptr<Cloth>)>;
 
-		std::unordered_map<void*, std::shared_ptr<VPEWorld::SoftBody>> m_softBodies;
+		std::unordered_map<void*, std::shared_ptr<VPEWorld::Cloth>> m_softBodies;
 
-		void addSoftBody(std::shared_ptr<VPEWorld::SoftBody> pSoftBody) {
-			m_softBodies.insert({ pSoftBody->m_owner, pSoftBody });
+		void addCloth(std::shared_ptr<VPEWorld::Cloth> pCloth) {
+			m_softBodies.insert({ pCloth->m_owner, pCloth });
 		}
 
-		class SoftBodyConstraint;
-
-		class SoftBodyMassPoint
+		class ClothMassPoint
 		{
 		public:
-			// Indices of all vertices of VESoftBodyEntity at this mass point
+			// Indices of all vertices of VEClothEntity at this mass point
 			std::vector<uint32_t> m_associatedVertices{};
 			glmvec3 pos;
 			glmvec3 prevPos;
@@ -1548,7 +1547,7 @@ namespace vpe {
 			double isFixed;
 			const real c_small = 0.01_real;
 
-			SoftBodyMassPoint(glm::vec3 pos, double isFixed = false) : pos{ pos }, prevPos{ pos },
+			ClothMassPoint(glm::vec3 pos, double isFixed = false) : pos{ pos }, prevPos{ pos },
 				isFixed{ isFixed } {}
 
 			void applyExternalForce(glmvec3 force, real dt)
@@ -1645,29 +1644,29 @@ namespace vpe {
 			}
 		};
 
-		class SoftBodyConstraint
+		class ClothConstraint
 		{
 		public:
-			SoftBodyMassPoint* point0;
-			SoftBodyMassPoint* point1;
+			ClothMassPoint* point0;
+			ClothMassPoint* point1;
 			real length;
 			real compliance;
 
-			SoftBodyConstraint(SoftBodyMassPoint* point0, SoftBodyMassPoint* point1,
+			ClothConstraint(ClothMassPoint* point0, ClothMassPoint* point1,
 				real compliance)
 				: point0{ point0 }, point1{ point1 }, compliance{ compliance }
 			{
 				length = glm::distance(point0->pos, point1->pos);
 			}
 
-			bool containsPoints(const SoftBodyMassPoint* p0, const SoftBodyMassPoint* p1)
+			bool containsPoints(const ClothMassPoint* p0, const ClothMassPoint* p1)
 				const
 			{
 				return ((point0 == p0 && point1 == p1)
 					|| (point0 == p1 && point1 == p0));
 			}
 
-			bool equals(const SoftBodyConstraint& other) const
+			bool equals(const ClothConstraint& other) const
 			{
 				return containsPoints(other.point0, other.point1);
 			}
@@ -1706,7 +1705,7 @@ namespace vpe {
 			}
 		};
 
-		struct SoftBodyTriangle
+		struct ClothTriangle
 		{
 			uint32_t massPoint0Index;
 			uint32_t massPoint1Index;
@@ -1726,11 +1725,10 @@ namespace vpe {
 
 		enum FixationMode
 		{
-			NONE,
 			TOP2
 		};
 
-		class SoftBody
+		class Cloth
 		{
 		public:
 			VPEWorld* m_physics;
@@ -1739,18 +1737,18 @@ namespace vpe {
 			callback_move_soft_body m_on_move;
 		
 		private:
-			std::vector<SoftBodyMassPoint> m_massPoints{};
-			std::vector<SoftBodyTriangle> m_triangles{};
-			std::vector<SoftBodyConstraint> m_constraints{};
+			std::vector<ClothMassPoint> m_massPoints{};
+			std::vector<ClothTriangle> m_triangles{};
+			std::vector<ClothConstraint> m_constraints{};
 			std::vector<vh::vhVertex> m_vertices;
 			int m_maxMassPointDistance;
 			const int c_substeps;
 
 		public:
-			SoftBody(VPEWorld* physics, std::string name, void* owner,
+			Cloth(VPEWorld* physics, std::string name, void* owner,
 				callback_move_soft_body on_move, std::vector<vh::vhVertex> vertices,
 				std::vector<uint32_t> indices, double bendingCompliance = 1,
-				FixationMode fixationMode = FixationMode::NONE, int substeps = 4)
+				FixationMode fixationMode = FixationMode::TOP2, int substeps = 4)
 				: m_physics{ physics }, m_name{ name }, m_owner{ owner }, m_on_move{ on_move },
 				m_vertices { vertices }, c_substeps{ substeps }
 			{
@@ -1761,21 +1759,21 @@ namespace vpe {
 				calcMaxMassPointDistance();
 			}
 
-			~SoftBody() {}
+			~Cloth() {}
 
 			void integrate(double dt, const body_map& bodies) {
 				static real rDt = dt / c_substeps;
 
 				for (int i = 0; i < c_substeps; ++i)
 				{
-					for (SoftBodyMassPoint& massPoint : m_massPoints)
+					for (ClothMassPoint& massPoint : m_massPoints)
 					{
 						massPoint.applyExternalForce(glmvec3{ 0, m_physics->c_gravity, 0 }, rDt);
 						massPoint.resolveCollisions(bodies);
 						massPoint.resolveGroundCollision();
 					}
 
-					for (const SoftBodyConstraint& constraint : m_constraints)
+					for (const ClothConstraint& constraint : m_constraints)
 					{
 						constraint.solve(rDt);
 					}
@@ -1783,7 +1781,7 @@ namespace vpe {
 
 				// Collisions
 				// TODO: Optimize: check if cloth is near object
-				//for (SoftBodyMassPoint& massPoint : m_massPoints)
+				//for (ClothMassPoint& massPoint : m_massPoints)
 				//{
 				//	massPoint.resolveCollisions(bodies);
 				//}
@@ -1794,7 +1792,7 @@ namespace vpe {
 			{
 				int vertexCount = 0;
 
-				for (const SoftBodyMassPoint& massPoint : m_massPoints)
+				for (const ClothMassPoint& massPoint : m_massPoints)
 				{
 					for (const size_t vertexIndex : massPoint.m_associatedVertices)
 					{
@@ -1808,7 +1806,7 @@ namespace vpe {
 
 			void applyTransformation(glmmat4 transformation, bool simulateMovement)
 			{
-				for (SoftBodyMassPoint& massPoint : m_massPoints)
+				for (ClothMassPoint& massPoint : m_massPoints)
 				{
 					// Apply the full transformation if the point is fixed or movement is not
 					// simulated
@@ -1856,7 +1854,7 @@ namespace vpe {
 						// Convert from std::vector back to glm::vec3
 						glm::vec3 vertexPosGlm = { vertexPos[0], vertexPos[1], vertexPos[2] };
 
-						SoftBodyMassPoint massPoint(vertexPosGlm);
+						ClothMassPoint massPoint(vertexPosGlm);
 
 						m_massPoints.push_back(massPoint);
 						m_massPoints[m_massPoints.size() - 1].m_associatedVertices.push_back(i);
@@ -1866,9 +1864,6 @@ namespace vpe {
 
 			void chooseFixedPoints(FixationMode fixationMode)
 			{
-				if (fixationMode == FixationMode::NONE)
-					return;
-
 				if (fixationMode == FixationMode::TOP2)
 				{
 					std::vector<uint32_t> topRowPointIndices{};
@@ -1919,9 +1914,9 @@ namespace vpe {
 			{
 				int maxDistance = 0;
 
-				for (const SoftBodyMassPoint& point0 : m_massPoints)
+				for (const ClothMassPoint& point0 : m_massPoints)
 				{
-					for (const SoftBodyMassPoint& point1 : m_massPoints)
+					for (const ClothMassPoint& point1 : m_massPoints)
 					{
 						int distance = glm::distance(point0.pos, point1.pos);
 						if (distance > maxDistance)
@@ -1934,7 +1929,7 @@ namespace vpe {
 
 			void createTriangles(std::vector<uint32_t> indices)
 			{
-				SoftBodyTriangle triangle{};
+				ClothTriangle triangle{};
 
 				// Iterate over all vertex indices, 3 vertices in a row form a triangle
 				for (uint32_t indicesIndex = 0; indicesIndex < indices.size(); ++indicesIndex)
@@ -1974,9 +1969,9 @@ namespace vpe {
 					// triangle vector and calculate the mass points' masses
 					if (indicesIndex % 3 == 2)
 					{
-						SoftBodyMassPoint& p0 = m_massPoints[triangle.massPoint0Index];
-						SoftBodyMassPoint& p1 = m_massPoints[triangle.massPoint1Index];
-						SoftBodyMassPoint& p2 = m_massPoints[triangle.massPoint2Index];
+						ClothMassPoint& p0 = m_massPoints[triangle.massPoint0Index];
+						ClothMassPoint& p1 = m_massPoints[triangle.massPoint1Index];
+						ClothMassPoint& p2 = m_massPoints[triangle.massPoint2Index];
 
 						real d0 = glm::distance(p0.pos, p1.pos);
 						real d1 = glm::distance(p1.pos, p2.pos);
@@ -2010,7 +2005,7 @@ namespace vpe {
 				for (uint32_t triangleIndex = 0; triangleIndex < m_triangles.size();
 					++triangleIndex)
 				{
-					SoftBodyTriangle triangle = m_triangles[triangleIndex];
+					ClothTriangle triangle = m_triangles[triangleIndex];
 					
 					std::array<uint32_t, 3> edge0 = {
 						std::min(triangle.massPoint0Index, triangle.massPoint1Index),
@@ -2046,14 +2041,14 @@ namespace vpe {
 						edges[edgeIndex][0] != edges[edgeIndex + 1][0] ||
 						edges[edgeIndex][1] != edges[edgeIndex + 1][1])
 					{
-						SoftBodyConstraint newEdgeConstraint(&m_massPoints[edges[edgeIndex][0]],
+						ClothConstraint newEdgeConstraint(&m_massPoints[edges[edgeIndex][0]],
 							&m_massPoints[edges[edgeIndex][1]], 0);
 						m_constraints.push_back(newEdgeConstraint);
 					}
 					// For duplicates create a bending constraint
 					else
 					{
-						SoftBodyConstraint newBendingConstraint(&m_massPoints[edges[edgeIndex][2]],
+						ClothConstraint newBendingConstraint(&m_massPoints[edges[edgeIndex][2]],
 							&m_massPoints[edges[edgeIndex + 1][2]], bendingCompliance);
 						m_constraints.push_back(newBendingConstraint);
 					}
@@ -2061,7 +2056,6 @@ namespace vpe {
 			}
 
 		};
-		
 	};
 
 };

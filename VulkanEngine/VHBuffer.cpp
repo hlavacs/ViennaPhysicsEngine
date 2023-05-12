@@ -1060,15 +1060,10 @@ namespace vh
 	}
 
 
-	//--------------------------------------Soft-Body-Stuff-----------------------------------------
-	// Felix Neumann
+	//----------------------------------Cloth-Simulation-Stuff--------------------------------------
+	// by Felix Neumann
 
-	// Current Soft Body vertex buffer approach:
-	// CPU staging buffer with mapped memory and GPU buffer to copy to
-	// Different possible approach: GPU buffer with mapped memory and write there directly
-	// might try later and compare performance/usability
-
-	VkResult vhBufCreateSoftBodyVertexBuffer(VkDevice device,
+	VkResult vhBufCreateClothVertexBuffer(VkDevice device,
 		VmaAllocator allocator, VkQueue graphicsQueue, VkCommandPool commandPool,
 		std::vector<vh::vhVertex>& vertices, VkBuffer* vertexBuffer,
 		VmaAllocation* vertexBufferAllocation, VkBuffer* stagingBuffer,
@@ -1096,7 +1091,7 @@ namespace vh
 		return VK_SUCCESS;
 	}
 
-	VkResult updateSoftBodyStagingBuffer(std::vector<vh::vhVertex>& vertices,
+	VkResult updateClothStagingBuffer(std::vector<vh::vhVertex>& vertices,
 		VkDeviceSize bufferSize, void* ptrToStageBufMem)
 	{
 		memcpy(ptrToStageBufMem, vertices.data(), (size_t)bufferSize);
@@ -1104,7 +1099,7 @@ namespace vh
 		return VK_SUCCESS;
 	}
 
-	VkResult updateSoftBodyVertexBuffer(VkDevice device, VmaAllocator allocator,
+	VkResult updateClothVertexBuffer(VkDevice device, VmaAllocator allocator,
 		VkQueue graphicsQueue, VkCommandPool commandPool, VkBuffer vertexBuffer,
 		VkBuffer stagingBuffer, VkDeviceSize bufferSize)
 	{

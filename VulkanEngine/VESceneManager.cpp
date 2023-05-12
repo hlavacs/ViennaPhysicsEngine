@@ -1307,10 +1307,10 @@ namespace ve
 	}
 
 
-	//--------------------------------------Soft-Body-Stuff-----------------------------------------
-	// Felix Neumann
+	//----------------------------------Cloth-Simulation-Stuff--------------------------------------
+	// by Felix Neumann
 
-	VESceneNode* VESceneManager::loadSoftBodyModel(std::string entityName, std::string basedir,
+	VESceneNode* VESceneManager::loadClothModel(std::string entityName, std::string basedir,
 		std::string filename)
 	{
 		// The Soft Body assumes that the aiScene contains only one child (at
@@ -1323,9 +1323,7 @@ namespace ve
 
 		// If an entity with this name already exists return it
 		if (m_sceneNodes.count(entityName) > 0)
-		{
 			return m_sceneNodes[entityName];
-		}
 
 		Assimp::Importer importer;
 		std::string filekey = basedir + "/" + filename;
@@ -1347,9 +1345,9 @@ namespace ve
 		// Get the model (first (and idealy only) child) from the scene
 		auto node = pScene->mRootNode->mChildren[FIRST_MESH_INDEX];
 
-		// Create a SoftBodyMesh
-		VESoftBodyMesh* pSoftBodyMesh = new VESoftBodyMesh("Soft_Body_Mesh",
-			pScene->mMeshes[FIRST_MESH_INDEX]);
+		// Create a ClothMesh
+		VEClothMesh* pClothMesh =
+			new VEClothMesh(pScene->mMeshes[FIRST_MESH_INDEX]);
 
 		// Create materials if there are any
 		std::vector<VEMaterial*> materials;
@@ -1358,17 +1356,15 @@ namespace ve
 		VEMaterial* pMaterial = materials[materials.size() - 1];
 		glm::mat4* pMatrix = (glm::mat4*)&node->mTransformation;
 
-		// Create the SoftBodyEntity
-		VESoftBodyEntity* pEntity = new VESoftBodyEntity(entityName,
-			pSoftBodyMesh, pMaterial, *pMatrix);
+		// Create the ClothEntity
+		VEClothEntity* pEntity = new VEClothEntity(entityName,
+			pClothMesh, pMaterial, *pMatrix);
 
 		// Reserve an UBO
 		VESceneObject* pObject = (VESceneObject*)pEntity;
 		if (pObject->m_memoryHandle.owner == nullptr)
-		{
-			vh::vhMemBlockListAdd(m_memoryBlockMap[pObject->getObjectType()],
-				pObject, &pObject->m_memoryHandle);
-		}
+			vh::vhMemBlockListAdd(m_memoryBlockMap[pObject->getObjectType()], pObject,
+				&pObject->m_memoryHandle);
 
 		// Store the Entity in the node list
 		m_sceneNodes[pEntity->getName()] = pEntity;

@@ -131,8 +131,8 @@ namespace ve
 			}
 			type = VE_SUBRENDERER_TYPE_COLOR1;
 			break;
-		case VEEntity::VE_ENTITY_TYPE_SOFTBODY:
-			type = VE_SUBRENDERER_TYPE_SOFTBODY;
+		case VEEntity::VE_ENTITY_TYPE_CLOTH:
+			type = VE_SUBRENDERER_TYPE_CLOTH;
 			break;
 		case VEEntity::VE_ENTITY_TYPE_SKYPLANE:
 			type = VE_SUBRENDERER_TYPE_SKYPLANE;

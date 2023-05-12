@@ -1183,24 +1183,17 @@ namespace ve
 	}
 
 
-	//--------------------------------------Soft-Body-Stuff-----------------------------------------
-	// Felix Neumann
+	//----------------------------------Cloth-Simulation-Stuff--------------------------------------
+	// by Felix Neumann
 
-	VESoftBodyEntity::VESoftBodyEntity(std::string name,
-		VESoftBodyMesh* pSoftBodyMesh, VEMaterial* pMat, glm::mat4 transf)
-		: VEEntity::VEEntity(name, VEEntity::veEntityType::VE_ENTITY_TYPE_SOFTBODY, pSoftBodyMesh,
-			pMat, transf) {}
+	VEClothEntity::VEClothEntity(std::string name, VEClothMesh* pClothMesh, VEMaterial* pMat,
+		glm::mat4 transf)
+		: VEEntity::VEEntity(name, VEEntity::veEntityType::VE_ENTITY_TYPE_CLOTH, pClothMesh,
+			pMat, transf) {}																		// TODO m_castsShadow = false leads to crash and does not prevent shadow drawing 
 
-	VESoftBodyEntity::~VESoftBodyEntity() {
+	VEClothEntity::~VEClothEntity() {
 		VEEntity::~VEEntity();
-
 		delete m_pMesh;
 	}
-
-	void VESoftBodyEntity::updateMesh(std::vector<vh::vhVertex>& vertices)
-	{
-		((VESoftBodyMesh*)m_pMesh)->updateVertices(vertices);
-	}
-
 
 } // namespace ve

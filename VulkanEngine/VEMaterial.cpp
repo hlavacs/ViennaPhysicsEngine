@@ -245,19 +245,19 @@ namespace ve
 	}
 
 
-	//--------------------------------------Soft-Body-Stuff-----------------------------------------
-	// Felix Neumann
+	//----------------------------------Cloth-Simulation-Stuff--------------------------------------
+	// by Felix Neumann
 
 	VEMesh::VEMesh(std::string name) : VENamedClass(name) {}
 
-	VESoftBodyMesh::VESoftBodyMesh(std::string name, const aiMesh* paiMesh) : VEMesh::VEMesh(name)
+	VEClothMesh::VEClothMesh(const aiMesh* paiMesh) : VEMesh::VEMesh("Cloth Mesh")
 	{
 		loadFromAiMesh(paiMesh);
 		updateBoundingSphere();
 		createBuffers();
 	}
 
-	VESoftBodyMesh::~VESoftBodyMesh()
+	VEClothMesh::~VEClothMesh()
 	{
 		vmaUnmapMemory(getEnginePointer()->getRenderer()->getVmaAllocator(),
 			m_stagingBufferAllocation);
@@ -266,13 +266,13 @@ namespace ve
 			m_stagingBuffer, m_stagingBufferAllocation);
 	}
 
-	void VESoftBodyMesh::updateVertices(std::vector<vh::vhVertex>& vertices)
+	void VEClothMesh::updateVertices(std::vector<vh::vhVertex>& vertices)
 	{
 		updateNormals(vertices);
 
-		VECHECKRESULT(vh::updateSoftBodyStagingBuffer(vertices, m_bufferSize, m_ptrToStageBufMem));
+		VECHECKRESULT(vh::updateClothStagingBuffer(vertices, m_bufferSize, m_ptrToStageBufMem));
 
-		VECHECKRESULT(vh::updateSoftBodyVertexBuffer(
+		VECHECKRESULT(vh::updateClothVertexBuffer(
 			getEnginePointer()->getRenderer()->getDevice(),
 			getEnginePointer()->getRenderer()->getVmaAllocator(),
 			getEnginePointer()->getRenderer()->getGraphicsQueue(),
@@ -280,17 +280,11 @@ namespace ve
 			m_vertexBuffer, m_stagingBuffer, m_bufferSize));
 	}
 
-	const std::vector<vh::vhVertex>& VESoftBodyMesh::getVertices() const
-	{
-		return m_vertices;
-	}
+	const std::vector<vh::vhVertex>& VEClothMesh::getVertices() const {return m_vertices;}
 
-	const std::vector<uint32_t>& VESoftBodyMesh::getIndices() const
-	{
-		return m_indices;
-	}
+	const std::vector<uint32_t>& VEClothMesh::getIndices() const {return m_indices;}
 	
-	void VESoftBodyMesh::loadFromAiMesh(const aiMesh* paiMesh)
+	void VEClothMesh::loadFromAiMesh(const aiMesh* paiMesh)
 	{
 		// Copy the vertices
 		for (uint32_t i = 0; i < paiMesh->mNumVertices; i++)
@@ -323,12 +317,12 @@ namespace ve
 		updateNormals(m_vertices);
 	}
 
-	void VESoftBodyMesh::updateBoundingSphere()
+	void VEClothMesh::updateBoundingSphere()
 	{
 		// TODO
 	}
 
-	void VESoftBodyMesh::updateNormals(std::vector<vh::vhVertex>& vertices)
+	void VEClothMesh::updateNormals(std::vector<vh::vhVertex>& vertices)
 	{
 		for (size_t i = 0; i < m_indices.size(); i += 3)
 		{
@@ -336,15 +330,7 @@ namespace ve
 			glm::vec3 p1 = vertices[m_indices[i + 1]].pos;
 			glm::vec3 p2 = vertices[m_indices[i + 2]].pos;
 
-			/*
-			std::cout << "p0: " << p0.x << ", " << p0.y << ", " << p0.z << std::endl
-				<< "p1: " << p1.x << ", " << p1.y << ", " << p1.z << std::endl
-				<< "p2: " << p2.x << ", " << p2.y << ", " << p2.z << std::endl;
-			*/
-
 			glm::vec3 normal = glm::normalize(glm::cross(p0 - p1, p0 - p2)) * -1.f;
-
-			//std::cout << "normal: " << normal.x << ", " << normal.y << ", " << normal.z << std::endl;
 			
 			vertices[m_indices[i]].normal = normal;
 			vertices[m_indices[i + 1]].normal = normal;
@@ -352,9 +338,9 @@ namespace ve
 		}
 	}
 
-	void VESoftBodyMesh::createBuffers()
+	void VEClothMesh::createBuffers()
 	{
-		VECHECKRESULT(vh::vhBufCreateSoftBodyVertexBuffer(
+		VECHECKRESULT(vh::vhBufCreateClothVertexBuffer(
 			getEnginePointer()->getRenderer()->getDevice(),
 			getEnginePointer()->getRenderer()->getVmaAllocator(),
 			getEnginePointer()->getRenderer()->getGraphicsQueue(),

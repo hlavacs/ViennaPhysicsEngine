@@ -84,7 +84,7 @@ namespace ve
 	{
 	protected:
 		VEMesh(std::string name);																	// MOD!
-																									// VVE Base Code Modification. Reason: VESoftBodyMesh needs to create buffers in its own way
+																									// VVE Base Code Modification. Reason: VEClothMesh needs to create buffers in its own way
 	public:
 		uint32_t m_vertexCount = 0; ///<Number of vertices in the vertex buffer
 		uint32_t m_indexCount = 0; ///<Number of indices in the index buffer
@@ -100,14 +100,14 @@ namespace ve
 		VEMesh(std::string name, std::vector<vh::vhVertex> &vertices, std::vector<uint32_t> &indices);
 
 		virtual ~VEMesh();																			// MOD!
-																									// VVE Base Code Modification: Reason: ~VESoftBodyMesh needs to be called also when working with VEMesh Pointers
+																									// VVE Base Code Modification: Reason: ~VEClothMesh needs to be called also when working with VEMesh Pointers
 	};
 
 
-	//--------------------------------------Soft-Body-Stuff-----------------------------------------
-	// Felix Neumann
+	//----------------------------------Cloth-Simulation-Stuff--------------------------------------
+	// by Felix Neumann
 
-	class VESoftBodyMesh : public VEMesh {
+	class VEClothMesh : public VEMesh {
 	private:
 		VkBuffer m_stagingBuffer = VK_NULL_HANDLE;
 		VmaAllocation m_stagingBufferAllocation = nullptr;
@@ -116,9 +116,9 @@ namespace ve
 		std::vector<uint32_t> m_indices;
 		void* m_ptrToStageBufMem = nullptr;
 	public:
-		VESoftBodyMesh(std::string name, const aiMesh* paiMesh);
+		VEClothMesh(const aiMesh* paiMesh);
 
-		virtual ~VESoftBodyMesh();
+		virtual ~VEClothMesh();
 
 		void updateVertices(std::vector<vh::vhVertex>& vertices);
 

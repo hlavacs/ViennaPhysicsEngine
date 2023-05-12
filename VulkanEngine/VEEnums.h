@@ -34,7 +34,7 @@ namespace ve
 		VE_SUBRENDERER_TYPE_COLOR1, ///<Only one color per object
 		VE_SUBRENDERER_TYPE_DIFFUSEMAP, ///<Use a diffuse texture
 		VE_SUBRENDERER_TYPE_DIFFUSEMAP_NORMALMAP, ///<Use a diffuse texture and normal map
-		VE_SUBRENDERER_TYPE_SOFTBODY,
+		VE_SUBRENDERER_TYPE_CLOTH,
 		VE_SUBRENDERER_TYPE_CUBEMAP, ///<Use a cubemap to create a sky box
 		VE_SUBRENDERER_TYPE_CUBEMAP2, ///<Use a cubemap to create a sky box
 		VE_SUBRENDERER_TYPE_SKYPLANE, ///<Use a skyplane to create a sky box

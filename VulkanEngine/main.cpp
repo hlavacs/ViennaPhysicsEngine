@@ -48,10 +48,12 @@ namespace ve {
 		cube->setTransform(VPEWorld::Body::computeModel(pos, orient, body->m_scale));	//Set the scene node data
 	};
 
-	inline VPEWorld::callback_move_soft_body onMoveSoftBody = [&](double dt, std::shared_ptr<VPEWorld::SoftBody> softBody) {
-		VESoftBodyEntity* softBodyOwner = static_cast<VESoftBodyEntity*>(softBody->m_owner);
-		auto vertices = softBody->generateVertices();
-		softBodyOwner->updateMesh(vertices);
+	inline VPEWorld::callback_move_soft_body onMoveCloth =
+		[&](double dt, std::shared_ptr<VPEWorld::Cloth> cloth)
+	{
+		VEClothEntity* clothOwner = static_cast<VEClothEntity*>(cloth->m_owner);
+		auto vertices = cloth->generateVertices();
+		(static_cast<VEClothMesh*> (clothOwner->m_pMesh))->updateVertices(vertices);
 		// TODO extrapolate
 
 		// TODO move to a different place or rename function
@@ -60,14 +62,14 @@ namespace ve {
 		// Then only to the fixed ones
 		static bool initialTransformation = true;
 
-		glmmat4 transformation = softBodyOwner->getParent()->getTransform();
+		glmmat4 transformation = clothOwner->getParent()->getTransform();
 		if (transformation != (glmmat4) glm::mat4(1.0f))
 		{
 			// Apply tranformation to soft body
-			softBody->applyTransformation(transformation, !initialTransformation);
+			cloth->applyTransformation(transformation, !initialTransformation);
 
 			// Reset the transformation
-			softBodyOwner->getParent()->setTransform((glmmat4) glm::mat4(1.0f));
+			clothOwner->getParent()->setTransform((glmmat4) glm::mat4(1.0f));
 
 			initialTransformation = false;
 		}
@@ -107,7 +109,7 @@ namespace ve {
 		}
 
 		VPEWorld* m_physics;	//Pointer to the physics world
-		VESoftBodyEntity* p_softBodyEntity;
+		VEClothEntity* p_clothEntity;
 
 	public:
 		///Constructor of class EventListenerCollision
@@ -203,39 +205,39 @@ namespace ve {
 
 			// Soft Body Controls // Temp
 			if (event.idata1 == GLFW_KEY_I) {
-				VESceneNode* softBodyParent = getSceneManagerPointer()->
+				VESceneNode* clothParent = getSceneManagerPointer()->
 					getSceneNode("Soft Body Parent");
-				softBodyParent->setPosition( { SPEED * event.dt, 0, 0 } );
+				clothParent->setPosition( { SPEED * event.dt, 0, 0 } );
 			}
 
 			if (event.idata1 == GLFW_KEY_K) {
-				VESceneNode* softBodyParent = getSceneManagerPointer()->
+				VESceneNode* clothParent = getSceneManagerPointer()->
 					getSceneNode("Soft Body Parent");
-				softBodyParent->setPosition({ -SPEED * event.dt, 0, 0 });
+				clothParent->setPosition({ -SPEED * event.dt, 0, 0 });
 			}
 
 			if (event.idata1 == GLFW_KEY_O) {
-				VESceneNode* softBodyParent = getSceneManagerPointer()->
+				VESceneNode* clothParent = getSceneManagerPointer()->
 					getSceneNode("Soft Body Parent");
-				softBodyParent->setPosition({ 0, SPEED * event.dt, 0 });
+				clothParent->setPosition({ 0, SPEED * event.dt, 0 });
 			}
 
 			if (event.idata1 == GLFW_KEY_U) {
-				VESceneNode* softBodyParent = getSceneManagerPointer()->
+				VESceneNode* clothParent = getSceneManagerPointer()->
 					getSceneNode("Soft Body Parent");
-				softBodyParent->setPosition({ 0, -SPEED * event.dt, 0 });
+				clothParent->setPosition({ 0, -SPEED * event.dt, 0 });
 			}
 
 			if (event.idata1 == GLFW_KEY_J) {
-				VESceneNode* softBodyParent = getSceneManagerPointer()->
+				VESceneNode* clothParent = getSceneManagerPointer()->
 					getSceneNode("Soft Body Parent");
-				softBodyParent->setPosition({ 0, 0, -SPEED * event.dt });
+				clothParent->setPosition({ 0, 0, -SPEED * event.dt });
 			}
 
 			if (event.idata1 == GLFW_KEY_L) {
-				VESceneNode* softBodyParent = getSceneManagerPointer()->
+				VESceneNode* clothParent = getSceneManagerPointer()->
 					getSceneNode("Soft Body Parent");
-				softBodyParent->setPosition({ 0, 0, SPEED * event.dt });
+				clothParent->setPosition({ 0, 0, SPEED * event.dt });
 			}
 
 			return false;
@@ -577,32 +579,32 @@ namespace ve {
 
 			// Soft Body Cloth
 			{
-				VESceneNode* softBodySceneNode, * softBodyParent;
+				VESceneNode* clothSceneNode, * clothParent;
 
-				VECHECKPOINTER(softBodySceneNode = getSceneManagerPointer()->loadSoftBodyModel(
+				VECHECKPOINTER(clothSceneNode = getSceneManagerPointer()->loadClothModel(
 					"Soft Body", "media/models/softbody/cloth1", "cloth.obj"));
 
-				softBodyParent = getSceneManagerPointer()->createSceneNode(
+				clothParent = getSceneManagerPointer()->createSceneNode(
 					"Soft Body Parent", pScene, glm::mat4(1.0));
 
-				//softBodyParent->multiplyTransform(glm::rotate(glm::mat4(1.0f), glm::radians(90.0f),
-				//	glm::vec3(0.0f, 1.0f, 0.0f)));
+				clothParent->multiplyTransform(glm::rotate(glm::mat4(1.0f), glm::radians(1.0f),
+					glm::vec3(0.0f, 1.0f, 0.0f)));
 
-				softBodyParent->multiplyTransform(glm::translate(glm::mat4(1.0f),
+				clothParent->multiplyTransform(glm::translate(glm::mat4(1.0f),
 					glm::vec3(0.0f, 2.0f, 10.0f)));
 
-				softBodyParent->addChild(softBodySceneNode);
+				clothParent->addChild(clothSceneNode);
 
-				VESoftBodyEntity* softBodyEntity = (VESoftBodyEntity*)softBodySceneNode;
+				VEClothEntity* clothEntity = (VEClothEntity*) clothSceneNode;
 
-				auto vertices = ((VESoftBodyMesh*)(softBodyEntity->m_pMesh))->getVertices();
-				auto indices = ((VESoftBodyMesh*)(softBodyEntity->m_pMesh))->getIndices();
+				auto vertices = ((VEClothMesh*)(clothEntity->m_pMesh))->getVertices();
+				auto indices = ((VEClothMesh*)(clothEntity->m_pMesh))->getIndices();
 
-				auto softBody = std::make_shared<VPEWorld::SoftBody>(&m_physics,
-					"SoftBody" + std::to_string(m_physics.m_bodies.size()), softBodyEntity,
-					onMoveSoftBody, vertices, indices, 100, vpe::VPEWorld::FixationMode::TOP2, 5);
+				auto physicsCloth = std::make_shared<VPEWorld::Cloth>(&m_physics,
+					"Cloth" + std::to_string(m_physics.m_bodies.size()), clothEntity,
+					onMoveCloth, vertices, indices, 100, vpe::VPEWorld::FixationMode::TOP2, 5);
 
-				m_physics.addSoftBody(softBody);
+				m_physics.addCloth(physicsCloth);
 			}
 		};
 	};

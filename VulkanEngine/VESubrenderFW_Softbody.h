@@ -25,7 +25,7 @@ namespace ve
 		///\returns the type of the subrenderer
 		virtual veSubrenderType getType()
 		{
-			return VE_SUBRENDERER_TYPE_SOFTBODY;
+			return VE_SUBRENDERER_TYPE_CLOTH;
 		};
 
 		virtual void initSubrenderer();
