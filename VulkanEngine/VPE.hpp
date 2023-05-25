@@ -1546,6 +1546,8 @@ namespace vpe {
 			real invMass = 0.;
 			double isFixed;
 			const real c_small = 0.01_real;
+			const real c_collisionMargin = 0.04_real;
+			const real c_friction = 0.65_real;
 
 			ClothMassPoint(glm::vec3 pos, double isFixed = false) : pos{ pos }, prevPos{ pos },
 				isFixed{ isFixed } {}
@@ -1566,6 +1568,7 @@ namespace vpe {
 				{
 					pos.y = 0 + c_small;
 					vel.y = 0;
+					vel *= c_friction;
 				}
 			}
 
@@ -1592,7 +1595,9 @@ namespace vpe {
 						{
 							// Calculate normal and see if it's towards the point
 							glmvec3 dirPointToFace =												// Always points outwards if the point is within the polytope
-								face.m_face_vertex_ptrs[0]->m_positionL - massPointLocalPos;
+								face.m_face_vertex_ptrs[0]->m_positionL +
+								face.m_normalL * c_collisionMargin -								// extra margin so that cloth is in front of polytope
+								massPointLocalPos;
 
 							bool pointBehindFace =
 								glm::dot(face.m_normalL, dirPointToFace) > c_small;
@@ -1613,7 +1618,8 @@ namespace vpe {
 
 							for (const Face& face : body->m_polytope->m_faces)
 							{
-								real t = dot(face.m_face_vertex_ptrs[0]->m_positionL -
+								real t = dot(face.m_face_vertex_ptrs[0]->m_positionL +
+									face.m_normalL * c_collisionMargin -							// extra margin so that cloth is in front of polytope
 									massPointLocalPos, face.m_normalL);
 
 								if (t < c_small)
@@ -1623,19 +1629,20 @@ namespace vpe {
 									massPointLocalPos + t * face.m_normalL, face.m_normalL });
 							}
 
-							std::pair<glmvec3, glmvec3> nearestIntersectionPoint = *std::min_element(
-								planeIntersectionPoints.begin(),
-								planeIntersectionPoints.end(),
-								[&](const auto& p0, const auto& p1)
-								{
-									return glm::distance(p0.first, massPointLocalPos) <
-										glm::distance(p1.first, massPointLocalPos);
-								});
+							std::pair<glmvec3, glmvec3> nearestIntersectionPoint =
+								*std::min_element(
+									planeIntersectionPoints.begin(),
+									planeIntersectionPoints.end(),
+									[&](const auto& p0, const auto& p1)
+									{
+										return glm::distance(p0.first, massPointLocalPos) <
+											glm::distance(p1.first, massPointLocalPos);
+									});
 
 							pos = body->m_model * glmvec4(nearestIntersectionPoint.first, 1);
 
 							real dot = glm::dot(vel, nearestIntersectionPoint.second);
-							vel = vel - dot * nearestIntersectionPoint.second;
+							vel = (vel - dot * nearestIntersectionPoint.second) * c_friction;
 						}
 					}
 
@@ -1769,13 +1776,17 @@ namespace vpe {
 					for (ClothMassPoint& massPoint : m_massPoints)
 					{
 						massPoint.applyExternalForce(glmvec3{ 0, m_physics->c_gravity, 0 }, rDt);
-						massPoint.resolveCollisions(bodies);
-						massPoint.resolveGroundCollision();
 					}
 
 					for (const ClothConstraint& constraint : m_constraints)
 					{
 						constraint.solve(rDt);
+					}
+
+					for (ClothMassPoint& massPoint : m_massPoints)
+					{
+						massPoint.resolveCollisions(bodies);
+						massPoint.resolveGroundCollision();
 					}
 				}
 
