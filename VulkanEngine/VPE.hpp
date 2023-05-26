@@ -1521,6 +1521,7 @@ namespace vpe {
 		VPEWorld() {};				///Constructor of class VPEWorld
 		virtual ~VPEWorld() {};		///Destructor of class VPEWorld
 
+
 	//----------------------------------Cloth-Simulation-Stuff--------------------------------------
 	// by Felix Neumann
 	
@@ -1543,12 +1544,12 @@ namespace vpe {
 			glmvec3 pos;
 			glmvec3 prevPos;
 			glmvec3 vel {};
-			real invMass = 0.;
+			real invMass = 0._real;
 			double isFixed;
 			const real c_small = 0.01_real;
 			const real c_collisionMargin = 0.04_real;
-			const real c_friction = 0.65_real;
-			const real c_damping = 0.05;
+			const real c_friction = 300._real;
+			const real c_damping = 0.05_real;
 
 			ClothMassPoint(glm::vec3 pos, double isFixed = false) : pos{ pos }, prevPos{ pos },
 				isFixed{ isFixed } {}
@@ -1563,17 +1564,17 @@ namespace vpe {
 				}
 			}
 
-			void resolveGroundCollision()
+			void resolveGroundCollision(real dt)
 			{
 				if (pos.y < 0)
 				{
 					pos.y = 0 + c_small;
 					vel.y = 0;
-					vel *= c_friction;
+					vel -= vel * c_friction * dt;
 				}
 			}
 
-			void resolvePolytopeCollisions(const body_map& bodies)
+			void resolvePolytopeCollisions(const body_map& bodies, real dt)
 			{
 				if (isFixed)
 					return;
@@ -1591,7 +1592,7 @@ namespace vpe {
 						bool collision = polytopeCollisionCheck(body, massPointLocalPos);
 
 						if (collision)
-							resolvePolytopeCollision(body, massPointLocalPos);
+							resolvePolytopeCollision(body, massPointLocalPos, dt);
 					}
 
 					++it;
@@ -1634,7 +1635,8 @@ namespace vpe {
 				return collision;
 			}
 
-			void resolvePolytopeCollision(const std::shared_ptr<Body> body, glmvec3 massPointLocalPos)
+			void resolvePolytopeCollision(const std::shared_ptr<Body> body,
+				glmvec3 massPointLocalPos, real dt)
 			{
 				// Correction towards nearest plane
 				std::vector<std::pair<glmvec3, glmvec3>> planeIntersectionPoints{};
@@ -1642,7 +1644,7 @@ namespace vpe {
 				for (const Face& face : body->m_polytope->m_faces)
 				{
 					real t = dot(face.m_face_vertex_ptrs[0]->m_positionL +
-						face.m_normalL * c_collisionMargin -							// extra margin so that cloth is in front of polytope
+						face.m_normalL * c_collisionMargin -										// extra margin so that cloth is in front of polytope
 						massPointLocalPos, face.m_normalL);
 
 					if (t < c_small)
@@ -1665,7 +1667,8 @@ namespace vpe {
 				pos = body->m_model * glmvec4(nearestIntersectionPoint.first, 1);
 
 				real dot = glm::dot(vel, nearestIntersectionPoint.second);
-				vel = (vel - dot * nearestIntersectionPoint.second) * c_friction;
+				vel -= dot * nearestIntersectionPoint.second;
+				vel -= vel * c_friction * dt;
 			}
 		};
 
@@ -1766,7 +1769,7 @@ namespace vpe {
 			std::vector<ClothTriangle> m_triangles{};
 			std::vector<ClothConstraint> m_constraints{};
 			std::vector<vh::vhVertex> m_vertices;
-			int m_maxMassPointDistance;
+			real m_maxMassPointDistance;
 			const int c_substeps;
 
 		public:
@@ -1803,8 +1806,8 @@ namespace vpe {
 
 					for (ClothMassPoint& massPoint : m_massPoints)
 					{
-						massPoint.resolvePolytopeCollisions(bodies);
-						massPoint.resolveGroundCollision();
+						massPoint.resolvePolytopeCollisions(bodies, rDt);
+						massPoint.resolveGroundCollision(rDt);
 						massPoint.damp(rDt);
 					}
 				}
@@ -1935,19 +1938,19 @@ namespace vpe {
 			
 			void calcMaxMassPointDistance()
 			{
-				int maxDistance = 0;
+				real maxDistance = 0;
 
 				for (const ClothMassPoint& point0 : m_massPoints)
 				{
 					for (const ClothMassPoint& point1 : m_massPoints)
 					{
-						int distance = glm::distance(point0.pos, point1.pos);
+						real distance = glm::distance(point0.pos, point1.pos);
 						if (distance > maxDistance)
-							maxDistance = distance;
+							m_maxMassPointDistance = distance;
 					}
 				}
 
-				m_maxMassPointDistance = maxDistance;
+				std::cout << m_maxMassPointDistance;
 			}
 
 			void createTriangles(std::vector<uint32_t> indices)
