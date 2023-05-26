@@ -1548,6 +1548,7 @@ namespace vpe {
 			const real c_small = 0.01_real;
 			const real c_collisionMargin = 0.04_real;
 			const real c_friction = 0.65_real;
+			const real c_damping = 0.05;
 
 			ClothMassPoint(glm::vec3 pos, double isFixed = false) : pos{ pos }, prevPos{ pos },
 				isFixed{ isFixed } {}
@@ -1590,15 +1591,19 @@ namespace vpe {
 						bool collision = polytopeCollisionCheck(body, massPointLocalPos);
 
 						if (collision)
-						{
 							resolvePolytopeCollision(body, massPointLocalPos);
-						}
 					}
 
 					++it;
 				}
 			}
 		
+			void damp(real dt)
+			{
+				if (vel.x + vel.y + vel.z > c_small)
+					vel -= vel * c_damping * dt;
+			}
+
 		private:
 			bool polytopeCollisionCheck(const std::shared_ptr<Body> body, glmvec3 massPointLocalPos)
 			{
@@ -1609,9 +1614,9 @@ namespace vpe {
 				for (const Face& face : body->m_polytope->m_faces)
 				{
 					// Calculate normal and see if it's towards the point
-					glmvec3 dirPointToFace =												// Always points outwards if the point is within the polytope
+					glmvec3 dirPointToFace =												        // Always points outwards if the point is within the polytope
 						face.m_face_vertex_ptrs[0]->m_positionL +
-						face.m_normalL * c_collisionMargin -								// extra margin so that cloth is in front of polytope
+						face.m_normalL * c_collisionMargin -									    // extra margin so that cloth is in front of polytope
 						massPointLocalPos;
 
 					bool pointBehindFace =
@@ -1800,15 +1805,9 @@ namespace vpe {
 					{
 						massPoint.resolvePolytopeCollisions(bodies);
 						massPoint.resolveGroundCollision();
+						massPoint.damp(rDt);
 					}
 				}
-
-				// Collisions
-				// TODO: Optimize: check if cloth is near object
-				//for (ClothMassPoint& massPoint : m_massPoints)
-				//{
-				//	massPoint.resolveCollisions(bodies);
-				//}
 			}
 
 			// Synchronizes and returns the vertices with the mass points
