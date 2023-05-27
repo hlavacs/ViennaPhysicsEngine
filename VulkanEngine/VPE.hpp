@@ -1005,7 +1005,8 @@ namespace vpe {
 				// Soft Bodies
 				for (auto& cloth : m_softBodies)
 				{
-					cloth.second->integrate(m_sim_delta_time, m_bodies);
+					cloth.second->updateBodiesNearby(m_bodies);
+					cloth.second->integrate(m_sim_delta_time);
 				}
 
 				m_last_slot = m_next_slot;															// Remember last slot
@@ -1549,7 +1550,7 @@ namespace vpe {
 			const real c_small = 0.01_real;
 			const real c_collisionMargin = 0.04_real;
 			const real c_friction = 300._real;
-			const real c_damping = 0.05_real;
+			const real c_damping = 0.1_real;
 
 			ClothMassPoint(glm::vec3 pos, double isFixed = false) : pos{ pos }, prevPos{ pos },
 				isFixed{ isFixed } {}
@@ -1574,16 +1575,13 @@ namespace vpe {
 				}
 			}
 
-			void resolvePolytopeCollisions(const body_map& bodies, real dt)
+			void resolvePolytopeCollisions(const std::vector<std::shared_ptr<Body>> bodies, real dt)
 			{
 				if (isFixed)
 					return;
 
-				auto it = bodies.begin();
-				while (it != bodies.end())
+				for (auto body : bodies)
 				{
-					const std::shared_ptr<Body> body = it->second;
-
 					glmvec3 massPointLocalPos = body->m_model_inv * glmvec4(pos, 1);
 
 					if (glm::distance(glmvec3(0, 0, 0), massPointLocalPos) <
@@ -1594,15 +1592,13 @@ namespace vpe {
 						if (collision)
 							resolvePolytopeCollision(body, massPointLocalPos, dt);
 					}
-
-					++it;
 				}
 			}
 		
 			void damp(real dt)
 			{
 				if (vel.x + vel.y + vel.z > c_small)
-					vel -= vel * c_damping * dt;
+					vel -= vel * c_damping * std::min(dt, 1.);
 			}
 
 		private:
@@ -1763,7 +1759,7 @@ namespace vpe {
 			std::string	m_name;
 			void* m_owner;
 			callback_move_soft_body m_on_move;
-		
+
 		private:
 			std::vector<ClothMassPoint> m_massPoints{};
 			std::vector<ClothTriangle> m_triangles{};
@@ -1771,6 +1767,7 @@ namespace vpe {
 			std::vector<vh::vhVertex> m_vertices;
 			real m_maxMassPointDistance;
 			const int c_substeps;
+			std::vector<std::shared_ptr<Body>> m_bodiesNearby;
 
 		public:
 			Cloth(VPEWorld* physics, std::string name, void* owner,
@@ -1789,13 +1786,14 @@ namespace vpe {
 
 			~Cloth() {}
 
-			void integrate(double dt, const body_map& bodies) {
+			void integrate(double dt) {
 				static real rDt = dt / c_substeps;
 
 				for (int i = 0; i < c_substeps; ++i)
 				{
 					for (ClothMassPoint& massPoint : m_massPoints)
 					{
+						massPoint.damp(rDt);
 						massPoint.applyExternalForce(glmvec3{ 0, m_physics->c_gravity, 0 }, rDt);
 					}
 
@@ -1804,16 +1802,18 @@ namespace vpe {
 						constraint.solve(rDt);
 					}
 
+					bool clothNearGound = m_massPoints[0].pos.y < m_maxMassPointDistance;
+
 					for (ClothMassPoint& massPoint : m_massPoints)
 					{
-						massPoint.resolvePolytopeCollisions(bodies, rDt);
-						massPoint.resolveGroundCollision(rDt);
-						massPoint.damp(rDt);
+						massPoint.resolvePolytopeCollisions(m_bodiesNearby, rDt);
+						if (clothNearGound)
+							massPoint.resolveGroundCollision(rDt);
 					}
 				}
 			}
-
-			// Synchronizes and returns the vertices with the mass points
+			
+			// Synchronizes the vertices with the mass points and returns them
 			std::vector<vh::vhVertex> generateVertices()
 			{
 				int vertexCount = 0;
@@ -1851,6 +1851,27 @@ namespace vpe {
 						massPoint.pos = massPoint.pos + posToTransPos * 0.8;						// TODO Magic Number
 					}
 				}
+			}
+
+			void updateBodiesNearby(const body_map& bodies)
+			{
+				m_bodiesNearby.clear();
+
+				auto it = bodies.begin();
+				while (it != bodies.end())
+				{
+					const std::shared_ptr<Body> body = it->second;
+
+					glmvec3 clothLocalPos = body->m_model_inv * glmvec4(m_massPoints[0].pos, 1);
+
+					if (glm::length(clothLocalPos) < (body->boundingSphereRadius() +
+							m_maxMassPointDistance) * 2)
+						m_bodiesNearby.push_back(body);
+
+					++it;
+				}
+
+				std::cout << "Bodies nearby: " << m_bodiesNearby.size() << std::endl;
 			}
 
 		private:

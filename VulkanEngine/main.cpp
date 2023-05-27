@@ -544,8 +544,14 @@ namespace ve {
 		virtual void registerEventListeners() {
 			VEEngine::registerEventListeners();
 
-			registerEventListener(m_physics_listener = new VEEventListenerPhysics("Physics", &m_physics), { veEvent::VE_EVENT_FRAME_STARTED });
-			registerEventListener(m_physics_listener_keys = new VEEventListenerPhysicsKeys("Physics Keys", &m_physics), { veEvent::VE_EVENT_KEYBOARD });
+			registerEventListener(m_physics_listener =
+				new VEEventListenerPhysics("Physics", &m_physics),
+				{ veEvent::VE_EVENT_FRAME_STARTED });
+
+			registerEventListener(m_physics_listener_keys =
+				new VEEventListenerPhysicsKeys("Physics Keys", &m_physics),
+				{ veEvent::VE_EVENT_KEYBOARD });
+
 			//registerEventListener(m_physics_listener_gui = new VEEventListenerPhysicsGUI("Physics GUI",&m_physics), { veEvent::VE_EVENT_DRAW_OVERLAY });
 		};
 		
@@ -564,16 +570,20 @@ namespace ve {
 			//Sky and Ground Plane
 			{
 				VESceneNode* sp1;
-				VECHECKPOINTER(sp1 = getSceneManagerPointer()->createSkybox("The Sky", "media/models/test/sky/cloudy",
-					{ "bluecloud_ft.jpg", "bluecloud_bk.jpg", "bluecloud_up.jpg",
-						"bluecloud_dn.jpg", "bluecloud_rt.jpg", "bluecloud_lf.jpg" }, pScene));
+				VECHECKPOINTER(sp1 = getSceneManagerPointer()->createSkybox(
+					"The Sky", "media/models/test/sky/cloudy", { "bluecloud_ft.jpg",
+					"bluecloud_bk.jpg", "bluecloud_up.jpg", "bluecloud_dn.jpg", "bluecloud_rt.jpg",
+					"bluecloud_lf.jpg" }, pScene));
 
 				VESceneNode* e4;
-				VECHECKPOINTER(e4 = getSceneManagerPointer()->loadModel("The Plane", "media/models/test/plane", "plane_t_n_s.obj", 0, pScene));
-				e4->setTransform(glm::scale(glm::translate(glm::vec3{ 0,0,0, }), glm::vec3(1000.0f, 1.0f, 1000.0f)));
+				VECHECKPOINTER(e4 = getSceneManagerPointer()->loadModel(
+					"The Plane", "media/models/test/plane", "plane_t_n_s.obj", 0, pScene));
+				e4->setTransform(glm::scale(glm::translate(glm::vec3{ 0,0,0, }),
+					glm::vec3(1000.0f, 1.0f, 1000.0f)));
 
 				VEEntity* pE4;
-				VECHECKPOINTER(pE4 = (VEEntity*)getSceneManagerPointer()->getSceneNode("The Plane/plane_t_n_s.obj/plane/Entity_0"));
+				VECHECKPOINTER(pE4 = (VEEntity*)getSceneManagerPointer()->getSceneNode(
+					"The Plane/plane_t_n_s.obj/plane/Entity_0"));
 				pE4->setParam(glm::vec4(1000.0f, 1000.0f, 0.0f, 0.0f));
 			}
 
@@ -605,6 +615,45 @@ namespace ve {
 					onMoveCloth, vertices, indices, 100, vpe::VPEWorld::FixationMode::TOP2, 5);
 
 				m_physics.addCloth(physicsCloth);
+
+				//VESceneNode* cube;
+				//VECHECKPOINTER(cube = getSceneManagerPointer()->loadModel(
+				//	"The Cube", "media/models/test/crate0", "cube.obj", 0, clothParent));
+
+				/*
+				auto body = std::make_shared<VPEWorld::Body>(m_physics,
+					"Body" + std::to_string(m_physics.m_bodies.size()), cube, m_physics.g_cube,
+					{ 1, 1, 1 }, { 0, 0, 0 }, glmmat4(), 0, glmvec3(), 1.0_real / 100.0_real,
+					m_physics.m_restitution, m_physics.m_friction);
+				*/
+				
+				/*
+				auto body(new VPEWorld::Body(&m_physics, std::string("Body"), cube,
+					&m_physics.g_cube, { 1, 1, 1 }, { 0, 0, 0 }));
+
+				body->setForce(0ul, VPEWorld::Force{ {0, m_physics.c_gravity, 0} });
+				body->m_on_move = onMove;
+				body->m_on_erase = onErase;
+				m_physics.addBody(body);
+				*/
+
+				std::default_random_engine rnd_gen{ 12345 };					//Random numbers
+				std::uniform_real_distribution<> rnd_unif{ 0.0f, 1.0f };		//Random numbers
+
+				glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
+				glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
+				glmvec3 vel = (30.0_real + 5.0_real * (real)rnd_unif(rnd_gen)) * dir / glm::length(dir);
+				glmvec3 scale{ 1,1,1 }; // = rnd_unif(rnd_gen) * 10;
+				real angle = (real)rnd_unif(rnd_gen) * 10 * 3 * (real)M_PI / 180.0_real;
+				glmvec3 orient{ rnd_unif(rnd_gen), rnd_unif(rnd_gen), rnd_unif(rnd_gen) };
+				glmvec3 vrot{ rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5 };
+				VESceneNode* cube;
+				VECHECKPOINTER(cube = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics.m_body_id), "media/models/test/crate0", "cube.obj", 0, clothParent));
+				auto body = std::make_shared<VPEWorld::Body>(&m_physics, "Body" + std::to_string(m_physics.m_bodies.size()), cube, &m_physics.g_cube, scale, positionCamera + 2.0_real * dir, glm::rotate(angle, glm::normalize(orient)), vel, vrot, 1.0_real / 100.0_real, m_physics.m_restitution, m_physics.m_friction);
+				body->setForce(0ul, VPEWorld::Force{ {0, m_physics.c_gravity, 0} });
+				body->m_on_move = onMove;
+				body->m_on_erase = onErase;
+				m_physics.addBody(body);
 			}
 		};
 	};
