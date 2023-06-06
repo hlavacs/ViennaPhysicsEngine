@@ -49,6 +49,17 @@ namespace ve {
 		cube->setTransform(VPEWorld::Body::computeModel(pos, orient, body->m_scale));	//Set the scene node data
 	};
 
+	/// <summary>
+	/// This callback is called if the body is intentionally deleted. It is not called if the engine shuts down
+	/// and all bodies are deleted.
+	/// </summary>
+	inline VPEWorld::callback_erase onErase =
+		[&](std::shared_ptr<VPEWorld::Body> body) {
+			VESceneNode* node = static_cast<VESceneNode*>(body->m_owner);							//Owner is a pointer to a scene node
+			getSceneManagerPointer()->deleteSceneNodeAndChildren(
+			((VESceneNode*)body->m_owner)->getName());
+	};
+
 	inline VPEWorld::callback_move_cloth onMoveCloth =
 		[&](double dt, std::shared_ptr<VPEWorld::Cloth> cloth)
 	{
@@ -59,21 +70,10 @@ namespace ve {
 
 	inline VPEWorld::callback_erase_cloth onEraseCloth =
 		[&](std::shared_ptr<VPEWorld::Cloth> cloth) {
-			VESceneNode* node = static_cast<VESceneNode*>(cloth->m_owner);							//Owner is a pointer to a scene node
-			getSceneManagerPointer()->deleteSceneNodeAndChildren(
-			((VESceneNode*) cloth->m_owner)->getName());
+		VESceneNode* node = static_cast<VESceneNode*>(cloth->m_owner);							//Owner is a pointer to a scene node
+		getSceneManagerPointer()->deleteSceneNodeAndChildren(
+			((VESceneNode*)cloth->m_owner)->getName());
 	};
-
-	/// <summary>
-	/// This callback is called if the body is intentionally deleted. It is not called if the engine shuts down
-	/// and all bodies are deleted.
-	/// </summary>
-	inline VPEWorld::callback_erase onErase =
-		[&](std::shared_ptr<VPEWorld::Body> body) {
-			VESceneNode* node = static_cast<VESceneNode*>(body->m_owner);							//Owner is a pointer to a scene node
-			getSceneManagerPointer()->deleteSceneNodeAndChildren(
-			((VESceneNode*)body->m_owner)->getName());
-	};	
 
 	/// <summary>
 	/// This is an example callback that is called if a body collides with another body.
@@ -107,7 +107,6 @@ namespace ve {
 		///Destructor of class EventListenerCollision
 		virtual ~VEEventListenerPhysics() {};
 	};
-
 
 	//---------------------------------------------------------------------------------------------------------
 	//Listener for creating bodies with keyboard
@@ -199,12 +198,12 @@ namespace ve {
 			{
 				VESceneNode* cloth = getSceneManagerPointer()->getSceneNode("Cloth");
 
-				if (event.idata1 == GLFW_KEY_I) {
+				if (event.idata1 == GLFW_KEY_L) {
 					m_physics->m_cloths[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
 						glm::vec3(SPEED * event.dt, 0.0f, 0.0f)), true);
 				}
 
-				if (event.idata1 == GLFW_KEY_K) {
+				if (event.idata1 == GLFW_KEY_J) {
 					m_physics->m_cloths[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
 						glm::vec3(-SPEED * event.dt, 0.0f, 0.0f)), true);
 				}
@@ -219,12 +218,12 @@ namespace ve {
 						glm::vec3(0.0f, -SPEED * event.dt, 0.0f)), true);
 				}
 
-				if (event.idata1 == GLFW_KEY_L) {
+				if (event.idata1 == GLFW_KEY_I) {
 					m_physics->m_cloths[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
 						glm::vec3(0.0f, 0.0f, SPEED * event.dt)), true);
 				}
 
-				if (event.idata1 == GLFW_KEY_J) {
+				if (event.idata1 == GLFW_KEY_K) {
 					m_physics->m_cloths[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
 						glm::vec3(0.0f, 0.0f, -SPEED * event.dt)), false);
 				}
@@ -247,33 +246,32 @@ namespace ve {
 
 	//---------------------------------------------------------------------------------------------------------
 	//Listener for creating the debug GUI
-
 	class VEEventListenerPhysicsGUI : public VEEventListener
 	{
 
 	protected:
 		std::default_random_engine rnd_gen{ 12345 };					//Random numbers
 		std::uniform_real_distribution<> rnd_unif{ 0.0f, 1.0f };		//Random numbers
+		VPEWorld* m_physics;	//pointer to the physics world
 
 		virtual void onDrawOverlay(veEvent event) {
-			VESubrender_Nuklear* pSubrender = (VESubrender_Nuklear*)getEnginePointer()->getRenderer()->getOverlay();
+			VESubrender_Nuklear* pSubrender =
+				(VESubrender_Nuklear*)getEnginePointer()->getRenderer()->getOverlay();
+
 			if (pSubrender == nullptr)
 				return;
 
 			struct nk_context* ctx = pSubrender->getContext();
 
 			/* GUI */
-			if (nk_begin(ctx, "Physics Panel", nk_rect(20, 20, 550, 900),
+			if (nk_begin(ctx, "Cloth Sim Demo", nk_rect(20, 20, 330, 900),
 				NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
 				NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE))
 			{
 				std::stringstream str;
 				str << std::setprecision(5);
 
-				nk_layout_row_dynamic(ctx, 60, 2);
-				if (nk_option_label(ctx, "Solver A", m_physics->m_solver == 0)) m_physics->m_solver = 0;
-				if (nk_option_label(ctx, "Solver B", m_physics->m_solver == 1)) m_physics->m_solver = 1;
-
+				/*
 				str << "Sim Freq " << m_physics->m_sim_frequency;
 				nk_layout_row_dynamic(ctx, 30, 4);
 				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
@@ -288,12 +286,7 @@ namespace ve {
 				if (nk_button_label(ctx, "Next time slot")) {
 					m_physics->m_current_time += m_physics->m_sim_delta_time;
 				}
-
-				nk_layout_row_dynamic(ctx, 30, 2);
-				if (nk_option_label(ctx, "Realtime", m_physics->m_mode == VPEWorld::simulation_mode_t::SIMULATION_MODE_REALTIME))
-					m_physics->m_mode = VPEWorld::simulation_mode_t::SIMULATION_MODE_REALTIME;
-				if (nk_option_label(ctx, "Debug", m_physics->m_mode == VPEWorld::simulation_mode_t::SIMULATION_MODE_DEBUG))
-					m_physics->m_mode = VPEWorld::simulation_mode_t::SIMULATION_MODE_DEBUG;
+				*/
 
 				nk_layout_row_begin(ctx, NK_STATIC, 30, 2);
 				nk_layout_row_push(ctx, 60);
@@ -313,155 +306,65 @@ namespace ve {
 
 				str.str("");
 				str << "Loops " << m_physics->m_loops;
-				nk_layout_row_dynamic(ctx, 30, 3);
+				nk_layout_row_dynamic(ctx, 30, 1);
 				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "-5")) { m_physics->m_loops = std::max(5, m_physics->m_loops - 5); }
-				if (nk_button_label(ctx, "+5")) { m_physics->m_loops += 5; }
+				nk_layout_row_static(ctx, 30, 150, 2);
+				if (nk_button_label(ctx, "-5"))
+					m_physics->m_loops = std::max(5, m_physics->m_loops - 5);
+				if (nk_button_label(ctx, "+5"))
+					m_physics->m_loops += 5;
 
-				str.str("");
-				str << "Resting Fac " << m_physics->m_resting_factor;
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "-0.2")) { m_physics->m_resting_factor = std::max(0.2_real, m_physics->m_resting_factor - 0.2_real); }
-				if (nk_button_label(ctx, "+0.2")) { m_physics->m_resting_factor += 0.2_real; }
+				nk_layout_row_dynamic(ctx, 30, 1);
+				nk_label(ctx, "", NK_TEXT_LEFT);
 
-				str.str("");
-				str << "Damp Incr " << m_physics->m_damping_incr;
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "-5")) { m_physics->m_damping_incr = std::max(0.0_real, m_physics->m_damping_incr - 5.0_real); }
-				if (nk_button_label(ctx, "+5")) { m_physics->m_damping_incr += 5.0_real; }
-
-				str.str("");
-				str << "PBias Fac " << m_physics->m_pbias_factor;
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "-0.1")) { m_physics->m_pbias_factor = glm::clamp(m_physics->m_pbias_factor - 0.1_real, 0.0_real, 1.0_real); }
-				if (nk_button_label(ctx, "+0.1")) { m_physics->m_pbias_factor = glm::clamp(m_physics->m_pbias_factor + 0.1_real, 0.0_real, 1.0_real); }
-
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, "Align PBias", NK_TEXT_LEFT);
-				if (nk_option_label(ctx, "Yes", m_physics->m_align_position_bias == 1))
-					m_physics->m_align_position_bias = 1;
-				if (nk_option_label(ctx, "No", m_physics->m_align_position_bias == 0))
-					m_physics->m_align_position_bias = 0;
-
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, "Use VBias", NK_TEXT_LEFT);
-				if (nk_option_label(ctx, "Yes", m_physics->m_use_vbias == 1))
-					m_physics->m_use_vbias = 1;
-				if (nk_option_label(ctx, "No", m_physics->m_use_vbias == 0))
-					m_physics->m_use_vbias = 0;
-
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, "Warmstart All", NK_TEXT_LEFT);
-				if (nk_option_label(ctx, "Yes", m_physics->m_use_warmstart == 1))
-					m_physics->m_use_warmstart = 1;
-				if (nk_option_label(ctx, "No", m_physics->m_use_warmstart == 0))
-					m_physics->m_use_warmstart = 0;
-
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, "Warmstart Single", NK_TEXT_LEFT);
-				if (nk_option_label(ctx, "Yes", m_physics->m_use_warmstart_single == 1))
-					m_physics->m_use_warmstart_single = 1;
-				if (nk_option_label(ctx, "No", m_physics->m_use_warmstart_single == 0))
-					m_physics->m_use_warmstart_single = 0;
-
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, "Deactivate", NK_TEXT_LEFT);
-				if (nk_option_label(ctx, "Yes", m_physics->m_deactivate))
-					m_physics->m_deactivate = true;
-				if (nk_option_label(ctx, "No", !m_physics->m_deactivate))
-					m_physics->m_deactivate = false;
-
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, "Clamp Pos", NK_TEXT_LEFT);
-				if (nk_option_label(ctx, "Yes", m_physics->m_clamp_position == 1))
-					m_physics->m_clamp_position = 1;
-				if (nk_option_label(ctx, "No", m_physics->m_clamp_position == 0))
-					m_physics->m_clamp_position = 0;
-
-				str.str("");
-				str << "Num Bodies " << m_physics->m_bodies.size();
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "Create Bodies")) {
+				nk_layout_row_dynamic(ctx, 30, 1);
+				nk_label(ctx, "Rigid Body Controls", NK_TEXT_LEFT);
+				nk_layout_row_static(ctx, 30, 150, 2);
+				if (nk_button_label(ctx, "Create Cube"))
 					createRandomBodies(20);
-				}
-				if (nk_button_label(ctx, "Clear Bodies")) {
+				if (nk_button_label(ctx, "Clear Cubes"))
 					m_physics->clear();
-				}
 
-				str.str("");
-				str << "Num Contacts " << m_physics->m_contacts.size();
 				nk_layout_row_dynamic(ctx, 30, 1);
+				str.str("Current Cube: ");
+				if (m_physics->m_body)
+					str << "Current Cube: " << m_physics->m_body->m_name;
 				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
 
-				str.str("");
-				str << "Num Active " << m_physics->m_num_active;
-				nk_layout_row_dynamic(ctx, 30, 1);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-
-				str.str("");
-				str << "Cell width " << m_physics->m_width;
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "-1")) {
-					m_physics->m_grid.clear();
-					m_physics->m_width = std::max(1.0_real, m_physics->m_width - 1);
-					for (auto body : m_physics->m_bodies) m_physics->addGrid(body.second);
-				}
-				if (nk_button_label(ctx, "+1")) {
-					m_physics->m_grid.clear();
-					m_physics->m_width++;
-					for (auto body : m_physics->m_bodies) m_physics->addGrid(body.second);
-				}
-
-				nk_layout_row_dynamic(ctx, 30, 5);
-				str.str("Current Body ");
-				if (m_physics->m_body) { str << "Current Body " << m_physics->m_body->m_name; }
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-
-				if (nk_button_label(ctx, "Pick body")) { 
+				nk_layout_row_static(ctx, 30, 150, 2);
+				if (nk_button_label(ctx, "Pick Cube")) { 
 					glmvec3 pos{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
 					glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
 					m_physics->m_body = m_physics->pickBody( pos, dir );
 				}
-				if (nk_button_label(ctx, "Delete body")) {
+				if (nk_button_label(ctx, "Delete Cube")) {
 					glmvec3 pos{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
 					glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
 					auto b = m_physics->pickBody( pos, dir );
 					if(b) m_physics->eraseBody(b);
-				}
-				if (nk_button_label(ctx, "Add collider")) {
-					if(m_physics->m_body)
-						m_physics->addCollider(m_physics->m_body, onCollide);
-				}
-				if (nk_button_label(ctx, "Remove colliders")) {
-					m_physics->clearCollider();
 				}
 
 				real vel = 5.0;
 				real m_dx, m_dy, m_dz, m_da, m_db, m_dc;
 				m_dx = m_dy = m_dz = m_da = m_db = m_dc = 0.0;
 
-				nk_layout_row_static(ctx, 30, 100, 2);
-				if (nk_button_label(ctx, "+X")) {m_dx = vel; }
+				nk_layout_row_static(ctx, 30, 150, 2);
+				if (nk_button_label(ctx, "+X")) { m_dx = vel; }
 				if (nk_button_label(ctx, "-X")) { m_dx = -vel; }
-				nk_layout_row_static(ctx, 30, 100, 2);
+				nk_layout_row_static(ctx, 30, 150, 2);
 				if (nk_button_label(ctx, "+Y")) { m_dy = vel; }
 				if (nk_button_label(ctx, "-Y")) { m_dy = -vel; }
-				nk_layout_row_static(ctx, 30, 100, 2);
+				nk_layout_row_static(ctx, 30, 150, 2);
 				if (nk_button_label(ctx, "+Z")) { m_dz = vel; }
-				if (nk_button_label(ctx, "-Z")) {m_dz = -vel; }
+				if (nk_button_label(ctx, "-Z")) { m_dz = -vel; }
 
-				nk_layout_row_static(ctx, 30, 100, 2);
-				if (nk_button_label(ctx, "RX")) { m_da = vel; }
+				nk_layout_row_static(ctx, 30, 150, 2);
+				if (nk_button_label(ctx, "+RX")) { m_da = vel; }
 				if (nk_button_label(ctx, "-RX")) { m_da = -vel; }
-				nk_layout_row_static(ctx, 30, 100, 2);
+				nk_layout_row_static(ctx, 30, 150, 2);
 				if (nk_button_label(ctx, "+RY")) { m_db = vel; }
 				if (nk_button_label(ctx, "-RY")) { m_db = -vel; }
-				nk_layout_row_static(ctx, 30, 100, 2);
+				nk_layout_row_static(ctx, 30, 150, 2);
 				if (nk_button_label(ctx, "+RZ")) { m_dc = vel; }
 				if (nk_button_label(ctx, "-RZ")) { m_dc = -vel; }
 
@@ -476,6 +379,26 @@ namespace ve {
 					m_physics->m_body->updateMatrices();
 					m_dx = m_dy = m_dz = m_da = m_db = m_dc = 0.0_real;
 				}
+
+				nk_layout_row_dynamic(ctx, 30, 1);
+				nk_label(ctx, "Create Cube: 'SPACE'", NK_TEXT_LEFT);
+				nk_layout_row_dynamic(ctx, 30, 1);
+				nk_label(ctx, "Create Cube Pyramid: 'Z'", NK_TEXT_LEFT);
+				nk_layout_row_dynamic(ctx, 30, 1);
+				nk_label(ctx, "Shoot Cube: 'B'", NK_TEXT_LEFT);
+
+				nk_layout_row_dynamic(ctx, 30, 1);
+				nk_label(ctx, "", NK_TEXT_LEFT);
+
+				nk_layout_row_dynamic(ctx, 30, 1);
+				nk_label(ctx, "Soft Body Controls", NK_TEXT_LEFT);
+
+				nk_layout_row_dynamic(ctx, 30, 1);
+				nk_label(ctx, "Move along x : 'J' 'L'", NK_TEXT_LEFT);
+				nk_layout_row_dynamic(ctx, 30, 1);
+				nk_label(ctx, "Move along z: 'I' 'K'", NK_TEXT_LEFT);
+				nk_layout_row_dynamic(ctx, 30, 1);
+				nk_label(ctx, "Move along y: 'O' 'U'", NK_TEXT_LEFT);
 			}
 			nk_end(ctx);
 		}
@@ -502,15 +425,10 @@ namespace ve {
 			}
 		}
 
-
-		VPEWorld* m_physics;	//pointer to the physics world
-
 	public:
+		VEEventListenerPhysicsGUI(std::string name, VPEWorld* phy) : VEEventListener{ name },
+			m_physics{ phy } {};
 
-		///Constructor of class VEEventListenerPhysicsGUI
-		VEEventListenerPhysicsGUI(std::string name, VPEWorld* phy) : VEEventListener{ name }, m_physics{ phy } {};
-
-		///Destructor of class VEEventListenerPhysicsGUI
 		virtual ~VEEventListenerPhysicsGUI() {};
 	};
 
@@ -544,7 +462,9 @@ namespace ve {
 				new VEEventListenerPhysicsKeys("Physics Keys", &m_physics),
 				{ veEvent::VE_EVENT_KEYBOARD });
 
-			//registerEventListener(m_physics_listener_gui = new VEEventListenerPhysicsGUI("Physics GUI",&m_physics), { veEvent::VE_EVENT_DRAW_OVERLAY });
+			registerEventListener(m_physics_listener_gui = 
+				new VEEventListenerPhysicsGUI("Physics GUI",&m_physics),
+				{ veEvent::VE_EVENT_DRAW_OVERLAY });
 		};
 
 		///Load the first level into the game engine
