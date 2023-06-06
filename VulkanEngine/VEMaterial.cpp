@@ -269,6 +269,7 @@ namespace ve
 	void VEClothMesh::updateVertices(std::vector<vh::vhVertex>& vertices)
 	{
 		updateNormals(vertices);
+		vertices = createVerticesWithBack(vertices);
 
 		VECHECKRESULT(vh::updateClothStagingBuffer(vertices, m_bufferSize,
 			m_ptrToStageBufMem));
@@ -310,7 +311,7 @@ namespace ve
 				m_indices.push_back(paiMesh->mFaces[i].mIndices[j]);
 
 		// *2 Because its rendered twice, front and back for correct shadows
-		m_indexCount = static_cast<uint32_t>(m_indices.size()); //* 2;
+		m_indexCount = static_cast<uint32_t>(m_indices.size()) * 2;
 		
 		updateNormals(m_vertices);
 	}
@@ -345,7 +346,7 @@ namespace ve
 		std::copy(vertices.begin(), vertices.end(), std::back_inserter(verticesWithBack));
 			
 		for (size_t i = vertices.size(); i < vertices.size() * 2; ++i)
-			verticesWithBack[i].pos.x += 5;
+			verticesWithBack[i].normal *= -2;
 
 		//for (size_t i = vertices.size() / 2; i < vertices.size(); ++i)
 		//	verticesWithBack[i].pos.x += 5;
@@ -370,14 +371,15 @@ namespace ve
 
 	void VEClothMesh::createBuffers()
 	{
-		//auto indices = createIndicesWithBack(m_indices, m_vertices.size());
+		auto vertices = createVerticesWithBack(m_vertices);
+		auto indices = createIndicesWithBack(m_indices, m_vertices.size());
 
 		VECHECKRESULT(vh::vhBufCreateClothVertexBuffer(
 			getEnginePointer()->getRenderer()->getDevice(),
 			getEnginePointer()->getRenderer()->getVmaAllocator(),
 			getEnginePointer()->getRenderer()->getGraphicsQueue(),
 			getEnginePointer()->getRenderer()->getCommandPool(),
-			m_vertices, &m_vertexBuffer, &m_vertexBufferAllocation, &m_stagingBuffer,
+			vertices, &m_vertexBuffer, &m_vertexBufferAllocation, &m_stagingBuffer,
 			&m_stagingBufferAllocation, &m_ptrToStageBufMem, &m_bufferSize));
 
 		VECHECKRESULT(vh::vhBufCreateIndexBuffer(
@@ -385,7 +387,7 @@ namespace ve
 			getEnginePointer()->getRenderer()->getVmaAllocator(),
 			getEnginePointer()->getRenderer()->getGraphicsQueue(),
 			getEnginePointer()->getRenderer()->getCommandPool(),
-			m_indices, &m_indexBuffer, &m_indexBufferAllocation));
+			indices, &m_indexBuffer, &m_indexBufferAllocation));
 	}
 
 } // namespace ve

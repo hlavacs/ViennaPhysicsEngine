@@ -33,7 +33,6 @@ layout(set = 4, binding = 0) uniform sampler2D texSamplerArray[RESOURCEARRAYLENG
 
 
 void main() {
-
     //parameters
     int  lightType  = lightUBO.data.itype[0];
     vec3 camPosW    = cameraUBO.data.camModel[3].xyz;
@@ -46,8 +45,13 @@ void main() {
     uint resIdx     = iparam.x % RESOURCEARRAYLENGTH;
     vec3 normalW    = fragNormalW; //to be consistent with DN
 
-    if (!gl_FrontFacing) {
-        normalW *= -1;
+    // Soft Body Stuff
+    bool castNoShadow = false;
+
+    if (!gl_FrontFacing) { normalW *= -1; }
+    if (length(normalW) > 1.1) {
+        normalW = normalize(normalW);
+        castNoShadow = true;
     }
 
     //colors
@@ -62,47 +66,42 @@ void main() {
     float shadowFactor = 1.0;
 
     if (lightType == LIGHT_DIR) {
-        sIdx = shadowIdxDirectional(cameraUBO.data.param,
-        gl_FragCoord,
-        lightUBO.data.shadowCameras[0].param[3],
-        lightUBO.data.shadowCameras[1].param[3],
-        lightUBO.data.shadowCameras[2].param[3]);
-
-        s = lightUBO.data.shadowCameras[sIdx];
-        shadowFactor = shadowFunc(fragPosW, s.camView, s.camProj, shadowMap[sIdx]);
-
-        result +=   dirlight(lightType, camPosW,
-        lightDirW, lightParam, shadowFactor,
-        ambcol, diffcol, speccol,
-        fragPosW, normalW, fragColor);
+        if (!castNoShadow) {
+            sIdx = shadowIdxDirectional(cameraUBO.data.param, gl_FragCoord,
+                lightUBO.data.shadowCameras[0].param[3],
+                lightUBO.data.shadowCameras[1].param[3],
+                lightUBO.data.shadowCameras[2].param[3]);
+            s = lightUBO.data.shadowCameras[sIdx];
+            shadowFactor = shadowFunc(fragPosW, s.camView, s.camProj, shadowMap[sIdx]);
+        }
+        
+        result += dirlight(lightType, camPosW, lightDirW, lightParam, shadowFactor,
+            ambcol, diffcol, speccol, fragPosW, normalW, fragColor);
     }
 
 
     if (lightType == LIGHT_POINT) {
+        if (!castNoShadow) {
+            sIdx = shadowIdxPoint(lightPosW, fragPosW);
+            s = lightUBO.data.shadowCameras[sIdx];
+            shadowFactor = shadowFunc(fragPosW, s.camView, s.camProj, shadowMap[sIdx]);
+        }
 
-        sIdx = shadowIdxPoint(lightPosW, fragPosW);
-        s = lightUBO.data.shadowCameras[sIdx];
-        shadowFactor = shadowFunc(fragPosW, s.camView, s.camProj, shadowMap[sIdx]);
-
-        result +=   pointlight(lightType, camPosW,
-        lightPosW, lightParam, shadowFactor,
-        ambcol, diffcol, speccol,
-        fragPosW, normalW, fragColor);
+        result += pointlight(lightType, camPosW, lightPosW, lightParam, shadowFactor,
+            ambcol, diffcol, speccol, fragPosW, normalW, fragColor);
     }
 
     if (lightType == LIGHT_SPOT) {
+        if (!castNoShadow) {
+            shadowFactor = shadowFunc(fragPosW, s.camView, s.camProj, shadowMap[sIdx]);
+        }
 
-        shadowFactor = shadowFunc(fragPosW, s.camView, s.camProj, shadowMap[sIdx]);
-
-        result +=  spotlight(lightType, camPosW,
-        lightPosW, lightDirW, lightParam, shadowFactor,
-        ambcol, diffcol, speccol,
-        fragPosW, normalW, fragColor);
+        result += spotlight(lightType, camPosW, lightPosW, lightDirW, lightParam, shadowFactor,
+            ambcol, diffcol, speccol, fragPosW, normalW, fragColor);
     }
 
-    if (lightType == LIGHT_AMBIENT) {
+    if (lightType == LIGHT_AMBIENT)
         result += fragColor * ambcol;
-    }
 
     outColor = vec4(result, 1.0);
 }

@@ -1665,11 +1665,19 @@ namespace vpe {
 							return glm::distance(p0.first, massPointLocalPos) <						// TODO: Improve Performance/get rid of glm::distance
 								glm::distance(p1.first, massPointLocalPos);
 						});
+				
+				// glmvec3 currentVel = pos - prevPos;
 
-				pos = body->m_model * glmvec4(nearestIntersectionPoint.first, 1);
+				prevPos = pos;
+				pos = body->m_model * (glmvec4(nearestIntersectionPoint.first, 1));
+		
+				// glmvec3 faceNormalW = glmmat3(body->m_model) * nearestIntersectionPoint.second;
+				// real forceAgainstFace = glm::dot(currentVel, faceNormalW);
+				// glmvec3 positionCorrection = glm:: normalize(currentVel - forceAgainstFace * faceNormalW);
+				// std::cout << positionCorrection << std::endl;
+				// pos -= positionCorrection * forceAgainstFace * dt * 100.;
+				// vel -= faceNormalW * forceAgainstFace;
 
-				real dot = glm::dot(vel, nearestIntersectionPoint.second);
-				vel -= dot * nearestIntersectionPoint.second;
 				vel -= vel * c_friction * dt;
 			}
 		};
