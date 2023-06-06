@@ -1003,7 +1003,7 @@ namespace vpe {
 				if (m_num_active < c_small) m_num_active = 0;										// If near 0, set to 0
 				
 				// Soft Bodies
-				for (auto& cloth : m_softBodies)
+				for (auto& cloth : m_cloths)
 				{
 					cloth.second->updateBodiesNearby(m_bodies);
 					cloth.second->integrate(m_sim_delta_time);
@@ -1025,7 +1025,7 @@ namespace vpe {
 			}
 
 			// Soft Bodies
-			for (auto& cloth : m_softBodies) {
+			for (auto& cloth : m_cloths) {
 				if (cloth.second->m_on_move) {											
 					cloth.second->m_on_move(m_current_time - m_last_slot, cloth.second);			
 				}
@@ -1529,12 +1529,33 @@ namespace vpe {
 	public:
 		class Cloth;
 		class ClothConstraint;
-		using callback_move_soft_body = std::function<void(double, std::shared_ptr<Cloth>)>;
+		using callback_move_cloth = std::function<void(double, std::shared_ptr<Cloth>)>;
+		using callback_erase_cloth = std::function<void(std::shared_ptr<Cloth>)>;
 
-		std::unordered_map<void*, std::shared_ptr<VPEWorld::Cloth>> m_softBodies;
+		std::unordered_map<void*, std::shared_ptr<VPEWorld::Cloth>> m_cloths;
 
-		void addCloth(std::shared_ptr<VPEWorld::Cloth> pCloth) {
-			m_softBodies.insert({ pCloth->m_owner, pCloth });
+		void addCloth(std::shared_ptr<VPEWorld::Cloth> pCloth)
+		{
+			m_cloths.insert({ pCloth->m_owner, pCloth });
+		}
+
+		auto getCloth(auto* owner) { return m_cloths[(void*) owner]; }
+
+		void clearCloths() {
+			for (std::pair<void*, std::shared_ptr<Cloth>> cloth : m_cloths)
+				if (cloth.second->m_on_erase)
+					cloth.second->m_on_erase(cloth.second);
+		}
+
+		void eraseCloth(std::shared_ptr<Cloth> cloth) {
+			if (cloth->m_on_erase)
+				cloth->m_on_erase(cloth);
+		}
+
+		void eraseCloth(auto* owner) {
+			std::shared_ptr<Cloth> cloth = m_cloths[(void*)owner];
+			if (cloth->m_on_erase)
+				cloth->m_on_erase(cloth);
 		}
 
 		enum FixationMode
@@ -1768,7 +1789,8 @@ namespace vpe {
 			VPEWorld* m_physics;
 			std::string	m_name;
 			void* m_owner;
-			callback_move_soft_body m_on_move;
+			callback_move_cloth m_on_move;
+			callback_erase_cloth m_on_erase;
 
 		private:
 			std::vector<ClothMassPoint> m_massPoints{};
@@ -1780,12 +1802,12 @@ namespace vpe {
 			std::vector<std::shared_ptr<Body>> m_bodiesNearby;
 
 		public:
-			Cloth(VPEWorld* physics, std::string name, void* owner,
-				callback_move_soft_body on_move, std::vector<vh::vhVertex> vertices,
+			Cloth(VPEWorld* physics, std::string name, void* owner, callback_move_cloth on_move,
+				callback_erase_cloth on_erase, std::vector<vh::vhVertex> vertices,
 				std::vector<uint32_t> indices, double bendingCompliance = 1,
 				FixationMode fixationMode = FixationMode::TOP2, int substeps = 4)
 				: m_physics{ physics }, m_name{ name }, m_owner{ owner }, m_on_move{ on_move },
-				m_vertices { vertices }, c_substeps{ substeps }
+				m_on_erase{ on_erase }, m_vertices { vertices }, c_substeps{ substeps }
 			{
 				createMassPoints(vertices);
 				chooseFixedPoints(fixationMode);

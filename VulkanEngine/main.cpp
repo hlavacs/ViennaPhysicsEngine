@@ -33,14 +33,15 @@ using namespace vpe;
 
 namespace ve {
 
-	//---------------------------------------------------------------------------------------------------------
+	//----------------------------------------------------------------------------------------------
 	//callbacks for bodies
 
 	/// <summary>
 	/// This callback is used for updating the visual body whenever a physics body moves.
 	/// It is also used for extrapolating the new position between two simulation slots.
 	/// </summary>
-	inline VPEWorld::callback_move onMove = [&](double dt, std::shared_ptr<VPEWorld::Body> body) {
+	inline VPEWorld::callback_move onMove =
+		[&](double dt, std::shared_ptr<VPEWorld::Body> body) {
 		VESceneNode* cube = static_cast<VESceneNode*>(body->m_owner);		//Owner is a pointer to a scene node
 		glmvec3 pos = body->m_positionW;									//New position of the scene node
 		glmquat orient = body->m_orientationLW;								//New orientation of the scende node
@@ -48,7 +49,7 @@ namespace ve {
 		cube->setTransform(VPEWorld::Body::computeModel(pos, orient, body->m_scale));	//Set the scene node data
 	};
 
-	inline VPEWorld::callback_move_soft_body onMoveCloth =
+	inline VPEWorld::callback_move_cloth onMoveCloth =
 		[&](double dt, std::shared_ptr<VPEWorld::Cloth> cloth)
 	{
 		VEClothEntity* clothOwner = static_cast<VEClothEntity*>(cloth->m_owner);
@@ -56,14 +57,23 @@ namespace ve {
 		(static_cast<VEClothMesh*> (clothOwner->m_pMesh))->updateVertices(vertices);
 	};
 
+	inline VPEWorld::callback_erase_cloth onEraseCloth =
+		[&](std::shared_ptr<VPEWorld::Cloth> cloth) {
+			VESceneNode* node = static_cast<VESceneNode*>(cloth->m_owner);							//Owner is a pointer to a scene node
+			getSceneManagerPointer()->deleteSceneNodeAndChildren(
+			((VESceneNode*) cloth->m_owner)->getName());
+	};
+
 	/// <summary>
 	/// This callback is called if the body is intentionally deleted. It is not called if the engine shuts down
 	/// and all bodies are deleted.
 	/// </summary>
-	inline VPEWorld::callback_erase onErase = [&](std::shared_ptr<VPEWorld::Body> body) {
-		VESceneNode* node = static_cast<VESceneNode*>(body->m_owner);		//Owner is a pointer to a scene node
-		getSceneManagerPointer()->deleteSceneNodeAndChildren(((VESceneNode*)body->m_owner)->getName());
-	};
+	inline VPEWorld::callback_erase onErase =
+		[&](std::shared_ptr<VPEWorld::Body> body) {
+			VESceneNode* node = static_cast<VESceneNode*>(body->m_owner);							//Owner is a pointer to a scene node
+			getSceneManagerPointer()->deleteSceneNodeAndChildren(
+			((VESceneNode*)body->m_owner)->getName());
+	};	
 
 	/// <summary>
 	/// This is an example callback that is called if a body collides with another body.
@@ -185,37 +195,37 @@ namespace ve {
 				}
 			}
 
-			// Soft Body Controls
+			// Cloth Controls
 			{
-				VESceneNode* cloth = getSceneManagerPointer()->getSceneNode("Soft Body");
+				VESceneNode* cloth = getSceneManagerPointer()->getSceneNode("Cloth");
 
 				if (event.idata1 == GLFW_KEY_I) {
-					m_physics->m_softBodies[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
+					m_physics->m_cloths[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
 						glm::vec3(SPEED * event.dt, 0.0f, 0.0f)), true);
 				}
 
 				if (event.idata1 == GLFW_KEY_K) {
-					m_physics->m_softBodies[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
+					m_physics->m_cloths[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
 						glm::vec3(-SPEED * event.dt, 0.0f, 0.0f)), true);
 				}
 
 				if (event.idata1 == GLFW_KEY_O) {
-					m_physics->m_softBodies[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
+					m_physics->m_cloths[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
 						glm::vec3(0.0f, SPEED * event.dt, 0.0f)), true);
 				}
 
 				if (event.idata1 == GLFW_KEY_U) {
-					m_physics->m_softBodies[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
+					m_physics->m_cloths[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
 						glm::vec3(0.0f, -SPEED * event.dt, 0.0f)), true);
 				}
 
 				if (event.idata1 == GLFW_KEY_L) {
-					m_physics->m_softBodies[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
+					m_physics->m_cloths[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
 						glm::vec3(0.0f, 0.0f, SPEED * event.dt)), true);
 				}
 
 				if (event.idata1 == GLFW_KEY_J) {
-					m_physics->m_softBodies[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
+					m_physics->m_cloths[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
 						glm::vec3(0.0f, 0.0f, -SPEED * event.dt)), false);
 				}
 			}
@@ -567,12 +577,12 @@ namespace ve {
 				pE4->setParam(glm::vec4(1000.0f, 1000.0f, 0.0f, 0.0f));
 			}
 
-			// Soft Body Cloth
+			// Cloth Cloth
 			{
 				VEClothEntity* clothEntity;
 
 				VECHECKPOINTER(clothEntity = getSceneManagerPointer()->loadClothModel(
-					"Soft Body", "media/models/softbody/cloth1", "cloth.obj"));
+					"Cloth", "media/models/cloths/cloth1", "cloth.obj"));
 
 				pScene->addChild(clothEntity);
 
@@ -580,12 +590,12 @@ namespace ve {
 				auto indices = ((VEClothMesh*) (clothEntity->m_pMesh))->getIndices();
 
 				auto physicsCloth = std::make_shared<VPEWorld::Cloth>(&m_physics,
-					"Cloth" + std::to_string(m_physics.m_bodies.size()), clothEntity,
-					onMoveCloth, vertices, indices, 100, vpe::VPEWorld::FixationMode::TOP2, 5);
+					"Cloth" + std::to_string(m_physics.m_bodies.size()), clothEntity, onMoveCloth,
+					onEraseCloth, vertices, indices, 100, vpe::VPEWorld::FixationMode::TOP2, 5);
 
 				m_physics.addCloth(physicsCloth);
 
-				m_physics.m_softBodies[clothEntity]->applyTransformation(glm::rotate(
+				m_physics.m_cloths[clothEntity]->applyTransformation(glm::rotate(
 					glm::mat4(1.0f), glm::radians(1.0f), glm::vec3(0.0f, 1.0f, 0.0f)), true);
 
 				std::default_random_engine rnd_gen{ 12345 };					//Random numbers
