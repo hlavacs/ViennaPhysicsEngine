@@ -1588,13 +1588,15 @@ namespace vpe {
 
 				for (auto body : bodies)
 				{
-					if (glm::distance(body->m_positionW, pos) <
+					glmvec3 massPointLocalPos = body->m_model_inv * glmvec4(pos, 1);
+
+					if (glm::distance(glmvec3(0, 0, 0), massPointLocalPos) <						// TODO Improve Performance
 						body->boundingSphereRadius())
 					{
-						bool collision = polytopeCollisionCheck(body);
+						bool collision = polytopeCollisionCheck(body, massPointLocalPos);
 
 						if (collision)
-							resolvePolytopeCollision(body, dt);
+							resolvePolytopeCollision(body, massPointLocalPos, dt);
 					}
 				}
 			}
@@ -1606,7 +1608,7 @@ namespace vpe {
 			}
 
 		private:
-			bool polytopeCollisionCheck(const std::shared_ptr<Body> body)
+			bool polytopeCollisionCheck(const std::shared_ptr<Body> body, glmvec3 massPointLocalPos)
 			{
 				bool collision = true;
 
@@ -1616,9 +1618,9 @@ namespace vpe {
 				{
 					// Calculate normal and see if it's towards the point
 					glmvec3 dirPointToFace =												        // Always points outwards if the point is within the polytope
-						body->m_positionW + face.m_face_vertex_ptrs[0]->m_positionL +
+						face.m_face_vertex_ptrs[0]->m_positionL +
 						face.m_normalL * c_collisionMargin -									    // extra margin so that cloth is in front of polytope
-						pos;
+						massPointLocalPos;
 
 					bool pointBehindFace =
 						glm::dot(face.m_normalL, dirPointToFace) > c_small;
@@ -1635,22 +1637,23 @@ namespace vpe {
 				return collision;
 			}
 
-			void resolvePolytopeCollision(const std::shared_ptr<Body> body, real dt)
+			void resolvePolytopeCollision(const std::shared_ptr<Body> body,
+				glmvec3 massPointLocalPos, real dt)
 			{
 				// Correction towards nearest plane
 				std::vector<std::pair<glmvec3, glmvec3>> planeIntersectionPoints{};
 
 				for (const Face& face : body->m_polytope->m_faces)
 				{
-					real t = dot(body->m_positionW + face.m_face_vertex_ptrs[0]->m_positionL +
+					real t = dot(face.m_face_vertex_ptrs[0]->m_positionL +
 						face.m_normalL * c_collisionMargin -										// extra margin so that cloth is in front of polytope
-						pos, face.m_normalL);
+						massPointLocalPos, face.m_normalL);
 
 					if (t < c_small)
 						continue;
 
 					planeIntersectionPoints.push_back({
-						pos + t * face.m_normalL, face.m_normalL });
+						massPointLocalPos + t * face.m_normalL, face.m_normalL });
 				}
 
 				std::pair<glmvec3, glmvec3> nearestIntersectionPoint =
@@ -1659,12 +1662,11 @@ namespace vpe {
 						planeIntersectionPoints.end(),
 						[&](const auto& p0, const auto& p1)
 						{
-							// TODO: Improve Performance/get rid of glm::distance
-							return glm::distance(p0.first, pos) <
-								glm::distance(p1.first, pos);
+							return glm::distance(p0.first, massPointLocalPos) <						// TODO: Improve Performance/get rid of glm::distance
+								glm::distance(p1.first, massPointLocalPos);
 						});
 
-				pos = glmvec4(nearestIntersectionPoint.first, 1);
+				pos = body->m_model * glmvec4(nearestIntersectionPoint.first, 1);
 
 				real dot = glm::dot(vel, nearestIntersectionPoint.second);
 				vel -= dot * nearestIntersectionPoint.second;
