@@ -128,6 +128,10 @@ namespace ve
 		void loadFromAiMesh(const aiMesh* paiMesh);
 		void updateBoundingSphere();
 		void updateNormals(std::vector<vh::vhVertex>& vertices);
+		static std::vector<vh::vhVertex> createVerticesWithBack(
+			std::vector<vh::vhVertex>& vertices);
+		static std::vector<uint32_t> createIndicesWithBack(std::vector<uint32_t>& indices,
+			uint32_t highestIndex);
 		void createBuffers();
 	};
 

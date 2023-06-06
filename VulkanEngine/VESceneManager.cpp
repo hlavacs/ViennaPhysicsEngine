@@ -1310,7 +1310,7 @@ namespace ve
 	//----------------------------------Cloth-Simulation-Stuff--------------------------------------
 	// by Felix Neumann
 
-	VESceneNode* VESceneManager::loadClothModel(std::string entityName, std::string basedir,
+	VEClothEntity* VESceneManager::loadClothModel(std::string entityName, std::string basedir,
 		std::string filename)
 	{
 		// The Soft Body assumes that the aiScene contains only one child (at
@@ -1323,7 +1323,7 @@ namespace ve
 
 		// If an entity with this name already exists return it
 		if (m_sceneNodes.count(entityName) > 0)
-			return m_sceneNodes[entityName];
+			return (VEClothEntity*) m_sceneNodes[entityName];
 
 		Assimp::Importer importer;
 		std::string filekey = basedir + "/" + filename;
@@ -1361,7 +1361,7 @@ namespace ve
 			pClothMesh, pMaterial, *pMatrix);
 
 		// Reserve an UBO
-		VESceneObject* pObject = (VESceneObject*)pEntity;
+		VESceneObject* pObject = (VESceneObject*) pEntity;
 		if (pObject->m_memoryHandle.owner == nullptr)
 			vh::vhMemBlockListAdd(m_memoryBlockMap[pObject->getObjectType()], pObject,
 				&pObject->m_memoryHandle);

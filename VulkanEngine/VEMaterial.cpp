@@ -121,7 +121,7 @@ namespace ve
 		}
 		m_boundingSphereRadius = sqrt(m_boundingSphereRadius);
 
-		m_indexCount = (uint32_t)indices.size();
+		m_indexCount = (uint32_t) indices.size();
 
 		//create the vertex buffer
 		VECHECKRESULT(vh::vhBufCreateVertexBuffer(getEnginePointer()->getRenderer()->getDevice(),
@@ -270,7 +270,8 @@ namespace ve
 	{
 		updateNormals(vertices);
 
-		VECHECKRESULT(vh::updateClothStagingBuffer(vertices, m_bufferSize, m_ptrToStageBufMem));
+		VECHECKRESULT(vh::updateClothStagingBuffer(vertices, m_bufferSize,
+			m_ptrToStageBufMem));
 
 		VECHECKRESULT(vh::updateClothVertexBuffer(
 			getEnginePointer()->getRenderer()->getDevice(),
@@ -305,14 +306,11 @@ namespace ve
 
 		// Copy the indices
 		for (uint32_t i = 0; i < paiMesh->mNumFaces; i++)
-		{
 			for (uint32_t j = 0; j < paiMesh->mFaces[i].mNumIndices; j++)
-			{
 				m_indices.push_back(paiMesh->mFaces[i].mIndices[j]);
-			}
-		}
 
-		m_indexCount = static_cast<uint32_t>(m_indices.size());
+		// *2 Because its rendered twice, front and back for correct shadows
+		m_indexCount = static_cast<uint32_t>(m_indices.size()); //* 2;
 		
 		updateNormals(m_vertices);
 	}
@@ -338,18 +336,50 @@ namespace ve
 		}
 	}
 
+	std::vector<vh::vhVertex> VEClothMesh::createVerticesWithBack(
+		std::vector<vh::vhVertex>& vertices)
+	{
+		std::vector<vh::vhVertex> verticesWithBack(vertices);
+
+		verticesWithBack.reserve(vertices.size() * 2);
+		std::copy(vertices.begin(), vertices.end(), std::back_inserter(verticesWithBack));
+			
+		for (size_t i = vertices.size(); i < vertices.size() * 2; ++i)
+			verticesWithBack[i].pos.x += 5;
+
+		//for (size_t i = vertices.size() / 2; i < vertices.size(); ++i)
+		//	verticesWithBack[i].pos.x += 5;
+
+		return verticesWithBack;
+	}
+
+	std::vector<uint32_t> VEClothMesh::createIndicesWithBack(std::vector<uint32_t>& indices,
+		uint32_t highestIndex)
+	{
+		std::vector<uint32_t> indicesWithBack(indices);
+
+		for (size_t i = 1; i < indices.size(); i += 3)
+		{
+			indicesWithBack.push_back(highestIndex + indices[i + 1]);
+			indicesWithBack.push_back(highestIndex + indices[i]);
+			indicesWithBack.push_back(highestIndex + indices[i -1]);
+		}
+
+		return indicesWithBack;
+	}
+
 	void VEClothMesh::createBuffers()
 	{
+		//auto indices = createIndicesWithBack(m_indices, m_vertices.size());
+
 		VECHECKRESULT(vh::vhBufCreateClothVertexBuffer(
 			getEnginePointer()->getRenderer()->getDevice(),
 			getEnginePointer()->getRenderer()->getVmaAllocator(),
 			getEnginePointer()->getRenderer()->getGraphicsQueue(),
 			getEnginePointer()->getRenderer()->getCommandPool(),
-			m_vertices, &m_vertexBuffer, &m_vertexBufferAllocation,
-			&m_stagingBuffer, &m_stagingBufferAllocation, &m_ptrToStageBufMem,
-			&m_bufferSize));
+			m_vertices, &m_vertexBuffer, &m_vertexBufferAllocation, &m_stagingBuffer,
+			&m_stagingBufferAllocation, &m_ptrToStageBufMem, &m_bufferSize));
 
-		//create the index buffer
 		VECHECKRESULT(vh::vhBufCreateIndexBuffer(
 			getEnginePointer()->getRenderer()->getDevice(),
 			getEnginePointer()->getRenderer()->getVmaAllocator(),

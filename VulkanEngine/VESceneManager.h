@@ -232,7 +232,7 @@ namespace ve
 		//--------------------------------Cloth-Simulation-Stuff------------------------------------
 		// by Felix Neumann
 		
-		VESceneNode* loadClothModel(std::string entityName, std::string basedir,
+		VEClothEntity* loadClothModel(std::string entityName, std::string basedir,
 			std::string filename);
 	};
 

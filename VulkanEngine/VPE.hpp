@@ -1537,6 +1537,11 @@ namespace vpe {
 			m_softBodies.insert({ pCloth->m_owner, pCloth });
 		}
 
+		enum FixationMode
+		{
+			TOP2
+		};
+
 		class ClothMassPoint
 		{
 		public:
@@ -1548,7 +1553,7 @@ namespace vpe {
 			real invMass = 0._real;
 			double isFixed;
 			const real c_small = 0.01_real;
-			const real c_collisionMargin = 0.03_real;
+			const real c_collisionMargin = 0.045_real;
 			const real c_friction = 300._real;
 			const real c_damping = 0.1_real;
 
@@ -1700,6 +1705,7 @@ namespace vpe {
 					return;
 
 				real lengthBetweenPoints = glm::distance(point0->pos, point1->pos);
+
 				real lengthDifference = lengthBetweenPoints - length;
 
 				if (std::abs(lengthDifference) > 0.0001)
@@ -1744,11 +1750,6 @@ namespace vpe {
 
 				return points[0];
 			}
-		};
-
-		enum FixationMode
-		{
-			TOP2
 		};
 
 		class Cloth
@@ -1818,13 +1819,11 @@ namespace vpe {
 				int vertexCount = 0;
 
 				for (const ClothMassPoint& massPoint : m_massPoints)
-				{
 					for (const size_t vertexIndex : massPoint.m_associatedVertices)
 					{
 						m_vertices[vertexIndex].pos = massPoint.pos;
 						vertexCount++;
 					}
-				}
 
 				return m_vertices;
 			}
@@ -1850,7 +1849,7 @@ namespace vpe {
 						massPoint.pos = massPoint.pos + posToTransPos * 0.8;						// TODO Magic Number
 					}
 
-					//massPoint.resolvePolytopeCollisions(m_bodiesNearby);
+					massPoint.resolvePolytopeCollisions(m_bodiesNearby, 0);
 				}
 			}
 
@@ -1969,8 +1968,6 @@ namespace vpe {
 							m_maxMassPointDistance = distance;
 					}
 				}
-
-				std::cout << m_maxMassPointDistance;
 			}
 
 			void createTriangles(std::vector<uint32_t> indices)
@@ -2037,8 +2034,6 @@ namespace vpe {
 						m_triangles.push_back(triangle);
 					}
 				}
-
-				std::cout << "Triangles Count: " << m_triangles.size() << std::endl;
 			}
 
 			void generateConstraints(real bendingCompliance)

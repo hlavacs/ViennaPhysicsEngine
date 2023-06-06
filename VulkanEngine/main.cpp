@@ -54,25 +54,6 @@ namespace ve {
 		VEClothEntity* clothOwner = static_cast<VEClothEntity*>(cloth->m_owner);
 		auto vertices = cloth->generateVertices();
 		(static_cast<VEClothMesh*> (clothOwner->m_pMesh))->updateVertices(vertices);
-		// TODO extrapolate
-
-		// TODO move to a different place or rename function
-		// Apply VVE transformations to the soft body
-		// Apply the first (initial transformation) to all mass points
-		// Then only to the fixed ones
-		static bool initialTransformation = true;
-
-		glmmat4 transformation = clothOwner->getParent()->getTransform();
-		if (transformation != (glmmat4) glm::mat4(1.0f))
-		{
-			// Apply tranformation to soft body
-			cloth->applyTransformation(transformation, !initialTransformation);
-
-			// Reset the transformation
-			clothOwner->getParent()->setTransform((glmmat4) glm::mat4(1.0f));
-
-			initialTransformation = false;
-		}
 	};
 
 	/// <summary>
@@ -104,9 +85,7 @@ namespace ve {
 		/// <summary>
 		/// This drives the simulation!!!
 		/// </summary>
-		void onFrameStarted(veEvent event) {
-			m_physics->tick(event.dt);
-		}
+		void onFrameStarted(veEvent event) { m_physics->tick(event.dt); }
 
 		VPEWorld* m_physics;	//Pointer to the physics world
 		VEClothEntity* p_clothEntity;
@@ -203,41 +182,39 @@ namespace ve {
 				m_physics->addBody(body);
 			}
 
-			// Soft Body Controls // Temp
-			if (event.idata1 == GLFW_KEY_I) {
-				VESceneNode* clothParent = getSceneManagerPointer()->
-					getSceneNode("Soft Body Parent");
-				clothParent->setPosition( { SPEED * event.dt, 0, 0 } );
-			}
+			// Soft Body Controls
+			{
+				VESceneNode* cloth = getSceneManagerPointer()->getSceneNode("Soft Body");
 
-			if (event.idata1 == GLFW_KEY_K) {
-				VESceneNode* clothParent = getSceneManagerPointer()->
-					getSceneNode("Soft Body Parent");
-				clothParent->setPosition({ -SPEED * event.dt, 0, 0 });
-			}
+				if (event.idata1 == GLFW_KEY_I) {
+					m_physics->m_softBodies[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
+						glm::vec3(SPEED * event.dt, 0.0f, 0.0f)), true);
+				}
 
-			if (event.idata1 == GLFW_KEY_O) {
-				VESceneNode* clothParent = getSceneManagerPointer()->
-					getSceneNode("Soft Body Parent");
-				clothParent->setPosition({ 0, SPEED * event.dt, 0 });
-			}
+				if (event.idata1 == GLFW_KEY_K) {
+					m_physics->m_softBodies[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
+						glm::vec3(-SPEED * event.dt, 0.0f, 0.0f)), true);
+				}
 
-			if (event.idata1 == GLFW_KEY_U) {
-				VESceneNode* clothParent = getSceneManagerPointer()->
-					getSceneNode("Soft Body Parent");
-				clothParent->setPosition({ 0, -SPEED * event.dt, 0 });
-			}
+				if (event.idata1 == GLFW_KEY_O) {
+					m_physics->m_softBodies[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
+						glm::vec3(0.0f, SPEED * event.dt, 0.0f)), true);
+				}
 
-			if (event.idata1 == GLFW_KEY_J) {
-				VESceneNode* clothParent = getSceneManagerPointer()->
-					getSceneNode("Soft Body Parent");
-				clothParent->setPosition({ 0, 0, -SPEED * event.dt });
-			}
+				if (event.idata1 == GLFW_KEY_U) {
+					m_physics->m_softBodies[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
+						glm::vec3(0.0f, -SPEED * event.dt, 0.0f)), true);
+				}
 
-			if (event.idata1 == GLFW_KEY_L) {
-				VESceneNode* clothParent = getSceneManagerPointer()->
-					getSceneNode("Soft Body Parent");
-				clothParent->setPosition({ 0, 0, SPEED * event.dt });
+				if (event.idata1 == GLFW_KEY_L) {
+					m_physics->m_softBodies[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
+						glm::vec3(0.0f, 0.0f, SPEED * event.dt)), true);
+				}
+
+				if (event.idata1 == GLFW_KEY_J) {
+					m_physics->m_softBodies[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
+						glm::vec3(0.0f, 0.0f, -SPEED * event.dt)), false);
+				}
 			}
 
 			return false;
@@ -247,7 +224,8 @@ namespace ve {
 
 	public:
 		///Constructor of class EventListenerCollision
-		VEEventListenerPhysicsKeys(std::string name, VPEWorld* physics) : VEEventListener(name), m_physics{physics} { };
+		VEEventListenerPhysicsKeys(std::string name, VPEWorld* physics) : VEEventListener(name),
+			m_physics{physics} { };
 
 		///Destructor of class EventListenerCollision
 		virtual ~VEEventListenerPhysicsKeys() {};
@@ -536,7 +514,8 @@ namespace ve {
 		VEEventListenerPhysicsKeys* m_physics_listener_keys;
 		VEEventListenerPhysicsGUI*	m_physics_listener_gui;
 
-		MyVulkanEngine(veRendererType type = veRendererType::VE_RENDERER_TYPE_FORWARD, bool debug=false) : VEEngine(type, debug) {};
+		MyVulkanEngine(veRendererType type = veRendererType::VE_RENDERER_TYPE_FORWARD,
+			bool debug = false) : VEEngine(type, debug) {};
 		~MyVulkanEngine() {};
 
 		///Register an event listener to interact with the user
@@ -554,7 +533,6 @@ namespace ve {
 
 			//registerEventListener(m_physics_listener_gui = new VEEventListenerPhysicsGUI("Physics GUI",&m_physics), { veEvent::VE_EVENT_DRAW_OVERLAY });
 		};
-		
 
 		///Load the first level into the game engine
 		///The engine uses Y-UP, Left-handed
@@ -589,26 +567,17 @@ namespace ve {
 
 			// Soft Body Cloth
 			{
-				VESceneNode* clothSceneNode, * clothParent;
+				VEClothEntity* clothEntity;
 
-				VECHECKPOINTER(clothSceneNode = getSceneManagerPointer()->loadClothModel(
+				VECHECKPOINTER(clothEntity = getSceneManagerPointer()->loadClothModel(
 					"Soft Body", "media/models/softbody/cloth1", "cloth.obj"));
 
-				clothParent = getSceneManagerPointer()->createSceneNode(
-					"Soft Body Parent", pScene, glm::mat4(1.0));
+				pScene->addChild(clothEntity);
 
-				clothParent->multiplyTransform(glm::rotate(glm::mat4(1.0f), glm::radians(1.0f),
-					glm::vec3(0.0f, 1.0f, 0.0f)));
+				//VEClothEntity* clothEntity = (VEClothEntity*) clothSceneNode;
 
-				clothParent->multiplyTransform(glm::translate(glm::mat4(1.0f),
-					glm::vec3(0.0f, 2.0f, 10.0f)));
-
-				clothParent->addChild(clothSceneNode);
-
-				VEClothEntity* clothEntity = (VEClothEntity*) clothSceneNode;
-
-				auto vertices = ((VEClothMesh*)(clothEntity->m_pMesh))->getVertices();
-				auto indices = ((VEClothMesh*)(clothEntity->m_pMesh))->getIndices();
+				auto vertices = ((VEClothMesh*) (clothEntity->m_pMesh))->getVertices();
+				auto indices = ((VEClothMesh*) (clothEntity->m_pMesh))->getIndices();
 
 				auto physicsCloth = std::make_shared<VPEWorld::Cloth>(&m_physics,
 					"Cloth" + std::to_string(m_physics.m_bodies.size()), clothEntity,
@@ -616,29 +585,12 @@ namespace ve {
 
 				m_physics.addCloth(physicsCloth);
 
-				//VESceneNode* cube;
-				//VECHECKPOINTER(cube = getSceneManagerPointer()->loadModel(
-				//	"The Cube", "media/models/test/crate0", "cube.obj", 0, clothParent));
-
-				/*
-				auto body = std::make_shared<VPEWorld::Body>(m_physics,
-					"Body" + std::to_string(m_physics.m_bodies.size()), cube, m_physics.g_cube,
-					{ 1, 1, 1 }, { 0, 0, 0 }, glmmat4(), 0, glmvec3(), 1.0_real / 100.0_real,
-					m_physics.m_restitution, m_physics.m_friction);
-				*/
-				
-				/*
-				auto body(new VPEWorld::Body(&m_physics, std::string("Body"), cube,
-					&m_physics.g_cube, { 1, 1, 1 }, { 0, 0, 0 }));
-
-				body->setForce(0ul, VPEWorld::Force{ {0, m_physics.c_gravity, 0} });
-				body->m_on_move = onMove;
-				body->m_on_erase = onErase;
-				m_physics.addBody(body);
-				*/
-
 				std::default_random_engine rnd_gen{ 12345 };					//Random numbers
 				std::uniform_real_distribution<> rnd_unif{ 0.0f, 1.0f };		//Random numbers
+
+				/*
+				VESceneNode* cubeParent = getSceneManagerPointer()->createSceneNode("Cube Parent",
+					pScene, glm::mat4(1.0));
 
 				glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
 				glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
@@ -648,12 +600,13 @@ namespace ve {
 				glmvec3 orient{ rnd_unif(rnd_gen), rnd_unif(rnd_gen), rnd_unif(rnd_gen) };
 				glmvec3 vrot{ rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5 };
 				VESceneNode* cube;
-				VECHECKPOINTER(cube = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics.m_body_id), "media/models/test/crate0", "cube.obj", 0, clothParent));
+				VECHECKPOINTER(cube = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics.m_body_id), "media/models/test/crate0", "cube.obj", 0, cubeParent));
 				auto body = std::make_shared<VPEWorld::Body>(&m_physics, "Body" + std::to_string(m_physics.m_bodies.size()), cube, &m_physics.g_cube, scale, positionCamera + 2.0_real * dir, glm::rotate(angle, glm::normalize(orient)), vel, vrot, 1.0_real / 100.0_real, m_physics.m_restitution, m_physics.m_friction);
 				body->setForce(0ul, VPEWorld::Force{ {0, m_physics.c_gravity, 0} });
 				body->m_on_move = onMove;
 				body->m_on_erase = onErase;
 				m_physics.addBody(body);
+				*/
 			}
 		};
 	};
