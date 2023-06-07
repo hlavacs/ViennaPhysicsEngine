@@ -199,32 +199,32 @@ namespace ve {
 				VESceneNode* cloth = getSceneManagerPointer()->getSceneNode("Cloth");
 
 				if (event.idata1 == GLFW_KEY_L) {
-					m_physics->m_cloths[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
+					m_physics->getCloth(cloth)->applyTransformation(glm::translate(glm::mat4(1.0f),
 						glm::vec3(SPEED * event.dt, 0.0f, 0.0f)), true);
 				}
 
 				if (event.idata1 == GLFW_KEY_J) {
-					m_physics->m_cloths[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
+					m_physics->getCloth(cloth)->applyTransformation(glm::translate(glm::mat4(1.0f),
 						glm::vec3(-SPEED * event.dt, 0.0f, 0.0f)), true);
 				}
 
 				if (event.idata1 == GLFW_KEY_O) {
-					m_physics->m_cloths[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
+					m_physics->getCloth(cloth)->applyTransformation(glm::translate(glm::mat4(1.0f),
 						glm::vec3(0.0f, SPEED * event.dt, 0.0f)), true);
 				}
 
 				if (event.idata1 == GLFW_KEY_U) {
-					m_physics->m_cloths[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
+					m_physics->getCloth(cloth)->applyTransformation(glm::translate(glm::mat4(1.0f),
 						glm::vec3(0.0f, -SPEED * event.dt, 0.0f)), true);
 				}
 
 				if (event.idata1 == GLFW_KEY_I) {
-					m_physics->m_cloths[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
+					m_physics->getCloth(cloth)->applyTransformation(glm::translate(glm::mat4(1.0f),
 						glm::vec3(0.0f, 0.0f, SPEED * event.dt)), true);
 				}
 
 				if (event.idata1 == GLFW_KEY_K) {
-					m_physics->m_cloths[cloth]->applyTransformation(glm::translate(glm::mat4(1.0f),
+					m_physics->getCloth(cloth)->applyTransformation(glm::translate(glm::mat4(1.0f),
 						glm::vec3(0.0f, 0.0f, -SPEED * event.dt)), false);
 				}
 			}
@@ -273,8 +273,10 @@ namespace ve {
 
 				/*
 				str << "Sim Freq " << m_physics->m_sim_frequency;
-				nk_layout_row_dynamic(ctx, 30, 4);
+				nk_layout_row_dynamic(ctx, 30, 1);
 				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+
+				nk_layout_row_static(ctx, NK_STATIC, 30, 3);
 				if (nk_button_label(ctx, "-10")) {
 					m_physics->m_sim_frequency = std::max(10.0_real, (real)m_physics->m_sim_frequency - 10.0_real);
 					m_physics->m_sim_delta_time = 1.0_real / m_physics->m_sim_frequency;
@@ -282,9 +284,6 @@ namespace ve {
 				if (nk_button_label(ctx, "+10")) {
 					m_physics->m_sim_frequency += 10;
 					m_physics->m_sim_delta_time = 1.0_real / m_physics->m_sim_frequency;
-				}
-				if (nk_button_label(ctx, "Next time slot")) {
-					m_physics->m_current_time += m_physics->m_sim_delta_time;
 				}
 				*/
 
@@ -511,12 +510,9 @@ namespace ve {
 
 				auto physicsCloth = std::make_shared<VPEWorld::Cloth>(&m_physics,
 					"Cloth" + std::to_string(m_physics.m_bodies.size()), clothEntity, onMoveCloth,
-					onEraseCloth, vertices, indices, 100, vpe::VPEWorld::FixationMode::TOP2, 5);
+					onEraseCloth, vertices, indices, 50, vpe::VPEWorld::FixationMode::TOP2, 6);
 
 				m_physics.addCloth(physicsCloth);
-
-				m_physics.m_cloths[clothEntity]->applyTransformation(glm::rotate(
-					glm::mat4(1.0f), glm::radians(1.0f), glm::vec3(0.0f, 1.0f, 0.0f)), true);
 
 				std::default_random_engine rnd_gen{ 12345 };					//Random numbers
 				std::uniform_real_distribution<> rnd_unif{ 0.0f, 1.0f };		//Random numbers

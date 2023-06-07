@@ -1002,11 +1002,10 @@ namespace vpe {
 				m_num_active = 0.9_real * m_num_active + 0.1_real * num_active;						// smooth the number of active nodies
 				if (m_num_active < c_small) m_num_active = 0;										// If near 0, set to 0
 				
-				// Soft Bodies
+				// Cloths
 				for (auto& cloth : m_cloths)
 				{
-					cloth.second->updateBodiesNearby(m_bodies);
-					cloth.second->integrate(m_sim_delta_time);
+					cloth.second->integrate(m_bodies, m_sim_delta_time);
 				}
 
 				m_last_slot = m_next_slot;															// Remember last slot
@@ -1534,12 +1533,11 @@ namespace vpe {
 
 		std::unordered_map<void*, std::shared_ptr<VPEWorld::Cloth>> m_cloths;
 
-		void addCloth(std::shared_ptr<VPEWorld::Cloth> pCloth)
-		{
-			m_cloths.insert({ pCloth->m_owner, pCloth });
-		}
+		void addCloth(std::shared_ptr<VPEWorld::Cloth> pCloth) {
+			m_cloths.insert({ pCloth->m_owner, pCloth }); }
 
-		auto getCloth(auto* owner) { return m_cloths[(void*) owner]; }
+		auto getCloth(auto* owner) {
+			return m_cloths[(void*) owner]; }
 
 		void clearCloths() {
 			for (std::pair<void*, std::shared_ptr<Cloth>> cloth : m_cloths)
@@ -1561,6 +1559,24 @@ namespace vpe {
 		enum FixationMode
 		{
 			TOP2
+		};
+
+		struct ClothTriangle
+		{
+			uint32_t massPoint0Index;
+			uint32_t massPoint1Index;
+			uint32_t massPoint2Index;
+
+			uint32_t getOtherPointIndex(uint32_t point0, uint32_t point1)
+			{
+				std::vector<uint32_t> points =
+				{ massPoint0Index , massPoint1Index , massPoint2Index };
+
+				points.erase(std::remove(points.begin(), points.end(), point0), points.end());
+				points.erase(std::remove(points.begin(), points.end(), point1), points.end());
+
+				return points[0];
+			}
 		};
 
 		class ClothMassPoint
@@ -1765,24 +1781,6 @@ namespace vpe {
 			}
 		};
 
-		struct ClothTriangle
-		{
-			uint32_t massPoint0Index;
-			uint32_t massPoint1Index;
-			uint32_t massPoint2Index;
-
-			uint32_t getOtherPointIndex(uint32_t point0, uint32_t point1)
-			{
-				std::vector<uint32_t> points =
-				{ massPoint0Index , massPoint1Index , massPoint2Index };
-
-				points.erase(std::remove(points.begin(), points.end(), point0), points.end());
-				points.erase(std::remove(points.begin(), points.end(), point1), points.end());
-
-				return points[0];
-			}
-		};
-
 		class Cloth
 		{
 		public:
@@ -1814,11 +1812,15 @@ namespace vpe {
 				createTriangles(indices);
 				generateConstraints(bendingCompliance);
 				calcMaxMassPointDistance();
+				applyTransformation(glm::rotate(
+					glm::mat4(1.0f), glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f)), true);
 			}
 
 			~Cloth() {}
 
-			void integrate(double dt) {
+			void integrate(const body_map& bodiesToCollisionCheck, double dt) {
+				updateBodiesNearby(bodiesToCollisionCheck);
+
 				static real rDt = dt / c_substeps;
 
 				for (int i = 0; i < c_substeps; ++i)
@@ -1830,9 +1832,7 @@ namespace vpe {
 					}
 
 					for (const ClothConstraint& constraint : m_constraints)
-					{
 						constraint.solve(rDt);
-					}
 
 					bool clothNearGound = m_massPoints[0].pos.y < m_maxMassPointDistance;
 
@@ -1885,6 +1885,9 @@ namespace vpe {
 				}
 			}
 
+			// TODO setTransformation(glmmat4 transformation, bool simulateMovement) {}
+
+		private:
 			void updateBodiesNearby(const body_map& bodies)
 			{
 				m_bodiesNearby.clear();
@@ -1897,14 +1900,13 @@ namespace vpe {
 					glmvec3 clothLocalPos = body->m_model_inv * glmvec4(m_massPoints[0].pos, 1);
 
 					if (glm::length(clothLocalPos) < (body->boundingSphereRadius() +
-							m_maxMassPointDistance) * 2)
+						m_maxMassPointDistance) * 2)
 						m_bodiesNearby.push_back(body);
 
 					++it;
 				}
 			}
 
-		private:
 			void createMassPoints(const std::vector<vh::vhVertex>& vertices)
 			{
 				// Already stored positions for duplicate removal
@@ -1954,11 +1956,8 @@ namespace vpe {
 							topRowPointIndices.clear();
 							topRowPointIndices.push_back(i);
 						}
-						else if (m_massPoints[i].pos.y ==
-							m_massPoints[topRowPointIndices[0]].pos.y)
-						{
+						else if (m_massPoints[i].pos.y == m_massPoints[topRowPointIndices[0]].pos.y)
 							topRowPointIndices.push_back(i);
-						}
 					}
 
 					if (topRowPointIndices.empty())
@@ -1977,9 +1976,7 @@ namespace vpe {
 
 						if (m_massPoints[topRowPointIndex].pos.x >
 							m_massPoints[rightPointIndex].pos.x)
-						{
 							rightPointIndex = topRowPointIndex;
-						}
 					}
 
 					m_massPoints[leftPointIndex].isFixed = true;
@@ -2127,7 +2124,6 @@ namespace vpe {
 					}
 				}
 			}
-
 		};
 	};
 
