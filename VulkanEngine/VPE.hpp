@@ -1005,7 +1005,7 @@ namespace vpe {
 				// Cloths
 				for (auto& cloth : m_cloths)
 				{
-					cloth.second->integrate(m_bodies, m_sim_delta_time);
+					cloth.second->integrate(m_grid, m_sim_delta_time);
 				}
 
 				m_last_slot = m_next_slot;															// Remember last slot
@@ -1534,7 +1534,7 @@ namespace vpe {
 		std::unordered_map<void*, std::shared_ptr<VPEWorld::Cloth>> m_cloths;
 
 		void addCloth(std::shared_ptr<VPEWorld::Cloth> pCloth) {
-			m_cloths.insert({ pCloth->m_owner, pCloth }); }
+			m_cloths.insert({ pCloth->m_owner, pCloth });}
 
 		auto getCloth(auto* owner) {
 			return m_cloths[(void*) owner]; }
@@ -1789,7 +1789,7 @@ namespace vpe {
 			void* m_owner;
 			callback_move_cloth m_on_move;
 			callback_erase_cloth m_on_erase;
-
+			
 		private:
 			std::vector<ClothMassPoint> m_massPoints{};
 			std::vector<ClothTriangle> m_triangles{};
@@ -1818,8 +1818,8 @@ namespace vpe {
 
 			~Cloth() {}
 
-			void integrate(const body_map& bodiesToCollisionCheck, double dt) {
-				updateBodiesNearby(bodiesToCollisionCheck);
+			void integrate(const std::unordered_map<intpair_t, body_map>& rigidBodyGrid, double dt) {
+				updateBodiesNearby(rigidBodyGrid);
 
 				static real rDt = dt / c_substeps;
 
@@ -1885,26 +1885,61 @@ namespace vpe {
 				}
 			}
 
-			// TODO setTransformation(glmmat4 transformation, bool simulateMovement) {}
-
+			// TODO setTransformation(glmmat4 transformation, bool simulateMovement) {}	
+		
 		private:
-			void updateBodiesNearby(const body_map& bodies)
+			void updateBodiesNearby(const std::unordered_map<intpair_t, body_map>& rigidBodyGrid)
 			{
+				// Position of cloth in grid
+				int_t gridX = static_cast<int_t>(m_massPoints[0].pos.x / m_physics->m_width);
+				int_t gridZ = static_cast<int_t>(m_massPoints[0].pos.z / m_physics->m_width);
+
+				// Initiate previous position with value different from current one
+				static int_t prevGridX = gridX + 1;
+				static int_t prevGridZ = gridZ + 1;
+				
+				// Count how many rigid bodies are currently nearby
+				size_t bodiesNearbyCount = 0;
+
+				for (int_t x = gridX - 1; x < gridX + 2; ++x)
+					for (int_t z = gridZ - 1; z < gridZ + 2; ++z)
+						if (rigidBodyGrid.count({ x, z }))
+							bodiesNearbyCount += rigidBodyGrid.at({ x, z }).size();
+
+				// Return if grid position of the cloth and amount of bodies nearby are unchanged
+				if (gridX == prevGridX && gridZ == prevGridZ &&
+					m_bodiesNearby.size() == bodiesNearbyCount)
+					return;
+
+				// Reset vector of bodies nearby
 				m_bodiesNearby.clear();
+				prevGridX = gridX;
+				prevGridZ = gridZ;
 
-				auto it = bodies.begin();
-				while (it != bodies.end())
-				{
-					const std::shared_ptr<Body> body = it->second;
+				// Iterate over cell and neighboring cells of cloth
+				for (int_t x = gridX - 1; x < gridX + 2; ++x)
+					for (int_t z = gridZ - 1; z < gridZ + 2; ++z)
+					{
+						// Continue if the cell is empty
+						if (!rigidBodyGrid.count({ x, z }))
+							continue;
+						
+						const auto& bodyMap = rigidBodyGrid.at({ x, z });
 
-					glmvec3 clothLocalPos = body->m_model_inv * glmvec4(m_massPoints[0].pos, 1);
+						// Iterate over all rigid bodies within cells
+						for (auto it = bodyMap.begin(); it != bodyMap.end(); ++it)
+						{
+							const auto& body = it->second;
 
-					if (glm::length(clothLocalPos) < (body->boundingSphereRadius() +
-						m_maxMassPointDistance) * 2)
-						m_bodiesNearby.push_back(body);
+							glmvec3 clothLocalPos =
+								body->m_model_inv * glmvec4(m_massPoints[0].pos, 1);
 
-					++it;
-				}
+							// Add to bodies nearby if the body can touch the cloth
+							if (glm::length(clothLocalPos) < (body->boundingSphereRadius() +
+								m_maxMassPointDistance) * 2)
+								m_bodiesNearby.push_back(body);
+						}
+					}
 			}
 
 			void createMassPoints(const std::vector<vh::vhVertex>& vertices)
