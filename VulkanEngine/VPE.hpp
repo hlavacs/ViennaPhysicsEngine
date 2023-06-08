@@ -1898,39 +1898,41 @@ namespace vpe {
 				static int_t prevGridX = gridX + 1;
 				static int_t prevGridZ = gridZ + 1;
 				
-				// Count how many rigid bodies are currently nearby
+				// Count how many rigid bodies are currently in cell or neighbor cells
 				size_t bodiesNearbyCount = 0;
+				static int_t prevBodiesNearbyCount = 0;
 
-				for (int_t x = gridX - 1; x < gridX + 2; ++x)
-					for (int_t z = gridZ - 1; z < gridZ + 2; ++z)
-						if (rigidBodyGrid.count({ x, z }))
-							bodiesNearbyCount += rigidBodyGrid.at({ x, z }).size();
+				for (const auto& cell : rigidBodyGrid)
+					if (std::abs(cell.first.first - gridX) < 2
+						&& std::abs(cell.first.second - gridZ) < 2)
+						bodiesNearbyCount += cell.second.size();
 
 				// Return if grid position of the cloth and amount of bodies nearby are unchanged
 				if (gridX == prevGridX && gridZ == prevGridZ &&
-					m_bodiesNearby.size() == bodiesNearbyCount)
+					bodiesNearbyCount == prevBodiesNearbyCount)
 					return;
+
+				// Save current values for next call
+				prevGridX = gridX;
+				prevGridZ = gridZ;
+				prevBodiesNearbyCount = bodiesNearbyCount;
 
 				// Reset vector of bodies nearby
 				m_bodiesNearby.clear();
-				prevGridX = gridX;
-				prevGridZ = gridZ;
 
 				// Iterate over cell and neighboring cells of cloth
-				for (int_t x = gridX - 1; x < gridX + 2; ++x)
-					for (int_t z = gridZ - 1; z < gridZ + 2; ++z)
+				for (const auto& cell : rigidBodyGrid)
+					if (std::abs(cell.first.first - gridX) < 2
+						&& std::abs(cell.first.second - gridZ) < 2)
 					{
-						// Continue if the cell is empty
-						if (!rigidBodyGrid.count({ x, z }))
-							continue;
-						
-						const auto& bodyMap = rigidBodyGrid.at({ x, z });
+						const auto& bodyMap = cell.second;
 
 						// Iterate over all rigid bodies within cells
 						for (auto it = bodyMap.begin(); it != bodyMap.end(); ++it)
 						{
 							const auto& body = it->second;
 
+							// Tranform position of cloth into bodies local space
 							glmvec3 clothLocalPos =
 								body->m_model_inv * glmvec4(m_massPoints[0].pos, 1);
 
