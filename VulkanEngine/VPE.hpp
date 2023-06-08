@@ -1908,40 +1908,46 @@ namespace vpe {
 						bodiesNearbyCount += cell.second.size();
 
 				// Return if grid position of the cloth and amount of bodies nearby are unchanged
-				if (gridX == prevGridX && gridZ == prevGridZ &&
-					bodiesNearbyCount == prevBodiesNearbyCount)
-					return;
+				if (gridX != prevGridX || gridZ != prevGridZ ||
+					bodiesNearbyCount != prevBodiesNearbyCount)
+				{
+					// Reset vector of bodies nearby
+					m_bodiesNearby.clear();
+
+					// Iterate over all non-empty cells
+					for (const auto& cell : rigidBodyGrid)
+						// Check if it is cloths or neighboring cell
+						if (std::abs(cell.first.first - gridX) < 2
+							&& std::abs(cell.first.second - gridZ) < 2)
+							// Add all bodies within the cell
+							for (auto it = cell.second.begin(); it != cell.second.end(); ++it)
+								m_bodiesNearby.push_back(it->second);
+				}
+
+				// Do an additional check if bodies within cell can collide with cloth
+				// This is cheaper than iterating through all mass points
+				auto it = m_bodiesNearby.begin();
+				while (it != m_bodiesNearby.end())
+				{
+					// Tranform position of cloth into bodies local space
+					glmvec3 clothLocalPos =
+						(*it)->m_model_inv * glmvec4(m_massPoints[0].pos, 1);
+
+					// Remove nearby body if it cannot touch cloth
+					if (glm::length(clothLocalPos) > ((*it)->boundingSphereRadius() +
+						m_maxMassPointDistance) * 2)
+					{
+						m_bodiesNearby.erase(it);
+						--bodiesNearbyCount;
+					}
+					else
+						++it;
+				}
 
 				// Save current values for next call
 				prevGridX = gridX;
 				prevGridZ = gridZ;
 				prevBodiesNearbyCount = bodiesNearbyCount;
-
-				// Reset vector of bodies nearby
-				m_bodiesNearby.clear();
-
-				// Iterate over cell and neighboring cells of cloth
-				for (const auto& cell : rigidBodyGrid)
-					if (std::abs(cell.first.first - gridX) < 2
-						&& std::abs(cell.first.second - gridZ) < 2)
-					{
-						const auto& bodyMap = cell.second;
-
-						// Iterate over all rigid bodies within cells
-						for (auto it = bodyMap.begin(); it != bodyMap.end(); ++it)
-						{
-							const auto& body = it->second;
-
-							// Tranform position of cloth into bodies local space
-							glmvec3 clothLocalPos =
-								body->m_model_inv * glmvec4(m_massPoints[0].pos, 1);
-
-							// Add to bodies nearby if the body can touch the cloth
-							if (glm::length(clothLocalPos) < (body->boundingSphereRadius() +
-								m_maxMassPointDistance) * 2)
-								m_bodiesNearby.push_back(body);
-						}
-					}
 			}
 
 			void createMassPoints(const std::vector<vh::vhVertex>& vertices)
