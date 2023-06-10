@@ -794,11 +794,109 @@ namespace vpe {
 		double			m_next_slot{ m_sim_delta_time };//Next time for simulation
 
 		/// <summary>
+		/// Wrapper class that provides parts of a std::unordered_map like interface while using a std::vector as the underlying data structure.
+		/// As inserting, erasing and targeted lookup for bodies are barely used and the main use case of this data structure is linear iteration
+		/// std::vector gives much better perfomance when compared to std::unordered:map. However, the map interface is much more convenient to use, thus this wrapper class.
+		/// Note: Unlike maps, this does not guarantee that only one entry per owner is present. Lookup returns the first element for a given owner
+		/// </summary>
+		template<typename key_type, typename mapped_type>
+		class MapWrapper {
+			using pair_t = std::pair<key_type, mapped_type>;
+			std::vector<pair_t> m_vector;
+		public:
+			MapWrapper() {}
+			MapWrapper(std::initializer_list<pair_t> elements) {
+				for (const auto& entry : elements) {
+					this->insert(entry);
+				}
+			}
+
+			typename std::vector<pair_t>::iterator insert(const pair_t& pair) {
+				return m_vector.insert(m_vector.end(), pair);
+			}
+
+			typename std::vector<pair_t>::iterator insert(pair_t&& pair) {
+				return m_vector.insert(m_vector.end(), pair);
+			}
+
+			void push_back(const pair_t& pair) {
+				m_vector.push_back(pair);
+			}
+
+			void push_back(pair_t&& pair) {
+				m_vector.push_back(pair);
+			}
+
+			size_t erase(const key_type& key) {
+				auto element_to_delete = this->find(key);
+				if (element_to_delete == m_vector.end()) {
+					return 0;
+				}
+
+				std::iter_swap(element_to_delete, m_vector.rbegin());
+				m_vector.pop_back();
+
+				return 1;
+			}
+
+			typename std::vector<pair_t>::iterator find(const key_type& key) {
+				return std::find_if(m_vector.begin(), m_vector.end(), [&key](auto pair) { return pair.first == key; });
+			}
+
+			pair_t& operator [] (const key_type& key) {
+				auto element = this->find(key);
+				if (element != m_vector.end()) {
+					return *element;
+				}
+				else {
+					throw std::out_of_range("Attempted element lookup failed, key is not in vector.");
+				}
+			}
+
+			pair_t& at(const key_type& key) {
+				return (*this)[key];
+			}
+
+			void clear() {
+				m_vector.clear();
+			}
+
+			typename std::vector<pair_t>& get_vector() {
+				return m_vector;
+			}
+
+			typename std::vector<pair_t>::iterator begin() {
+				return m_vector.begin();
+			}
+
+			typename std::vector<pair_t>::iterator end() {
+				return m_vector.end();
+			}
+
+			typename std::vector<pair_t>::const_iterator begin() const {
+				return m_vector.begin();
+			}
+
+			typename std::vector<pair_t>::const_iterator end() const {
+				return m_vector.end();
+			}
+
+			size_t size() {
+				return m_vector.size();
+			}
+
+			void reserve(size_t size) {
+				m_vector.reserve(size);
+			}
+
+		};
+
+		/// <summary>
 		/// All bodies are stored in the map m_bodies. The key is a void*, which can be used 
 		/// to call back an owner if the body moves. With this key, the body can also be found.
 		/// So best if there is a 1:1 correspondence. E.g., the owner can be a specific VESceneNode.
 		/// </summary>
-		using body_map = std::unordered_map<void*, std::shared_ptr<Body>>;
+		using body_map = MapWrapper<void*, std::shared_ptr<Body>>;
 		body_map	m_bodies;			//main container of all bodies
 		uint64_t	m_body_id{ 0 };		//Unique id for body if needed
 
