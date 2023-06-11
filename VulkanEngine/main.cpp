@@ -173,6 +173,40 @@ namespace ve {
 				m_physics->addBody(body);
 			}
 
+			if (event.idata1 == GLFW_KEY_C && event.idata3 == GLFW_PRESS) {
+				glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
+				glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
+
+				real cubeMass = 0;
+				std::shared_ptr<VPEWorld::Body> prevBody;
+				positionCamera[1] += 8.0_real;
+
+				for (int i = 0; i < 10; ++i) {
+					if (i == 0 || i == 9) cubeMass = 0;
+					else cubeMass = 1.0_real / 100.0_real;
+
+					VESceneNode* cube;
+					VECHECKPOINTER(cube = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "media/models/test/crate0", "cube.obj", 0, getRoot()));
+					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube, &m_physics->g_cube, glmvec3{ 1.0_real }, positionCamera + 2.0_real * dir, glmquat{ 1,0,0,0 }, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, cubeMass, m_physics->m_restitution, m_physics->m_friction);
+				
+					if (i != 0 && i != 9) {
+						body->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
+					}
+
+					body->m_on_move = onMove;
+					body->m_on_erase = onErase;
+					m_physics->addBody(body);
+
+					if (i > 0) {
+						auto constraint = std::make_shared<VPEWorld::VPEDistanceConstraint>(body, prevBody, 2.3_real);
+						m_physics->addConstraint(constraint);
+					}
+
+					prevBody = body;
+					positionCamera[0] += 2.0_real;
+				}
+			}
+
 			return false;
 		};
 
@@ -524,7 +558,7 @@ namespace ve {
 using namespace ve;
 
 int main() {
-	bool debug = true;
+	bool debug = false;
 
 	MyVulkanEngine mve(veRendererType::VE_RENDERER_TYPE_FORWARD, debug);	//enable or disable debugging (=callback, validation layers)
 	mve.initEngine();

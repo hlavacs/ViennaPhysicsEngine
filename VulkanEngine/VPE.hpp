@@ -827,6 +827,7 @@ namespace vpe {
 				m_vector.push_back(pair);
 			}
 
+			// Todo: Use std::erase() here
 			size_t erase(const key_type& key) {
 				auto element_to_delete = this->find(key);
 				if (element_to_delete == m_vector.end()) {
@@ -919,6 +920,12 @@ namespace vpe {
 
 		std::unordered_map<void*, callback_collide> m_collider;	//Call these callbacks if there is a collision for a specific body
 
+		/// <summary>
+		///  Holds all constraints 
+		/// </summary>
+		class VPEConstraint;
+		std::vector<std::shared_ptr<VPEConstraint>> m_constraints;
+
 		//-----------------------------------------------------------------------------------------------------
 
 		/// <summary>
@@ -973,6 +980,7 @@ namespace vpe {
 					b->m_on_erase(b);	//call it first
 				}
 			}
+			m_constraints.clear();
 			m_collider.clear();
 			m_bodies.clear();
 			m_grid.clear();
@@ -987,6 +995,13 @@ namespace vpe {
 			m_collider.erase(body->m_owner);
 			m_bodies.erase(body->m_owner);
 			m_grid[intpair_t{ body->m_grid_x, body->m_grid_z }].erase(body->m_owner);
+			for (auto it = m_constraints.begin(); it != m_constraints.end();) {
+				if ((*it)->containsBody(body)) {
+					it = m_constraints.erase(it);
+				}
+				else ++it;
+			}
+
 		}
 
 		/// <summary>
@@ -1085,6 +1100,8 @@ namespace vpe {
 				broadPhase();			//run the broad phase
 				narrowPhase();			//Run the narrow phase
 				warmStart();			//Warm start the resting contacts if possible
+
+				solveConstraints(dt);
 
 				for (auto& body : m_bodies) { body.second->stepVelocity(m_sim_delta_time); }		//Integration step for velocity
 				calculateImpulses(m_loops, m_sim_delta_time);	//Calculate and apply impulses
@@ -1360,6 +1377,17 @@ namespace vpe {
 			} while (num > 0 && (m_mode == SIMULATION_MODE_DEBUG || std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count() < 1.0e6 * max_time));
 		}
 
+		void solveConstraints(double dt) {
+			int iterationCount = 1;
+			real constraintDt = (real) dt / iterationCount;
+			for (int i = 0; i < iterationCount; ++i) {
+				for (const auto& constraint : m_constraints) {
+					constraint->solve(constraintDt);
+				}
+			}
+
+		}
+
 
 		//----------------------------------------------------------------------------------------------------
 
@@ -1591,6 +1619,91 @@ namespace vpe {
 			real sep = clipFaceFace(contact, ref_face, inc_face);		//Project and clip faces			
 			positionBias(eq.m_separation, sep, eq.m_normalL, contact);	//Add possibe position bias
 		}
+
+
+		/* Constraints */
+
+		/// <summary>
+		/// Adds a constraint to the physics simulation
+		/// </summary>
+		/// <param name="constraint">Pointer to the constraint to be added</param>
+		void addConstraint(std::shared_ptr<VPEConstraint> constraint) {
+			m_constraints.push_back(constraint);
+		}
+
+		/// <summary>
+		/// Removes a constraint to the physics simulation
+		/// </summary>
+		/// <param name="constraint">Pointer to the constraint to be removed</param>
+		void removeConstraint(std::shared_ptr<VPEConstraint> constraint) {
+			std::erase(m_constraints, constraint);
+		}
+
+		/// <summary>
+		/// Base class for all constraints
+		/// All inherenting classes need to implement a solver and a method to check whether a given body is part of the constraint
+		/// </summary>
+		class VPEConstraint {
+		protected:
+			static constexpr real epsilon = 0.000001_real;
+		public:
+			VPEConstraint() {}
+			~VPEConstraint() {}
+
+			virtual void solve(real dt) const = 0;
+			/// <summary>
+			/// Should return true if the body is part of the constraint
+			/// </summary>
+			/// <param name="body">Body to check for</param>
+			/// <returns></returns>
+			virtual bool containsBody(std::shared_ptr<Body> body) const = 0;
+
+		};
+
+		// Maybe: Make second point being relative to object's center?
+		
+		/// <summary>
+		/// A very simple distance constraint, only acting on the linear velocities of the affected bodies
+		/// Given two bodies, the constraint makes sure there is always a given distance between their center points
+		/// </summary>
+		class VPEDistanceConstraint : public VPEConstraint {
+			std::shared_ptr<Body> m_body1;	// First body
+			std::shared_ptr<Body> m_body2;	// Second body
+			real m_distance;				// The distance the constraint has to maintain
+		public:
+			VPEDistanceConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, real distance) : m_body1{ body1 }, m_body2{ body2 }, m_distance{ distance } {}
+			~VPEDistanceConstraint() {}
+
+			void solve(real dt) const override {
+				// Compute distance between the objects' center, their distance and the difference to the constraint distance
+				glmvec3 relative_position = m_body1->m_positionW - m_body2->m_positionW;
+				real obj_distance = glm::length(relative_position);
+				real offset = m_distance - obj_distance;
+				
+				if (abs(offset) > VPEConstraint::epsilon) {
+					// Compute parts of the jacobian matrix; in this case the relative positions
+					glmvec3 j1 = glm::normalize(relative_position);
+					glmvec3 j2 = -j1;
+
+					real total_mass = m_body1->m_mass_inv + m_body2->m_mass_inv;
+					// Compute dot product of Jacobian and velocity vector; keep in mind that j2 = -j1, so the original expression can be simplified
+					real jv = glm::dot(m_body1->m_linear_velocityW - m_body2->m_linear_velocityW, j1);
+					// Add bias in the form auf Baumgarte stabilisation
+					real bias = -(0.01_real * offset) / dt;
+					real lambda = -(jv + bias) / total_mass;
+
+					glmvec3 impulse1 = j1 * lambda * m_body1->m_mass_inv;
+					glmvec3 impulse2 = j2 * lambda * m_body2->m_mass_inv;
+
+					m_body1->m_linear_velocityW += impulse1;
+					m_body2->m_linear_velocityW += impulse2;
+				}				
+			}
+
+			bool containsBody(std::shared_ptr<Body> body) const {
+				return body == m_body1 || body == m_body2;
+			}
+		};
 
 	public:
 		
