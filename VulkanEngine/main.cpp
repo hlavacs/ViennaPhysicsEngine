@@ -207,6 +207,37 @@ namespace ve {
 				}
 			}
 
+			if (event.idata1 == GLFW_KEY_M && event.idata3 == GLFW_PRESS) {
+				glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
+				glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
+
+				positionCamera[1] += 3.0_real;
+				std::cout << "cubepos1: " << positionCamera + 2.0_real * dir << "\n";
+				VESceneNode* cube0;
+				VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "media/models/test/crate0", "cube.obj", 0, getRoot()));
+				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_cube, glmvec3{ 1.0_real }, positionCamera + 2.0_real * dir, glmquat{ 1,0,0,0 }, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, 0.0_real, m_physics->m_restitution, m_physics->m_friction);
+				body->m_on_move = onMove;
+				body->m_on_erase = onErase;
+				m_physics->addBody(body);
+
+				positionCamera[1] -= 2.0_real;
+				//positionCamera[0] += 3.0_real;
+				std::cout << "cubepos2: " << positionCamera + 2.0_real * dir << "\n";
+				VESceneNode* cube1;
+				VECHECKPOINTER(cube1 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "media/models/test/crate0", "cube.obj", 0, getRoot()));
+				auto body1 = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube1, &m_physics->g_cube, glmvec3{ 1.0_real }, positionCamera + 2.0_real * dir, glmquat{ 1,0,0,0 }, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, 50.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
+				body1->m_on_move = onMove;
+				body1->m_on_erase = onErase;
+				body1->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
+				m_physics->addBody(body1);
+
+				glmvec3 point = positionCamera + 2.0_real * dir + glmvec3(0.0_real, 2.0_real, 0.0_real);
+				std::cout << point << "\n";
+				auto constraint = std::make_shared<VPEWorld::VPEBallSocketJointConstraint>(body, body1, point);
+				m_physics->addConstraint(constraint);
+				
+			}
+
 			return false;
 		};
 
@@ -232,6 +263,7 @@ namespace ve {
 		std::uniform_real_distribution<> rnd_unif{ 0.0f, 1.0f };		//Random numbers
 
 		virtual void onDrawOverlay(veEvent event) {
+			return;
 			VESubrender_Nuklear* pSubrender = (VESubrender_Nuklear*)getEnginePointer()->getRenderer()->getOverlay();
 			if (pSubrender == nullptr)
 				return;

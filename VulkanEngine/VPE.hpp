@@ -1101,10 +1101,10 @@ namespace vpe {
 				narrowPhase();			//Run the narrow phase
 				warmStart();			//Warm start the resting contacts if possible
 
-				solveConstraints(dt);
-
 				for (auto& body : m_bodies) { body.second->stepVelocity(m_sim_delta_time); }		//Integration step for velocity
 				calculateImpulses(m_loops, m_sim_delta_time);	//Calculate and apply impulses
+
+				solveConstraints(dt);
 
 				for (auto& body : m_bodies) {	//integrate positions and update the matrices for the bodies
 					if (body.second->stepPosition(m_sim_delta_time, body.second->m_positionW, body.second->m_orientationLW)) ++num_active;
@@ -1377,15 +1377,18 @@ namespace vpe {
 			} while (num > 0 && (m_mode == SIMULATION_MODE_DEBUG || std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count() < 1.0e6 * max_time));
 		}
 
+		/// <summary>
+		/// Iteratively try to solve all current constraints
+		/// </summary>
+		/// <param name="dt">Elapsed time</param>
 		void solveConstraints(double dt) {
 			int iterationCount = 1;
 			real constraintDt = (real) dt / iterationCount;
 			for (int i = 0; i < iterationCount; ++i) {
-				for (const auto& constraint : m_constraints) {
+				for (auto& constraint : m_constraints) {
 					constraint->solve(constraintDt);
 				}
 			}
-
 		}
 
 
@@ -1650,7 +1653,7 @@ namespace vpe {
 			VPEConstraint() {}
 			~VPEConstraint() {}
 
-			virtual void solve(real dt) const = 0;
+			virtual void solve(real dt) = 0;
 			/// <summary>
 			/// Should return true if the body is part of the constraint
 			/// </summary>
@@ -1674,7 +1677,7 @@ namespace vpe {
 			VPEDistanceConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, real distance) : m_body1{ body1 }, m_body2{ body2 }, m_distance{ distance } {}
 			~VPEDistanceConstraint() {}
 
-			void solve(real dt) const override {
+			void solve(real dt) override {
 				// Compute distance between the objects' center, their distance and the difference to the constraint distance
 				glmvec3 relative_position = m_body1->m_positionW - m_body2->m_positionW;
 				real obj_distance = glm::length(relative_position);
@@ -1698,6 +1701,73 @@ namespace vpe {
 					m_body1->m_linear_velocityW += impulse1;
 					m_body2->m_linear_velocityW += impulse2;
 				}				
+			}
+
+			bool containsBody(std::shared_ptr<Body> body) const {
+				return body == m_body1 || body == m_body2;
+			}
+		};
+
+		class VPEBallSocketJointConstraint : public VPEConstraint {
+			std::shared_ptr<Body> m_body1;
+			std::shared_ptr<Body> m_body2;
+
+			glmvec3 m_anchor_w;
+			glmvec3 m_anchor_body1;
+			glmvec3 m_anchor_body2;
+		public:
+
+			VPEBallSocketJointConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor) : m_body1{ body1 }, m_body2{ body2 }, m_anchor_w{ anchor } {
+				m_anchor_body1 = m_body1->m_model_inv * glmvec4(m_anchor_w, 1.0_real);
+				m_anchor_body2 = m_body2->m_model_inv * glmvec4(m_anchor_w, 1.0_real);
+			}
+			~VPEBallSocketJointConstraint() {}
+
+			void solve(real dt) override {
+				glmvec3 anchor1 = m_body1->m_model * glmvec4(m_anchor_body1, 1.0_real);
+				glmvec3 anchor2 = m_body2->m_model * glmvec4(m_anchor_body2, 1.0_real);
+		
+				glmvec3 r1 = anchor1 - m_body1->m_positionW;
+				glmvec3 r2 = anchor2 - m_body2->m_positionW;
+
+				glmvec3 offset = m_body2->m_positionW + r2 - m_body1->m_positionW - r1;
+				glmvec3 abs_offset = glm::abs(offset);
+
+				if (abs_offset.x > VPEConstraint::epsilon || abs_offset.y > VPEConstraint::epsilon || abs_offset.z > VPEConstraint::epsilon) {
+				
+					// Compute components of Jacobian matrix
+					glmmat3 j1 = glm::mat3(-1.0_real);
+					glmmat3 j2 = glm::matrixCross3(r1);
+					glmmat3 j3 = glm::mat3(1.0_real);
+					glmmat3 j4 = -glm::matrixCross3(r2);
+
+					// Compute product of jacobian (3x12 matrix) and velocity vector (12x1 matrix) with submatrices
+					// TODO: Maybe rewrite using cross products?
+					glmvec3 j1v1 = -m_body1->m_linear_velocityW; // j1 is negated identity matrix
+					glmvec3 j2v2 = j2 * m_body1->m_angular_velocityW;
+					glmvec3 j3v3 = m_body2->m_linear_velocityW; // j3 is identity matrix
+					glmvec3 j4v4 = j4 * m_body2->m_angular_velocityW;
+					glmvec3 jv = j1v1 + j2v2 + j3v3 + j4v4;
+
+					// TODO: Replace transpose with negation here as well?
+					glmmat3 constraint_mass = m_body1->m_mass_inv * glmmat3(1.0_real) + j2 * m_body1->m_inertia_invW * glm::transpose(j2) + m_body2->m_mass_inv * glmmat3(1.0_real) + (-j4) * m_body2->m_inertia_invW * glm::transpose(-j4);
+
+					glmvec3 bias = (0.01_real / dt) * offset;
+					glmvec3 lambda = (glm::inverse(constraint_mass) * (-jv - bias));
+
+					// Compute impulses via constraint_force = J^t * lambda
+					// j2 and j4 are skew symmetric, so their transpose is their negation
+					// TODO: Maybe use cross products here as well
+					glmvec3 impulse1 = -lambda; // j1 is negated identity matrix
+					glmvec3 impulse2 = -j2 * lambda;
+					glmvec3 impulse3 = lambda; // j3 is identity matrix
+					glmvec3 impulse4 = -j4 * lambda;
+
+					m_body1->m_linear_velocityW += m_body1->m_mass_inv * impulse1;
+					m_body1->m_angular_velocityW += m_body1->m_inertia_invW * impulse2;
+					m_body2->m_linear_velocityW += m_body2->m_mass_inv * impulse3;
+					m_body2->m_angular_velocityW += m_body2->m_inertia_invW * impulse4;
+				}
 			}
 
 			bool containsBody(std::shared_ptr<Body> body) const {
