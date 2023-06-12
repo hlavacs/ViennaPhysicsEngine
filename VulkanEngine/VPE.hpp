@@ -43,6 +43,7 @@ using int_t = int64_t;
 using uint_t = uint64_t;
 #define glmvec2 glm::dvec2
 #define glmvec3 glm::dvec3
+#define glmmat2 glm::dmat2
 #define glmmat3 glm::dmat3
 #define glmvec4 glm::dvec4
 #define glmmat4 glm::dmat4
@@ -56,6 +57,7 @@ using uint_t = uint32_t;
 #define glmvec2 glm::vec2
 #define glmvec3 glm::vec3
 #define glmvec4 glm::vec4
+#define glmmat2 glm::mat2
 #define glmmat3 glm::mat3
 #define glmmat4 glm::mat4
 #define glmquat glm::quat
@@ -76,6 +78,7 @@ using voidppair_t = std::pair<void*, void*>;	//Pair of void pointers
 namespace geometry {
 	void computeBasis(const glmvec3& a, glmvec3& b, glmvec3& c);
 	void SutherlandHodgman(auto& subjectPolygon, auto& clipPolygon, auto& newPolygon);
+	glmvec3 orthoUnitVector(const glmvec3& vec);
 }
 
 
@@ -142,6 +145,14 @@ namespace std {
 		os << "(" << m[0][0] << ',' << m[0][1] << ',' << m[0][2] << ")\n";	//Output a 3x3 matrix
 		os << "(" << m[1][0] << ',' << m[1][1] << ',' << m[1][2] << ")\n";
 		os << "(" << m[2][0] << ',' << m[2][1] << ',' << m[2][2] << ")\n";
+		return os;
+	}
+
+	ostream& operator<<(ostream& os, const glmmat4& m) {
+		os << "(" << m[0][0] << ',' << m[0][1] << ',' << m[0][2] << ',' << m[0][3] << ")\n";	//Output a 4x4 matrix
+		os << "(" << m[1][0] << ',' << m[1][1] << ',' << m[1][2] << ',' << m[1][3] << ")\n";
+		os << "(" << m[2][0] << ',' << m[2][1] << ',' << m[2][2] << ',' << m[2][3] << ")\n";
+		os << "(" << m[3][0] << ',' << m[3][1] << ',' << m[3][2] << ',' << m[3][3] << ")\n";
 		return os;
 	}
 
@@ -1382,11 +1393,10 @@ namespace vpe {
 		/// </summary>
 		/// <param name="dt">Elapsed time</param>
 		void solveConstraints(double dt) {
-			int iterationCount = 6;
-			real constraintDt = (real) dt / iterationCount;
+			int iterationCount = 10;
 			for (int i = 0; i < iterationCount; ++i) {
 				for (auto& constraint : m_constraints) {
-					constraint->solve(constraintDt);
+					constraint->solve(dt);
 				}
 			}
 		}
@@ -1708,15 +1718,24 @@ namespace vpe {
 			}
 		};
 
+		/// <summary>
+		/// A constraint that models a ball-socket joint. The two bodies are connected at the anchor point given in world space
+		/// </summary>
 		class VPEBallSocketJointConstraint : public VPEConstraint {
 			std::shared_ptr<Body> m_body1;
 			std::shared_ptr<Body> m_body2;
 
-			glmvec3 m_anchor_w;
-			glmvec3 m_anchor_body1;
-			glmvec3 m_anchor_body2;
+			glmvec3 m_anchor_w; // Anchor point in world space
+			glmvec3 m_anchor_body1; // Anchor point in local space of body1
+			glmvec3 m_anchor_body2; // Anchor pont in local space of body2
 		public:
 
+			/// <summary>
+			/// Constructor
+			/// </summary>
+			/// <param name="body1">First body</param>
+			/// <param name="body2">Second body</param>
+			/// <param name="anchor">Anchor point in world space</param>
 			VPEBallSocketJointConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor) : m_body1{ body1 }, m_body2{ body2 }, m_anchor_w{ anchor } {
 				m_anchor_body1 = m_body1->m_model_inv * glmvec4(m_anchor_w, 1.0_real);
 				m_anchor_body2 = m_body2->m_model_inv * glmvec4(m_anchor_w, 1.0_real);
@@ -1724,6 +1743,7 @@ namespace vpe {
 			~VPEBallSocketJointConstraint() {}
 
 			void solve(real dt) override {
+				// Move anchor points back to world space
 				glmvec3 anchor1 = m_body1->m_model * glmvec4(m_anchor_body1, 1.0_real);
 				glmvec3 anchor2 = m_body2->m_model * glmvec4(m_anchor_body2, 1.0_real);
 		
@@ -1752,7 +1772,7 @@ namespace vpe {
 					// TODO: Replace transpose with negation here as well?
 					glmmat3 constraint_mass = m_body1->m_mass_inv * glmmat3(1.0_real) + j2 * m_body1->m_inertia_invW * glm::transpose(j2) + m_body2->m_mass_inv * glmmat3(1.0_real) + (-j4) * m_body2->m_inertia_invW * glm::transpose(-j4);
 
-					glmvec3 bias = (0.001_real / dt) * offset;
+					glmvec3 bias = (0.06_real / dt) * offset;
 					glmvec3 lambda = (glm::inverse(constraint_mass) * (-jv - bias));
 
 					// Compute impulses via constraint_force = J^t * lambda
@@ -1767,6 +1787,88 @@ namespace vpe {
 					m_body1->m_angular_velocityW += m_body1->m_inertia_invW * impulse2;
 					m_body2->m_linear_velocityW += m_body2->m_mass_inv * impulse3;
 					m_body2->m_angular_velocityW += m_body2->m_inertia_invW * impulse4;
+				}
+			}
+
+			bool containsBody(std::shared_ptr<Body> body) const {
+				return body == m_body1 || body == m_body2;
+			}
+		};
+
+		/// <summary>
+		/// A hinge constraint that connects two bodies via an anchor point and only allows them to rotate around a given hinge axis in world space
+		/// </summary>
+		class VPEHingeConstraint : public VPEConstraint {
+			std::shared_ptr<Body> m_body1;
+			std::shared_ptr<Body> m_body2;
+
+			std::shared_ptr<VPEBallSocketJointConstraint> m_ballsocket; // Used for the anchor point connection
+
+			glmvec3 m_rot_axis_w; // Hinge axis in world space
+			glmvec3 m_rot_axis_body1; // Hinge axis in body1's local space
+			glmvec3 m_rot_axis_body2; // Hinge axis in body2's local space
+		public:
+			VPEHingeConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis) : m_body1{ body1 }, m_body2{ body2 } {
+				m_ballsocket = std::make_shared<VPEWorld::VPEBallSocketJointConstraint>(m_body1, m_body2, anchor);
+				m_rot_axis_w = glm::normalize(axis);
+				m_rot_axis_body1 = glm::normalize(m_body1->m_model_inv * glmvec4(m_rot_axis_w, 0.0_real));
+				m_rot_axis_body2 = glm::normalize(m_body2->m_model_inv * glmvec4(m_rot_axis_w, 0.0_real));
+			}
+			~VPEHingeConstraint() {}
+
+			void solve(real dt) override {
+				m_ballsocket->solve(dt);
+
+				// Move hinge axis back to world space
+				glmvec3 axis1 = glm::normalize(m_body1->m_model * glmvec4(m_rot_axis_body1, 0.0_real));
+				glmvec3 axis2 = glm::normalize(m_body2->m_model * glmvec4(m_rot_axis_body2, 0.0_real));;
+
+				// Compute 2 orthogonal unit vectors to axis2 to formulate the constraint function
+				glmvec3 b = geometry::orthoUnitVector(axis2);
+				glmvec3 c = glm::normalize(glm::cross(axis2, b));
+
+				glmvec2 offset(glm::dot(axis1, b), glm::dot(axis2, c));
+				glmvec2 abs_offset = glm::abs(offset);
+		
+				if (abs_offset.x > VPEConstraint::epsilon || abs_offset.y > VPEConstraint::epsilon) {
+					glmvec3 bCa = glm::cross(b, axis1);
+					glmvec3 cCa = glm::cross(c, axis1);
+
+					// Compute Jacobian matrix
+					glmvec3 j11(0.0_real);
+					glmvec3 j21(0.0_real);
+					glmvec3 j12 = -bCa;
+					glmvec3 j22 = -cCa;
+					glmvec3 j13(0.0_real);
+					glmvec3 j23(0.0_real);
+					glmvec3 j14 = bCa;
+					glmvec3 j24 = cCa;
+
+					// Calculate product of 2x12 Jacobian matrix and 12x1 velocity vector
+					glmvec2 jv(
+						glm::dot(j12, m_body1->m_angular_velocityW) + glm::dot(j14, m_body2->m_angular_velocityW),
+						glm::dot(j22, m_body1->m_angular_velocityW) + glm::dot(j24, m_body2->m_angular_velocityW)
+					);
+
+					// Compute constraint mass matrix with J*M^-1*J^T
+					real a = glm::dot(bCa * m_body1->m_inertia_invW, bCa) + glm::dot(bCa * m_body2->m_inertia_invW, bCa);
+					real b = glm::dot(bCa * m_body1->m_inertia_invW, cCa) + glm::dot(bCa * m_body2->m_inertia_invW, cCa);
+					real c = glm::dot(cCa * m_body1->m_inertia_invW, bCa) + glm::dot(cCa * m_body2->m_inertia_invW, bCa);
+					real d = glm::dot(cCa * m_body1->m_inertia_invW, cCa) + glm::dot(cCa * m_body2->m_inertia_invW, cCa);
+					// Column major!
+					glmmat2 constraint_mass(a, c, b, d);
+
+					glmvec2 bias = (0.001_real / dt) * offset;
+					glmvec2 lambda = (glm::inverse(constraint_mass) * (-jv - bias));
+
+					// Compute constraint forces via J^t*lambda. Since J has 0-compontents, we don't have any linear impulses here
+					// Since we can only easily access the columns of J^t, we do the multiplication column-wise instead of using rows
+					// see https://math.stackexchange.com/questions/1422045/matrix-multiplication-of-columns-times-rows-instead-of-rows-times-columns
+					glmvec3 impulse1 = j12 * lambda.x + j22 * lambda.y;
+					glmvec3 impulse2 = j14 * lambda.x + j24 * lambda.y;
+
+					m_body1->m_angular_velocityW += m_body1->m_inertia_invW * impulse1;
+					m_body2->m_angular_velocityW += m_body2->m_inertia_invW * impulse2;
 				}
 			}
 
@@ -1879,6 +1981,21 @@ namespace geometry {
 				}
 			}
 		}
+	}
+
+	/// <summary>
+	/// Returns a unit vector that is orthogonal to vec
+	/// </summary>
+	inline glmvec3 orthoUnitVector(const glmvec3& vec) {
+		assert(glm::length(vec) > c_eps);
+		int min_index = vec.x < vec.y ? (vec.x < vec.z ? 0 : 2) : (vec.y < vec.z ? 1 : 2);
+
+		intpair_t indices(min_index == 0 ? intpair_t{1, 2} : (min_index == 1 ? intpair_t{0, 2} : std::pair<int, int>{0, 1}));
+		glmvec3 ortho(0.0_real);
+		ortho[indices.first] = -vec[indices.second];
+		ortho[indices.second] = vec[indices.first];
+
+		return glm::normalize(ortho);
 	}
 }
 
