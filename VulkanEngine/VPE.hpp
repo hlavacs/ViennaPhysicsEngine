@@ -1382,7 +1382,7 @@ namespace vpe {
 		/// </summary>
 		/// <param name="dt">Elapsed time</param>
 		void solveConstraints(double dt) {
-			int iterationCount = 1;
+			int iterationCount = 6;
 			real constraintDt = (real) dt / iterationCount;
 			for (int i = 0; i < iterationCount; ++i) {
 				for (auto& constraint : m_constraints) {
@@ -1648,7 +1648,7 @@ namespace vpe {
 		/// </summary>
 		class VPEConstraint {
 		protected:
-			static constexpr real epsilon = 0.000001_real;
+			static constexpr real epsilon = 0.0000001_real;
 		public:
 			VPEConstraint() {}
 			~VPEConstraint() {}
@@ -1727,6 +1727,7 @@ namespace vpe {
 				glmvec3 anchor1 = m_body1->m_model * glmvec4(m_anchor_body1, 1.0_real);
 				glmvec3 anchor2 = m_body2->m_model * glmvec4(m_anchor_body2, 1.0_real);
 		
+				// compute vector from body center to bodies' anchor in world space
 				glmvec3 r1 = anchor1 - m_body1->m_positionW;
 				glmvec3 r2 = anchor2 - m_body2->m_positionW;
 
@@ -1734,7 +1735,6 @@ namespace vpe {
 				glmvec3 abs_offset = glm::abs(offset);
 
 				if (abs_offset.x > VPEConstraint::epsilon || abs_offset.y > VPEConstraint::epsilon || abs_offset.z > VPEConstraint::epsilon) {
-				
 					// Compute components of Jacobian matrix
 					glmmat3 j1 = glm::mat3(-1.0_real);
 					glmmat3 j2 = glm::matrixCross3(r1);
@@ -1752,7 +1752,7 @@ namespace vpe {
 					// TODO: Replace transpose with negation here as well?
 					glmmat3 constraint_mass = m_body1->m_mass_inv * glmmat3(1.0_real) + j2 * m_body1->m_inertia_invW * glm::transpose(j2) + m_body2->m_mass_inv * glmmat3(1.0_real) + (-j4) * m_body2->m_inertia_invW * glm::transpose(-j4);
 
-					glmvec3 bias = (0.01_real / dt) * offset;
+					glmvec3 bias = (0.001_real / dt) * offset;
 					glmvec3 lambda = (glm::inverse(constraint_mass) * (-jv - bias));
 
 					// Compute impulses via constraint_force = J^t * lambda
