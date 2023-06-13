@@ -76,6 +76,10 @@ using voidppair_t = std::pair<void*, void*>;	//Pair of void pointers
 namespace geometry {
 	void computeBasis(const glmvec3& a, glmvec3& b, glmvec3& c);
 	void SutherlandHodgman(auto& subjectPolygon, auto& clipPolygon, auto& newPolygon);
+
+	//----------------------------------Cloth-Simulation-Stuff--------------------------------------
+	// by Felix Neumann
+	real alphaMaxPlusBetaMin(real a, real b);
 }
 
 
@@ -1751,14 +1755,21 @@ namespace vpe {
 				if (point0->isFixed && point1->isFixed)
 					return;
 
-				real lengthBetweenPoints = glm::distance(point0->pos, point1->pos);
+				glmvec3 pos0 = point0->pos;
+				glmvec3 pos1 = point1->pos;
+
+				real lengthBetweenPoints = glm::distance(pos0, pos1);
+
+				//real lengthBetweenPoints =
+				//	geometry::alphaMaxPlusBetaMin(
+				//		geometry::alphaMaxPlusBetaMin(
+				//			pos0.x - pos1.x, pos0.y - pos1.y), pos0.z - pos1.z);
 
 				real lengthDifference = lengthBetweenPoints - length;
 
 				if (std::abs(lengthDifference) > 0.0001)
 				{
-					glmvec3 directionBetweenPoints = (point1->pos - point0->pos) /
-						lengthBetweenPoints;
+					glmvec3 directionBetweenPoints = (pos1 - pos0) / lengthBetweenPoints;
 
 					real lambda = -lengthDifference /
 						(point0->invMass + point1->invMass + compliance / (dt * dt));
@@ -2268,5 +2279,19 @@ namespace geometry {
 				}
 			}
 		}
-	} 
+	}
+
+	//----------------------------------Cloth-Simulation-Stuff--------------------------------------
+	// by Felix Neumann
+	// Alpha Max Plus Beta Min - square root of the sum of two squares approximation
+	// https://en.wikipedia.org/wiki/Alpha_max_plus_beta_min_algorithm
+	inline real alphaMaxPlusBetaMin(real a, real b)
+	{
+		real absA = (a >= 0) ? a : -a; // std::abs(a);
+		real absB = (b >= 0) ? b : -b; // std::abs(b);
+		real max = (absA < absB) ? absB : absA; //std::max(absA, absB);
+		real min = (absA < absB) ? absA : absB; //std::min(absA, absB);
+
+		return 0.96043387010342 * max + 0.397824734759316 * min;
+	}
 }

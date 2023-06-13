@@ -517,6 +517,10 @@ namespace ve {
 				std::default_random_engine rnd_gen{ 12345 };					//Random numbers
 				std::uniform_real_distribution<> rnd_unif{ 0.0f, 1.0f };		//Random numbers
 
+				//std::cout << m_physics.alphaMaxPlusBetaMin(0.2, 3) << std::endl;
+
+				//std::cout << std::sqrt(std::pow(0.2, 2) + std::pow(3, 2)) << std::endl;
+
 				/*
 				VESceneNode* cubeParent = getSceneManagerPointer()->createSceneNode("Cube Parent",
 					pScene, glm::mat4(1.0));
