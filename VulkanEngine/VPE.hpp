@@ -1935,6 +1935,7 @@ namespace vpe {
 								m_bodiesNearby.push_back(it->second);
 				}
 
+				
 				// Do an additional check if bodies within cell can collide with cloth
 				// This is cheaper than iterating through all mass points
 				auto it = m_bodiesNearby.begin();
@@ -1948,12 +1949,13 @@ namespace vpe {
 					if (glm::length(clothLocalPos) > ((*it)->boundingSphereRadius() +
 						m_maxMassPointDistance) * 2)
 					{
-						m_bodiesNearby.erase(it);
+						it = m_bodiesNearby.erase(it);
 						--bodiesNearbyCount;
 					}
 					else
 						++it;
 				}
+				
 
 				// Save current values for next call
 				prevGridX = gridX;
