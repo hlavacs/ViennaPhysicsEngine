@@ -776,6 +776,7 @@ namespace vpe {
 		int		m_use_warmstart = 1;						//If true then warm start resting contacts
 		int		m_use_warmstart_single = 0;					//If true then warm start resting contacts
 		int		m_loops = 30;								//Number of loops in each simulation step
+		int		m_constraint_iterations = 10;				//How often should all constraints be solved in each simulation step
 		bool	m_deactivate = true;						//Do not move objects that are deactivated
 		real	m_num_active{ 0 };							//Number of currently active bodies
 		real	m_damping_incr = 10.0_real;					//Damp motion of slowly moving resting objects 
@@ -1393,10 +1394,9 @@ namespace vpe {
 		/// </summary>
 		/// <param name="dt">Elapsed time</param>
 		void solveConstraints(double dt) {
-			int iterationCount = 10;
-			for (int i = 0; i < iterationCount; ++i) {
+			for (int i = 0; i < m_constraint_iterations; ++i) {
 				for (auto& constraint : m_constraints) {
-					constraint->solve(dt);
+					constraint->solve((real) dt);
 				}
 			}
 		}
@@ -1683,9 +1683,14 @@ namespace vpe {
 			std::shared_ptr<Body> m_body1;	// First body
 			std::shared_ptr<Body> m_body2;	// Second body
 			real m_distance;				// The distance the constraint has to maintain
+			real m_bias_factor = 0.01_real;		// Bias factor for Baumgarte stabilization
 		public:
 			VPEDistanceConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, real distance) : m_body1{ body1 }, m_body2{ body2 }, m_distance{ distance } {}
 			~VPEDistanceConstraint() {}
+
+			void setTranslationBias(real new_bias) {
+				m_bias_factor = new_bias;
+			}
 
 			void solve(real dt) override {
 				// Compute distance between the objects' center, their distance and the difference to the constraint distance
@@ -1701,9 +1706,9 @@ namespace vpe {
 					real total_mass = m_body1->m_mass_inv + m_body2->m_mass_inv;
 					// Compute dot product of Jacobian and velocity vector; keep in mind that j2 = -j1, so the original expression can be simplified
 					real jv = glm::dot(m_body1->m_linear_velocityW - m_body2->m_linear_velocityW, j1);
-					// Add bias in the form auf Baumgarte stabilisation
-					real bias = -(0.01_real * offset) / dt;
-					real lambda = -(jv + bias) / total_mass;
+
+					real bias = (m_bias_factor * offset) / dt;
+					real lambda = -(jv - bias) / total_mass;
 
 					glmvec3 impulse1 = j1 * lambda * m_body1->m_mass_inv;
 					glmvec3 impulse2 = j2 * lambda * m_body2->m_mass_inv;
@@ -1725,6 +1730,8 @@ namespace vpe {
 			std::shared_ptr<Body> m_body1;
 			std::shared_ptr<Body> m_body2;
 
+			real m_bias_factor = 0.01_real; // Bias factor for Baumgarte stabilization
+
 			glmvec3 m_anchor_w; // Anchor point in world space
 			glmvec3 m_anchor_body1; // Anchor point in local space of body1
 			glmvec3 m_anchor_body2; // Anchor pont in local space of body2
@@ -1741,6 +1748,10 @@ namespace vpe {
 				m_anchor_body2 = m_body2->m_model_inv * glmvec4(m_anchor_w, 1.0_real);
 			}
 			~VPEBallSocketJointConstraint() {}
+
+			void setTranslationBias(real new_bias) {
+				m_bias_factor = new_bias;
+			}
 
 			void solve(real dt) override {
 				// Move anchor points back to world space
@@ -1772,7 +1783,7 @@ namespace vpe {
 					// TODO: Replace transpose with negation here as well?
 					glmmat3 constraint_mass = m_body1->m_mass_inv * glmmat3(1.0_real) + j2 * m_body1->m_inertia_invW * glm::transpose(j2) + m_body2->m_mass_inv * glmmat3(1.0_real) + (-j4) * m_body2->m_inertia_invW * glm::transpose(-j4);
 
-					glmvec3 bias = (0.06_real / dt) * offset;
+					glmvec3 bias = (m_bias_factor / dt) * offset;
 					glmvec3 lambda = (glm::inverse(constraint_mass) * (-jv - bias));
 
 					// Compute impulses via constraint_force = J^t * lambda
@@ -1803,6 +1814,8 @@ namespace vpe {
 			std::shared_ptr<Body> m_body2;
 
 			std::shared_ptr<VPEBallSocketJointConstraint> m_ballsocket; // Used for the anchor point connection
+			real m_bias_rot = 0.001_real; // Bias factor for Baumgarte stabilization
+			real m_bias_trans = 0.06_real; // Bias factor for Baumgarte stabilization
 
 			glmvec3 m_rot_axis_w; // Hinge axis in world space
 			glmvec3 m_rot_axis_body1; // Hinge axis in body1's local space
@@ -1810,11 +1823,21 @@ namespace vpe {
 		public:
 			VPEHingeConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis) : m_body1{ body1 }, m_body2{ body2 } {
 				m_ballsocket = std::make_shared<VPEWorld::VPEBallSocketJointConstraint>(m_body1, m_body2, anchor);
+				m_ballsocket->setTranslationBias(m_bias_trans);
 				m_rot_axis_w = glm::normalize(axis);
 				m_rot_axis_body1 = glm::normalize(m_body1->m_model_inv * glmvec4(m_rot_axis_w, 0.0_real));
 				m_rot_axis_body2 = glm::normalize(m_body2->m_model_inv * glmvec4(m_rot_axis_w, 0.0_real));
 			}
 			~VPEHingeConstraint() {}
+
+			void setTranslationBias(real new_bias) {
+				m_bias_trans = new_bias;
+				m_ballsocket->setTranslationBias(m_bias_trans);
+			}
+
+			void setRotationBias(real new_bias) {
+				m_bias_rot = new_bias;
+			}
 
 			void solve(real dt) override {
 				m_ballsocket->solve(dt);
@@ -1858,7 +1881,7 @@ namespace vpe {
 					// Column major!
 					glmmat2 constraint_mass(a, c, b, d);
 
-					glmvec2 bias = (0.001_real / dt) * offset;
+					glmvec2 bias = (m_bias_rot / dt) * offset;
 					glmvec2 lambda = (glm::inverse(constraint_mass) * (-jv - bias));
 
 					// Compute constraint forces via J^t*lambda. Since J has 0-compontents, we don't have any linear impulses here
