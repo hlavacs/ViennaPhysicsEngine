@@ -62,6 +62,8 @@ using uint_t = uint32_t;
 #define glmmat4 glm::mat4
 #define glmquat glm::quat
 const real c_eps = 1.0e-8f;
+const real pi = glm::pi<real>();
+const real pi2 = 2.0f * pi;
 #else
 #error Must choose accuracy!
 #endif
@@ -1744,6 +1746,7 @@ namespace vpe {
 			/// <param name="body2">Second body</param>
 			/// <param name="anchor">Anchor point in world space</param>
 			VPEBallSocketJointConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor) : m_body1{ body1 }, m_body2{ body2 }, m_anchor_w{ anchor } {
+				// Include translation? Yes/no?
 				m_anchor_body1 = m_body1->m_model_inv * glmvec4(m_anchor_w, 1.0_real);
 				m_anchor_body2 = m_body2->m_model_inv * glmvec4(m_anchor_w, 1.0_real);
 			}
@@ -1806,6 +1809,10 @@ namespace vpe {
 			}
 		};
 
+		// TODO: Some issues arise when the limited angle is almost a full rotation. 
+		// TODO: Try dynamic bias for hinge limit: Large when difference is big, small otherwise
+		// It seems like the constraint can't fix the overshoot fast enough and then does way too much to try and compensate it
+		// Bug: Negative Gravity with y-hinge axis???
 		/// <summary>
 		/// A hinge constraint that connects two bodies via an anchor point and only allows them to rotate around a given hinge axis in world space
 		/// </summary>
@@ -1820,13 +1827,23 @@ namespace vpe {
 			glmvec3 m_rot_axis_w; // Hinge axis in world space
 			glmvec3 m_rot_axis_body1; // Hinge axis in body1's local space
 			glmvec3 m_rot_axis_body2; // Hinge axis in body2's local space
+
+			bool m_limit_active;
+			glmquat m_init_orientation;
+
 		public:
-			VPEHingeConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis) : m_body1{ body1 }, m_body2{ body2 } {
+			VPEHingeConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis, bool limitActive = false) : m_body1{ body1 }, m_body2{ body2 }, m_limit_active{ limitActive } {
 				m_ballsocket = std::make_shared<VPEWorld::VPEBallSocketJointConstraint>(m_body1, m_body2, anchor);
 				m_ballsocket->setTranslationBias(m_bias_trans);
 				m_rot_axis_w = glm::normalize(axis);
 				m_rot_axis_body1 = glm::normalize(m_body1->m_model_inv * glmvec4(m_rot_axis_w, 0.0_real));
 				m_rot_axis_body2 = glm::normalize(m_body2->m_model_inv * glmvec4(m_rot_axis_w, 0.0_real));
+
+				// assert(min_angle < max_angle)
+
+				m_init_orientation = glm::normalize(m_body2->m_orientationLW * glm::inverse(m_body1->m_orientationLW));
+				// Invert this right here to not have to do it each iteration later on
+				glm::inverse(m_init_orientation);
 			}
 			~VPEHingeConstraint() {}
 
@@ -1840,6 +1857,81 @@ namespace vpe {
 			}
 
 			void solve(real dt) override {
+
+				// Handle limit constraints
+				if (m_limit_active) {
+					glmquat current_orientation = m_body2->m_orientationLW * glm::inverse(m_body1->m_orientationLW);
+					// Difference between original orientation and current one
+					glmquat diff_orientation = glm::normalize(current_orientation * m_init_orientation);
+
+					real m_max_angle = 0;
+					real min_angle = -pi*1.5;
+
+					// Recover rotation angle theta from quaternion
+					// See https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation (section Recovering the axis-angle representation)
+					glmvec3 rel_rot_axis(diff_orientation.x, diff_orientation.y, diff_orientation.z);
+					// Two quaternions q and -q encode the same rotation; take whichever one points in the same direction as the hinge axis
+					real w = diff_orientation.w;
+					if (glm::dot(rel_rot_axis, m_rot_axis_w) < 0.0_real) w = -w; // axes point in different directions
+
+					// This calculates the an angle in [0; 2pi] and converts it to [-pi, pi]
+					real theta = std::remainder(2.0_real * std::atan2(glm::length(rel_rot_axis), w), pi2);
+
+					// Our angle is now in [-pi; pi], so negative values go in one direction and positive ones in the other
+					// However, a positive rotation can also be the continuation of a negative one (since it flips over when you go lower than -pi) and vice versa
+					// Even if theta is larger/lower than one of the angle limits,
+					// we only want to compare to the angle that is closer to theta, so convert it accordingly
+					if (theta > m_max_angle) {
+						if (std::abs(std::remainder(theta - m_max_angle, pi2)) > std::abs(std::remainder(theta - min_angle, pi2))) {
+							theta -= pi2;
+						}
+					}
+					else if (theta < min_angle) {
+						if (std::abs(std::remainder(m_max_angle - theta, pi2)) < std::abs(std::remainder(min_angle - theta, pi2))) {
+							theta += pi2;
+						}
+					}
+
+					real max_offset = m_max_angle - theta;
+					real min_offset = theta - min_angle;
+
+					real constraint_mass = glm::dot(m_rot_axis_w * m_body1->m_inertia_invW, m_rot_axis_w) + glm::dot(m_rot_axis_w * m_body2->m_inertia_invW, m_rot_axis_w);
+	
+					if (theta < min_angle) {
+						glmvec3 j1(0.0_real);
+						glmvec3 j2 = -m_rot_axis_w;
+						glmvec3 j3(0.0_real);
+						glmvec3 j4 = m_rot_axis_w;
+
+						real jv = glm::dot(m_rot_axis_w, -m_body1->m_angular_velocityW + m_body2->m_angular_velocityW);
+						real bias = (0.005_real / dt) * min_offset;
+						real lambda = (-jv - bias) / constraint_mass;
+
+						glmvec3 impulse1 = j2 * lambda;
+						glmvec3 impulse2 = j4 * lambda;
+
+						m_body1->m_angular_velocityW += m_body1->m_inertia_invW * impulse1;
+						m_body2->m_angular_velocityW += m_body2->m_inertia_invW * impulse2;
+					}
+
+					if (theta > m_max_angle) {
+						glmvec3 j1(0.0_real);
+						glmvec3 j2 = m_rot_axis_w;
+						glmvec3 j3(0.0_real);
+						glmvec3 j4 = -m_rot_axis_w;
+
+						real jv = glm::dot(m_rot_axis_w, m_body1->m_angular_velocityW - m_body2->m_angular_velocityW);
+						real bias = (0.005_real / dt) * max_offset;
+						real lambda = (-jv - bias) / constraint_mass;
+
+						glmvec3 impulse1 = j2 * lambda;
+						glmvec3 impulse2 = j4 * lambda;
+
+						m_body1->m_angular_velocityW += m_body1->m_inertia_invW * impulse1;
+						m_body2->m_angular_velocityW += m_body2->m_inertia_invW * impulse2;
+					}
+				}
+
 				m_ballsocket->solve(dt);
 
 				// Move hinge axis back to world space
@@ -1893,6 +1985,7 @@ namespace vpe {
 					m_body1->m_angular_velocityW += m_body1->m_inertia_invW * impulse1;
 					m_body2->m_angular_velocityW += m_body2->m_inertia_invW * impulse2;
 				}
+
 			}
 
 			bool containsBody(std::shared_ptr<Body> body) const {
