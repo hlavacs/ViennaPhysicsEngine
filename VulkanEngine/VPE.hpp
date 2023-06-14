@@ -383,7 +383,7 @@ namespace vpe {
 		inline static Polytope g_cube {
 			{ { -0.5_real,-0.5_real,-0.5_real }, { -0.5_real,-0.5_real,0.5_real }, { -0.5_real,0.5_real,0.5_real }, { -0.5_real,0.5_real,-0.5_real },
 			{ 0.5_real,-0.5_real,0.5_real }, { 0.5_real,-0.5_real,-0.5_real }, { 0.5_real,0.5_real,-0.5_real }, { 0.5_real,0.5_real,0.5_real } },
-			{ {0,1}, {1,2}, {2,3}, {3,0}, {4,5}, {5,6}, {6,7}, {7,4}, {5,0}, {1,4}, {3,6}, {7,2} }, //edges													// MOD! Fixed a mistake {7,0} -> {7,4}
+			{ {0,1}, {1,2}, {2,3}, {3,0}, {4,5}, {5,6}, {6,7}, {7,4}, {5,0}, {1,4}, {3,6}, {7,2} }, //edges
 			{	{ {0}, {1}, {2}, {3} },					//face 0
 				{ {4}, {5}, {6}, {7} },					//face 1
 				{ {0,-1}, {8,-1},  {4,-1}, {9,-1} },	//face 2
@@ -1528,82 +1528,128 @@ namespace vpe {
 		virtual ~VPEWorld() {};		///Destructor of class VPEWorld
 
 
-	//----------------------------------Cloth-Simulation-Stuff--------------------------------------
+	//--------------------------------Begin-Cloth-Simulation-Stuff----------------------------------
 	// by Felix Neumann
 	
 	public:
 		class Cloth;
 		class ClothConstraint;
-		using callback_move_cloth = std::function<void(double, std::shared_ptr<Cloth>)>;
-		using callback_erase_cloth = std::function<void(std::shared_ptr<Cloth>)>;
+		using callback_move_cloth = std::function<void(double, std::shared_ptr<Cloth>)>;			//call this function when the cloth moves
+		using callback_erase_cloth = std::function<void(std::shared_ptr<Cloth>)>;					//call this function when the cloth is erased
 
+		/// <summary>
+		/// All bodies are stored in the map m_cloths. The key is a void*, which can be used to call
+		/// back an owner if the cloth moves. With this key, the body can also be found.
+		/// So best if there is a 1:1 correspondence. E.g., the owner can be a specific VESceneNode.
+		/// </summary>
 		std::unordered_map<void*, std::shared_ptr<VPEWorld::Cloth>> m_cloths;
 
+		/// <summary>
+		/// Add a new cloth to the physics world.
+		/// </summary>
+		/// <param name="pbody"> The new body.</param>
 		void addCloth(std::shared_ptr<VPEWorld::Cloth> pCloth) {
-			m_cloths.insert({ pCloth->m_owner, pCloth });}
+			m_cloths.insert( { pCloth->m_owner, pCloth } ); }
 
+		/// <summary>
+		/// Retrieve a cloth using the owner.
+		/// </summary>
+		/// <param name="owner"> Pointer to the owner </param>
+		/// <returns> Shared pointer to the cloth. </returns>
 		auto getCloth(auto* owner) {
 			return m_cloths[(void*) owner]; }
 
+		/// <summary>
+		/// Delete all cloths.
+		/// </summary>
 		void clearCloths() {
 			for (std::pair<void*, std::shared_ptr<Cloth>> cloth : m_cloths)
 				if (cloth.second->m_on_erase)
 					cloth.second->m_on_erase(cloth.second);
+
+			m_cloths.clear();
 		}
 
+		/// <summary>
+		/// Erase one cloth.
+		/// </summary>
+		/// <param name="body"> Shared pointer to the cloth. </param>
 		void eraseCloth(std::shared_ptr<Cloth> cloth) {
 			if (cloth->m_on_erase)
 				cloth->m_on_erase(cloth);
+
+			m_bodies.erase(cloth->m_owner);
 		}
 
+		/// <summary>
+		/// Erase one cloth.
+		/// </summary>
+		/// <param name="owner"> A void pointer to the owner of the cloth. </param>
 		void eraseCloth(auto* owner) {
 			std::shared_ptr<Cloth> cloth = m_cloths[(void*)owner];
 			if (cloth->m_on_erase)
 				cloth->m_on_erase(cloth);
+
+			m_bodies.erase(owner);
 		}
 
+		/// <summary>
+		/// Defines which points of the cloth should be fixed. Meaning which points are immediately
+		/// moved to their new position when a transformation is applied to the cloth. (The other
+		/// points are dragged along by the simulation)
+		/// </summary>
 		enum FixationMode
 		{
 			TOP2
 		};
 
+		/// <summary>
+		/// Used to store the information about which vertices form triangles which is fetched from
+		/// the index vector passed to the cloth in its constructor.Triangles are used to create the
+		/// constraints. For each point its index within the mass points vector is stored.
+		/// </summary>
 		struct ClothTriangle
 		{
 			uint32_t massPoint0Index;
 			uint32_t massPoint1Index;
 			uint32_t massPoint2Index;
-
-			uint32_t getOtherPointIndex(uint32_t point0, uint32_t point1)
-			{
-				std::vector<uint32_t> points =
-				{ massPoint0Index , massPoint1Index , massPoint2Index };
-
-				points.erase(std::remove(points.begin(), points.end(), point0), points.end());
-				points.erase(std::remove(points.begin(), points.end(), point1), points.end());
-
-				return points[0];
-			}
 		};
 
+		/// <summary>
+		/// A mass point is a vertex of the cloth.
+		/// </summary>
 		class ClothMassPoint
 		{
 		public:
-			// Indices of all vertices of VEClothEntity at this mass point
-			std::vector<uint32_t> m_associatedVertices{};
-			glmvec3 pos;
-			glmvec3 prevPos;
-			const glmvec3 initialPos;
-			glmvec3 vel {};
-			real invMass = 0._real;
-			double isFixed;
-			const real c_small = 0.01_real;
-			const real c_collisionMargin = 0.045_real;
-			const real c_friction = 300._real;
-			const real c_damping = 0.1_real;
+			std::vector<uint32_t> m_associatedVertices{};											// Indices of all vertices of VEClothEntity with the same initial position as this mass point.
+			glmvec3 pos;																			// Current position of the mass points
+			glmvec3 prevPos;																		// Previous position
+			const glmvec3 initialPos;																// Initial position before any simulation was applied. Used for setTransform function of cloth.
+			glmvec3 vel;																			// Current velocity
+			real invMass;																			// 1 - the mass of the mass point. Dynamically calulated depending on the associated triangles.
+			bool isFixed;																			// true ... transformations are fully applied, false ... point is dragged along by the simulation
 
-			ClothMassPoint(glm::vec3 pos, double isFixed = false) : pos{ pos }, prevPos{ pos },
-				initialPos{ pos }, isFixed{ isFixed } {}
+		private: 
+			const real c_small = 0.01_real;															// Small threshold value
+			const real c_verySmall = c_small / 50.0_real;											// Even smaller threshold value
+			const real c_collisionMargin = 0.045_real;												// Margin for collision detection with polytopes to avoid glitches
+			const real c_friction = 300._real;														// Amount of friction when colliding with polytopes or the ground
+			const real c_damping = 0.1_real;														// Amount of damping
 
+		public:
+			/// <summary>
+			/// Constructor.
+			/// </summary>
+			/// <param name="pos"> Initial position of the mass point. </param>
+			/// <param name="isFixed"> Whether the point is fixed. </param>
+			ClothMassPoint(glm::vec3 pos, bool isFixed = false) : pos{ pos }, prevPos{ pos },
+				initialPos{ pos }, vel{ glmvec3(0._real) }, isFixed {isFixed} {}
+
+			/// <summary>
+			/// Apply some external force like gravity or wind.
+			/// </summary>
+			/// <param name="force"> The force to apply. </param>
+			/// <param name="dt"> Delta time. </param>
 			void applyExternalForce(glmvec3 force, real dt)
 			{
 				if (!isFixed)
@@ -1613,7 +1659,11 @@ namespace vpe {
 					pos += vel * dt;
 				}
 			}
-
+			
+			/// <summary>
+			/// Pushes the mass point slightly above the ground if it was below.
+			/// </summary>
+			/// <param name="dt"> Delta time. </param>
 			void resolveGroundCollision(real dt)
 			{
 				if (pos.y < 0)
@@ -1624,81 +1674,94 @@ namespace vpe {
 				}
 			}
 
+			/// <summary>
+			/// Checks for collisions with the bodies and resolves them if there are some.
+			/// </summary>
+			/// <param name="bodies"> The bodies to do collision checks with. </param>
+			/// <param name="dt"> Delta time. Only affects how much friction is applied in case
+			/// of a collision. Can be 0 to apply no friction. </param>
 			void resolvePolytopeCollisions(const std::vector<std::shared_ptr<Body>>& bodies,
 				real dt = 0._real)
 			{
-				if (isFixed)
-					return;
+				if (isFixed)																		// Fixed point can go through bodies so that the cloth is always where you expect it to be.
+					return;																			// For example attached as a cape to an avatar.
 
 				for (auto body : bodies)
 				{
-					glmvec3 massPointLocalPos = body->m_model_inv * glmvec4(pos, 1);
+					glmvec3 massPointLocalPos = body->m_model_inv * glmvec4(pos, 1);				// Transform the mass point's position into the body's local space
 
-					if (glm::distance(glmvec3(0, 0, 0), massPointLocalPos) <						
+					if (glm::distance(glmvec3(0, 0, 0), massPointLocalPos) <						// Check if the mass point is within the body's bounding sphere
 						body->boundingSphereRadius())
 					{
-						if (polytopeCollisionCheck(body, massPointLocalPos))
-							resolvePolytopeCollision(body, massPointLocalPos, dt);
+						if (polytopeCollisionCheck(body, massPointLocalPos))						// Collision Check
+							resolvePolytopeCollision(body, massPointLocalPos, dt);					// Resolve collision
 					}
 				}
 			}
-		
+			
+			/// <summary>
+			/// Dampen the cloth's movement to simulate air resistance. Never set it to zero to
+			/// avoid losing a degree of freedom.
+			/// </summary>
+			/// <param name="dt"> Delta time. </param>
 			void damp(real dt)
 			{
-				if (vel.x + vel.y + vel.z > c_small)
+				if (vel.x + vel.y + vel.z > c_verySmall)
 					vel -= vel * c_damping * std::min(dt, 1._real);
 			}
 
 		private:
+			/// <summary>
+			/// Check if the mass point is within the polytope.
+			/// </summary>
+			/// <param name="body"> Body to collision check with. </param>
+			/// <param name="massPointLocalPos"> The position of the mass point in the body's local
+			/// space (body->invModel * massPoint.pos). </param>
 			bool polytopeCollisionCheck(const std::shared_ptr<Body> body, glmvec3 massPointLocalPos)
 			{
-				bool collision = true;
+				bool collision = true;																// Assume there is a collision in the beginning
 
-				int tempFaceCount = 0;
-
-				for (const Face& face : body->m_polytope->m_faces)
+				for (const Face& face : body->m_polytope->m_faces)									// Iterate over all faces of the body's polytope
 				{
-					// Calculate normal and see if it's towards the point
-					glmvec3 dirPointToFace =												        // Always points outwards if the point is within the polytope
-						face.m_face_vertex_ptrs[0]->m_positionL +
-						face.m_normalL * c_collisionMargin -									    // extra margin so that cloth is in front of polytope
+					glmvec3 dirPointToFace =												        // Calculate the direction of the point towards the face
+						face.m_face_vertex_ptrs[0]->m_positionL +									
+						face.m_normalL * c_collisionMargin -									    // extra margin to avoid the cloth glitching through the polytope
 						massPointLocalPos;
 
-					bool pointBehindFace =
-						glm::dot(face.m_normalL, dirPointToFace) > c_small;
-
-					if (!pointBehindFace)
-					{
-						collision = false;
+					if (glm::dot(face.m_normalL, dirPointToFace) < c_small)							// If the direction of the point to the face and the normal of the face point into
+					{																				// oppsite directions, the point must be outisde of the polytope.
+						collision = false;															// Therefore, no collision.
 						break;
 					}
-
-					++tempFaceCount;
 				}
 
 				return collision;
 			}
 
-			void resolvePolytopeCollision(const std::shared_ptr<Body> body,
+			/// <summary>
+			/// Check if the mass point is within the polytope.
+			/// </summary>
+			/// <param name="body"> Body that collides. </param>
+			/// <param name="massPointLocalPos"> The position of the mass point in the body's local
+			/// space (body->invModel * massPoint.pos). </param>
+			/// <param name="dt"> Delta time. Only affects how much friction is applied in case
+			/// of a collision. Can be 0 to apply no friction. </param>
+			void resolvePolytopeCollision(const std::shared_ptr<Body> body,							// TODO Improve performance (e.g., immediately choose a projection point if its close)
 				glmvec3 massPointLocalPos, real dt)
 			{
-				// Correction towards nearest plane
-				std::vector<std::pair<glmvec3, glmvec3>> planeIntersectionPoints{};
+				std::vector<std::pair<glmvec3, glmvec3>> planeIntersectionPoints{};					// Projections of the mass point onto the faces and their corresponding normals
 
-				for (const Face& face : body->m_polytope->m_faces)
+				for (const Face& face : body->m_polytope->m_faces)									// Iterate over all faces of the polytope
 				{
-					real t = dot(face.m_face_vertex_ptrs[0]->m_positionL +
+					real t = dot(face.m_face_vertex_ptrs[0]->m_positionL +							// Calulate t (distance from face to point along its normal)
 						face.m_normalL * c_collisionMargin -										// extra margin so that cloth is in front of polytope
 						massPointLocalPos, face.m_normalL);
 
-					if (t < c_small)
-						continue;
-
-					planeIntersectionPoints.push_back({
+					planeIntersectionPoints.push_back({												// Store the projection for each face
 						massPointLocalPos + t * face.m_normalL, face.m_normalL });
 				}
 
-				std::pair<glmvec3, glmvec3> nearestIntersectionPoint =
+				std::pair<glmvec3, glmvec3> nearestIntersectionPoint =								// Find the nearest projection point
 					*std::min_element(
 						planeIntersectionPoints.begin(),
 						planeIntersectionPoints.end(),
@@ -1707,20 +1770,10 @@ namespace vpe {
 							return glm::distance(p0.first, massPointLocalPos) <						// TODO: Improve Performance/get rid of glm::distance
 								glm::distance(p1.first, massPointLocalPos);
 						});
-				
-				// glmvec3 currentVel = pos - prevPos;
-
-				prevPos = pos;
-				pos = body->m_model * (glmvec4(nearestIntersectionPoint.first, 1));
-		
-				// glmvec3 faceNormalW = glmmat3(body->m_model) * nearestIntersectionPoint.second;
-				// real forceAgainstFace = glm::dot(currentVel, faceNormalW);
-				// glmvec3 positionCorrection = glm:: normalize(currentVel - forceAgainstFace * faceNormalW);
-				// std::cout << positionCorrection << std::endl;
-				// pos -= positionCorrection * forceAgainstFace * dt * 100.;
-				// vel -= faceNormalW * forceAgainstFace;
-
-				vel -= vel * c_friction * dt;
+																									// TODO Maybe: Dont correct straight towards the face but a bit towards the movement of the cloth
+				prevPos = pos;																		
+				pos = body->m_model * (glmvec4(nearestIntersectionPoint.first, 1));					// Set the mass point's position which was inside the polytope to the projection point
+				vel -= vel * c_friction * dt;														// Apply friction
 			}
 		};
 
