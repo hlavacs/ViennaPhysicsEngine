@@ -34,8 +34,8 @@
 //If SINGLE_ACCURACY is defined then use single accuracy
 //Time is always in double.
 
-//#define VPE_SINGLE_ACCURACY
-#define VPE_DOUBLE_ACCURACY
+#define VPE_SINGLE_ACCURACY
+//#define VPE_DOUBLE_ACCURACY
 
 #ifdef VPE_DOUBLE_ACCURACY
 using real = double;
@@ -79,7 +79,9 @@ namespace geometry {
 
 	//----------------------------------Cloth-Simulation-Stuff--------------------------------------
 	// by Felix Neumann
+	// Defintion and source below this file
 	real alphaMaxPlusBetaMin(real a, real b);
+	real alphaMaxPlusBetaMedPlusGammaMin(real a, real b, real c);
 }
 
 
@@ -1621,7 +1623,7 @@ namespace vpe {
 				}
 			}
 
-			void resolvePolytopeCollisions(const std::vector<std::shared_ptr<Body>> bodies,
+			void resolvePolytopeCollisions(const std::vector<std::shared_ptr<Body>>& bodies,
 				real dt = 0._real)
 			{
 				if (isFixed)
@@ -1631,12 +1633,10 @@ namespace vpe {
 				{
 					glmvec3 massPointLocalPos = body->m_model_inv * glmvec4(pos, 1);
 
-					if (glm::distance(glmvec3(0, 0, 0), massPointLocalPos) <						// TODO Improve Performance
+					if (glm::distance(glmvec3(0, 0, 0), massPointLocalPos) <						
 						body->boundingSphereRadius())
 					{
-						bool collision = polytopeCollisionCheck(body, massPointLocalPos);
-
-						if (collision)
+						if (polytopeCollisionCheck(body, massPointLocalPos))
 							resolvePolytopeCollision(body, massPointLocalPos, dt);
 					}
 				}
@@ -1645,7 +1645,7 @@ namespace vpe {
 			void damp(real dt)
 			{
 				if (vel.x + vel.y + vel.z > c_small)
-					vel -= vel * c_damping * std::min(dt, 1.);
+					vel -= vel * c_damping * std::min(dt, 1._real);
 			}
 
 		private:
@@ -1765,9 +1765,13 @@ namespace vpe {
 				//		geometry::alphaMaxPlusBetaMin(
 				//			pos0.x - pos1.x, pos0.y - pos1.y), pos0.z - pos1.z);
 
+				//real lengthBetweenPoints =
+				//	geometry::alphaMaxPlusBetaMedPlusGammaMin(pos0.x - pos1.x, pos0.y - pos1.y,
+				//		pos0.z - pos1.z);
+
 				real lengthDifference = lengthBetweenPoints - length;
 
-				if (std::abs(lengthDifference) > 0.0001)
+				if (fabs(lengthDifference) > 0.0001)
 				{
 					glmvec3 directionBetweenPoints = (pos1 - pos0) / lengthBetweenPoints;
 
@@ -1845,14 +1849,13 @@ namespace vpe {
 					for (const ClothConstraint& constraint : m_constraints)
 						constraint.solve(rDt);
 
-					bool clothNearGound = m_massPoints[0].pos.y < m_maxMassPointDistance;
+					if (m_bodiesNearby.size())
+						for (ClothMassPoint& massPoint : m_massPoints)
+							massPoint.resolvePolytopeCollisions(m_bodiesNearby, rDt);
 
-					for (ClothMassPoint& massPoint : m_massPoints)
-					{
-						massPoint.resolvePolytopeCollisions(m_bodiesNearby, rDt);
-						if (clothNearGound)
+					if (m_massPoints[0].pos.y < m_maxMassPointDistance)
+						for (ClothMassPoint& massPoint : m_massPoints)
 							massPoint.resolveGroundCollision(rDt);
-					}
 				}
 			}
 			
@@ -1889,7 +1892,7 @@ namespace vpe {
 						glmvec3 transformedPos = transformation * glmvec4(massPoint.pos, 1);
 						glmvec3 posToTransPos = transformedPos - massPoint.pos;
 						massPoint.prevPos = massPoint.pos;
-						massPoint.pos = massPoint.pos + posToTransPos * 0.8;						// TODO Magic Number
+						massPoint.pos = massPoint.pos + posToTransPos * 0.8_real;					// TODO Magic Number
 					}
 
 					massPoint.resolvePolytopeCollisions(m_bodiesNearby, 0);
@@ -2289,11 +2292,27 @@ namespace geometry {
 	// https://en.wikipedia.org/wiki/Alpha_max_plus_beta_min_algorithm
 	inline real alphaMaxPlusBetaMin(real a, real b)
 	{
-		real absA = (a >= 0) ? a : -a; // std::abs(a);
-		real absB = (b >= 0) ? b : -b; // std::abs(b);
-		real max = (absA < absB) ? absB : absA; //std::max(absA, absB);
-		real min = (absA < absB) ? absA : absB; //std::min(absA, absB);
+		real absA = fabs(a);
+		real absB = fabs(b);
+		if (absA > absB)
+			return 0.96043387010342 * absA + 0.397824734759316 * absB;
 
-		return 0.96043387010342 * max + 0.397824734759316 * min;
+		return 0.96043387010342 * absB + 0.397824734759316 * absA;
+	}
+
+	// Alpha Max Plus Beta Min extented to three dimensions
+	// https://math.stackexchange.com/questions/1282435/alpha-max-plus-beta-min-algorithm-for-three-numbers
+	// https://stackoverflow.com/questions/1582356/fastest-way-of-finding-the-middle-value-of-a-triple/14676309#14676309
+	inline real alphaMaxPlusBetaMedPlusGammaMin(real a, real b, real c)
+	{
+		real absA = fabs(a);
+		real absB = fabs(b);
+		real absC = fabs(c);
+
+		real min = std::min(absA, std::min(absB, absC));
+		real max = std::max(absA, std::max(absB, absC));
+		real med = std::max(std::min(absA, absB), std::min(std::max(absA, absB), absC));
+
+		return 0.939808635172325 * max + 0.389281482723725 * med + 0.29870618761438 * min;
 	}
 }
