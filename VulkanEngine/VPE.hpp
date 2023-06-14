@@ -1592,6 +1592,7 @@ namespace vpe {
 			std::vector<uint32_t> m_associatedVertices{};
 			glmvec3 pos;
 			glmvec3 prevPos;
+			const glmvec3 initialPos;
 			glmvec3 vel {};
 			real invMass = 0._real;
 			double isFixed;
@@ -1601,7 +1602,7 @@ namespace vpe {
 			const real c_damping = 0.1_real;
 
 			ClothMassPoint(glm::vec3 pos, double isFixed = false) : pos{ pos }, prevPos{ pos },
-				isFixed{ isFixed } {}
+				initialPos{ pos }, isFixed{ isFixed } {}
 
 			void applyExternalForce(glmvec3 force, real dt)
 			{
@@ -1799,28 +1800,31 @@ namespace vpe {
 		class Cloth
 		{
 		public:
-			VPEWorld* m_physics;
 			std::string	m_name;
 			void* m_owner;
 			callback_move_cloth m_on_move;
 			callback_erase_cloth m_on_erase;
 			
 		private:
+			VPEWorld* m_physics;
 			std::vector<ClothMassPoint> m_massPoints{};
 			std::vector<ClothTriangle> m_triangles{};
 			std::vector<ClothConstraint> m_constraints{};
 			std::vector<vh::vhVertex> m_vertices;
 			real m_maxMassPointDistance;
 			const int c_substeps;
+			const real c_movementSimulation;
 			std::vector<std::shared_ptr<Body>> m_bodiesNearby;
 
 		public:
 			Cloth(VPEWorld* physics, std::string name, void* owner, callback_move_cloth on_move,
 				callback_erase_cloth on_erase, std::vector<vh::vhVertex> vertices,
-				std::vector<uint32_t> indices, double bendingCompliance = 1,
-				FixationMode fixationMode = FixationMode::TOP2, int substeps = 4)
+				std::vector<uint32_t> indices, real bendingCompliance = 1,
+				FixationMode fixationMode = FixationMode::TOP2, int substeps = 4,
+				real movementSimulation = 0.8)
 				: m_physics{ physics }, m_name{ name }, m_owner{ owner }, m_on_move{ on_move },
-				m_on_erase{ on_erase }, m_vertices { vertices }, c_substeps{ substeps }
+				m_on_erase{ on_erase }, m_vertices { vertices }, c_substeps{ substeps },
+				c_movementSimulation{ movementSimulation }
 			{
 				createMassPoints(vertices);
 				chooseFixedPoints(fixationMode);
@@ -1892,14 +1896,37 @@ namespace vpe {
 						glmvec3 transformedPos = transformation * glmvec4(massPoint.pos, 1);
 						glmvec3 posToTransPos = transformedPos - massPoint.pos;
 						massPoint.prevPos = massPoint.pos;
-						massPoint.pos = massPoint.pos + posToTransPos * 0.8_real;					// TODO Magic Number
+						massPoint.pos = massPoint.pos + posToTransPos * c_movementSimulation;
 					}
 
 					massPoint.resolvePolytopeCollisions(m_bodiesNearby, 0);
 				}
 			}
 
-			// TODO setTransformation(glmmat4 transformation, bool simulateMovement) {}	
+			void setTransformation(glmmat4 transformation, bool simulateMovement)
+			{
+				for (ClothMassPoint& massPoint : m_massPoints)
+				{
+					// Apply the full transformation if the point is fixed or movement is not
+					// simulated
+					if (!simulateMovement || massPoint.isFixed)
+					{
+						massPoint.prevPos = massPoint.pos;
+						massPoint.pos = transformation * glmvec4(massPoint.initialPos, 1);
+					}
+
+					// Elsewise interpolate points not fixed
+					else if (simulateMovement && !massPoint.isFixed)
+					{
+						glmvec3 transformedPos = transformation * glmvec4(massPoint.initialPos, 1);
+						glmvec3 posToTransPos = transformedPos - massPoint.pos;
+						massPoint.prevPos = massPoint.pos;
+						massPoint.pos = massPoint.pos + posToTransPos * c_movementSimulation;
+					}
+
+					massPoint.resolvePolytopeCollisions(m_bodiesNearby, 0);
+				}
+			}
 		
 		private:
 			void updateBodiesNearby(const std::unordered_map<intpair_t, body_map>& rigidBodyGrid)

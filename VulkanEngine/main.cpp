@@ -510,7 +510,7 @@ namespace ve {
 
 				auto physicsCloth = std::make_shared<VPEWorld::Cloth>(&m_physics,
 					"Cloth" + std::to_string(m_physics.m_bodies.size()), clothEntity, onMoveCloth,
-					onEraseCloth, vertices, indices, 50, vpe::VPEWorld::FixationMode::TOP2, 6);
+					onEraseCloth, vertices, indices, 50, vpe::VPEWorld::FixationMode::TOP2, 4, 0.8);
 
 				m_physics.addCloth(physicsCloth);
 
