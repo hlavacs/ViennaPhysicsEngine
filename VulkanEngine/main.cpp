@@ -507,10 +507,12 @@ namespace ve {
 
 				auto vertices = ((VEClothMesh*) (clothEntity->m_pMesh))->getVertices();
 				auto indices = ((VEClothMesh*) (clothEntity->m_pMesh))->getIndices();
+				std::vector<glm::vec3> fixedPoints =
+					{ {-1.000000, 2.000000, -0.000000}, {1.000000, 2.000000, 0.000000} };
 
 				auto physicsCloth = std::make_shared<VPEWorld::Cloth>(&m_physics,
 					"Cloth" + std::to_string(m_physics.m_bodies.size()), clothEntity, onMoveCloth,
-					onEraseCloth, vertices, indices, 50, vpe::VPEWorld::FixationMode::TOP2, 4, 0.8);
+					onEraseCloth, vertices, indices, fixedPoints, 50, 4, 0.8);
 
 				m_physics.addCloth(physicsCloth);
 

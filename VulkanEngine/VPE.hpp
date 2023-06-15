@@ -1594,16 +1594,6 @@ namespace vpe {
 		}
 
 		/// <summary>
-		/// Defines which points of the cloth should be fixed. Meaning which points are immediately
-		/// moved to their new position when a transformation is applied to the cloth. (The other
-		/// points are dragged along by the simulation)
-		/// </summary>
-		enum FixationMode
-		{
-			TOP2
-		};
-
-		/// <summary>
 		/// Used to store the information about which vertices form triangles which is fetched from
 		/// the index vector passed to the cloth in its constructor.Triangles are used to create the
 		/// constraints. For each point its index within the mass points vector is stored.
@@ -1777,14 +1767,25 @@ namespace vpe {
 			}
 		};
 
+		/// <summary>
+		/// A constraint is always defined between two mass points and has got a should-length.
+		/// If the actual length between the points differs, their positions are corrected towards
+		/// where they should be.
+		/// </summary>
 		class ClothConstraint
 		{
 		public:
 			ClothMassPoint* point0;
 			ClothMassPoint* point1;
 			real length;
-			real compliance;
+			real compliance;																		// The inverse of stiffness. So if compliance is 0, the cloth is infinitely stiff
 
+			/// <summary>
+			/// Constructor that calculates the length of the constraint and sets the compliance.
+			/// </summary>
+			/// <param name="point0"> First mass point. </param>
+			/// <param name="point1"> Second mass point. </param>
+			/// <param name="compliance"> Compliance. The inverse of stiffness. </param>
 			ClothConstraint(ClothMassPoint* point0, ClothMassPoint* point1,
 				real compliance)
 				: point0{ point0 }, point1{ point1 }, compliance{ compliance }
@@ -1792,53 +1793,49 @@ namespace vpe {
 				length = glm::distance(point0->pos, point1->pos);
 			}
 
-			bool containsPoints(const ClothMassPoint* p0, const ClothMassPoint* p1)
-				const
-			{
-				return ((point0 == p0 && point1 == p1)
-					|| (point0 == p1 && point1 == p0));
-			}
-
-			bool equals(const ClothConstraint& other) const
-			{
-				return containsPoints(other.point0, other.point1);
-			}
-
+			/// <summary>
+			/// Solves the constraint, meaning it corrects the position of the mass points towards
+			/// where they are expected to be.
+			/// The method used for solving is called XPBD and was developed by Miles Macklin,
+			/// Matthias Muller and Nuttapong Chentanez for NVIDIA.
+			/// https://matthias-research.github.io/pages/publications/XPBD.pdf
+			/// </summary>
+			/// <param name="dt"> Delta time. </param>
 			void solve(real dt) const
 			{
-				if (point0->isFixed && point1->isFixed)
-					return;
+				if (point0->isFixed && point1->isFixed)												// Do not simulate the point if it is fixed
+					return;																			// Fixed points should always remain where they were placed
 
 				glmvec3 pos0 = point0->pos;
 				glmvec3 pos1 = point1->pos;
 
-				real lengthBetweenPoints = glm::distance(pos0, pos1);
+				real lengthBetweenPoints = glm::distance(pos0, pos1);								// get the current length between the mass points
 
-				//real lengthBetweenPoints =
+				//real lengthBetweenPoints =														// Approximation #1 - Leads to very fidgety simulation behaviour
 				//	geometry::alphaMaxPlusBetaMin(
 				//		geometry::alphaMaxPlusBetaMin(
 				//			pos0.x - pos1.x, pos0.y - pos1.y), pos0.z - pos1.z);
 
 				//real lengthBetweenPoints =
-				//	geometry::alphaMaxPlusBetaMedPlusGammaMin(pos0.x - pos1.x, pos0.y - pos1.y,
+				//	geometry::alphaMaxPlusBetaMedPlusGammaMin(pos0.x - pos1.x, pos0.y - pos1.y,		// Approximation #2 - similar effect to #1
 				//		pos0.z - pos1.z);
 
-				real lengthDifference = lengthBetweenPoints - length;
+				real lengthDifference = lengthBetweenPoints - length;								// Get the difference of initial length and current length
 
-				if (fabs(lengthDifference) > 0.0001)
+				if (fabs(lengthDifference) > 0.0001)												// Threshold
 				{
-					glmvec3 directionBetweenPoints = (pos1 - pos0) / lengthBetweenPoints;
+					glmvec3 directionBetweenPoints = (pos1 - pos0) / lengthBetweenPoints;			
 
-					real lambda = -lengthDifference /
-						(point0->invMass + point1->invMass + compliance / (dt * dt));
+					real lambda = -lengthDifference /												// Amount of correction towards the should-be position.
+						(point0->invMass + point1->invMass + compliance / (dt * dt));				// Depends on length difference, compliance, masses and delta time 
 
-					glmvec3 correctionVec0 = -lambda * point0->invMass * directionBetweenPoints;  
+					glmvec3 correctionVec0 = -lambda * point0->invMass * directionBetweenPoints;	// Calculate the corrections vectors
 					glmvec3 correctionVec1 = lambda * point1->invMass * directionBetweenPoints;
 
-					if (!point0->isFixed)
+					if (!point0->isFixed)															// Only apply the correction to one point if the other one is fixed
 					{
-						point0->pos += correctionVec0;
-						point0->vel = (point0->pos - point0->prevPos) / dt;
+						point0->pos += correctionVec0;												// Update the position
+						point0->vel = (point0->pos - point0->prevPos) / dt;							// Update the velocity
 					}
 
 					if (!point1->isFixed)
@@ -1850,73 +1847,110 @@ namespace vpe {
 			}
 		};
 
+		/// <summary>
+		/// A cloth is a collection of mass points and constraints which it generates upon
+		/// construction based on the vertices and indices that were passed to it via the
+		/// constructor. It offers the user the possibility to interact with the cloth and keeps
+		/// track of nearby rigid bodies for collision detection and resolving.
+		/// </summary>
 		class Cloth
 		{
 		public:
-			std::string	m_name;
-			void* m_owner;
-			callback_move_cloth m_on_move;
-			callback_erase_cloth m_on_erase;
+			std::string	m_name;																		// Name of the cloth
+			void* m_owner;																			// Pointer to owner of this body, must be unique (owner is called if cloth moves)									
+			callback_move_cloth m_on_move;															// Called if the cloth moves
+			callback_erase_cloth m_on_erase;														// Called if the cloth is erased
 			
 		private:
-			VPEWorld* m_physics;
-			std::vector<ClothMassPoint> m_massPoints{};
-			std::vector<ClothTriangle> m_triangles{};
-			std::vector<ClothConstraint> m_constraints{};
-			std::vector<vh::vhVertex> m_vertices;
-			real m_maxMassPointDistance;
-			const int c_substeps;
-			const real c_movementSimulation;
-			std::vector<std::shared_ptr<Body>> m_bodiesNearby;
+			VPEWorld* m_physics;																	// Pointer to the physics world to access parameters
+			std::vector<ClothMassPoint> m_massPoints{};												// All mass points of the cloth
+			std::vector<ClothTriangle> m_triangles{};												// Triangles of the mesh, used to generate constraints
+			std::vector<ClothConstraint> m_constraints{};											// All constraints (bending and stretching) of the cloth
+			std::vector<vh::vhVertex> m_vertices;													// The vertices of the mesh that was used to create the cloth
+			real m_maxMassPointDistance;															// The max distance between two arbitrary mass points at their inital position
+			const int c_substeps;																	// How many times per frame the constraints should be solved (higher = less stretchy)
+			const real c_movementSimulation;														// How much mass points not fixed should be moved by transformation (0 to 1)
+			std::vector<std::shared_ptr<Body>> m_bodiesNearby;										// A vector that stores all bodies nearby for collision detection
 
 		public:
+			/// <summary>
+			/// Constructs a cloth from a mesh (vector of vertices and vector of indices).
+			/// The method used for integration is called XPBD and was developed by Miles Macklin,
+			/// Matthias Muller and Nuttapong Chentanez for NVIDIA.
+			/// Polytope collision checking and simulated transformations are my own additions.
+			/// https://matthias-research.github.io/pages/publications/XPBD.pdf
+			/// </summary>
+			/// <param name="physics"> Pointer to the physics world. </param>
+			/// <param name="name"> Name of the cloth. </param>
+			/// <param name="owner"> Pointer to the owner. The callback knows how to use this
+			/// pointer. </param>
+			/// <param name="on_move"> Callback that is called when the cloth moves. </param>
+			/// <param name="on_erase"> Callback that is called when the cloth is erased. </param>
+			/// <param name="vertices"> Vertices of the mesh the cloth is created from. </param>
+			/// <param name="indices"> Indices of the mesh the cloth is created from. </param>
+			/// <param name="bendingCompliance"> Opposite of stiffness. 0 means max stiff. </param>
+			/// <param name="fixedPointsPositions"> Points at which the cloth should be attached.
+			/// The positions need to match precisely, so best copy the exact numbers from the obj
+			/// file. </param>
+			/// <param name="substeps"> How many times per frame the constraints should be solved
+			/// (higher = less stretchy). </param>
+			/// <param name="movementSimulation"> How much mass points not fixed should be moved by
+			/// transformation (0 to 1). </param>
 			Cloth(VPEWorld* physics, std::string name, void* owner, callback_move_cloth on_move,
 				callback_erase_cloth on_erase, std::vector<vh::vhVertex> vertices,
-				std::vector<uint32_t> indices, real bendingCompliance = 1,
-				FixationMode fixationMode = FixationMode::TOP2, int substeps = 4,
-				real movementSimulation = 0.8)
+				std::vector<uint32_t> indices, std::vector<glmvec3> fixedPointsPositions,
+				real bendingCompliance = 1, int substeps = 4, real movementSimulation = 0.8)
 				: m_physics{ physics }, m_name{ name }, m_owner{ owner }, m_on_move{ on_move },
 				m_on_erase{ on_erase }, m_vertices { vertices }, c_substeps{ substeps },
 				c_movementSimulation{ movementSimulation }
 			{
-				createMassPoints(vertices);
-				chooseFixedPoints(fixationMode);
+				createMassPoints(vertices, fixedPointsPositions);
 				createTriangles(indices);
 				generateConstraints(bendingCompliance);
 				calcMaxMassPointDistance();
-				applyTransformation(glm::rotate(
+				applyTransformation(glm::rotate(													// Apply a slight rotation to give the sim a degree of freedom for all three dimensions
 					glm::mat4(1.0f), glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f)), true);
 			}
 
-			~Cloth() {}
+			/// <summary>
+			/// Solves constraints and does collision checking and resolving for all mass points.
+			/// The method that is used called XPBD and was developed by Miles Macklin, Matthias
+			/// Muller and Nuttapong Chentanez for NVIDIA.
+			/// https://matthias-research.github.io/pages/publications/XPBD.pdf
+			/// Polytope collision checking is my own addition.
+			/// </summary>
+			/// <param name="rigidBodyGrid"> The broad phase grid of the rigid bodies. </param>
+			/// <param name="dt"> Delta time. </param>
+			void integrate(const std::unordered_map<intpair_t, body_map>& rigidBodyGrid, double dt)
+			{
+				updateBodiesNearby(rigidBodyGrid);													// Check which bodies from the grid are within the cell and nearby
 
-			void integrate(const std::unordered_map<intpair_t, body_map>& rigidBodyGrid, double dt) {
-				updateBodiesNearby(rigidBodyGrid);
+				static real rDt = dt / c_substeps;													// Split up the delta time depending on how many substeps there are
 
-				static real rDt = dt / c_substeps;
-
-				for (int i = 0; i < c_substeps; ++i)
+				for (int i = 0; i < c_substeps; ++i)												// Solve amount of substep times
 				{
-					for (ClothMassPoint& massPoint : m_massPoints)
+					for (ClothMassPoint& massPoint : m_massPoints)									// Apply gravity and damping to all mass points
 					{
 						massPoint.damp(rDt);
 						massPoint.applyExternalForce(glmvec3{ 0, m_physics->c_gravity, 0 }, rDt);
 					}
 
-					for (const ClothConstraint& constraint : m_constraints)
+					for (const ClothConstraint& constraint : m_constraints)							// Solve all constraints
 						constraint.solve(rDt);
 
-					if (m_bodiesNearby.size())
-						for (ClothMassPoint& massPoint : m_massPoints)
-							massPoint.resolvePolytopeCollisions(m_bodiesNearby, rDt);
+					if (m_bodiesNearby.size())														// If there are any rigid bodies nearby
+						for (ClothMassPoint& massPoint : m_massPoints)								// iterate over each mass point
+							massPoint.resolvePolytopeCollisions(m_bodiesNearby, rDt);				// and do collision checks and resolve them if there are any
 
-					if (m_massPoints[0].pos.y < m_maxMassPointDistance)
-						for (ClothMassPoint& massPoint : m_massPoints)
-							massPoint.resolveGroundCollision(rDt);
+					if (m_massPoints[0].pos.y < m_maxMassPointDistance)								// If the ground is near
+						for (ClothMassPoint& massPoint : m_massPoints)								// iterate over each mass point
+							massPoint.resolveGroundCollision(rDt);									// and do a collision check and resolve it if there is one
 				}
 			}
 			
-			// Synchronizes the vertices with the mass points and returns them
+			/// <summary>
+			/// Create an updated vertices vector based on the new positions of the mass points
+			/// </summary>
 			std::vector<vh::vhVertex> generateVertices()
 			{
 				int vertexCount = 0;
@@ -1931,105 +1965,103 @@ namespace vpe {
 				return m_vertices;
 			}
 
+			/// <summary>
+			/// Apply transformation to the cloth.
+			/// </summary>
+			/// <param name="transformation"> The transformation matrix. </param>
+			/// <param name="simulateMovement"> If false, all points are fully transformed. If true,
+			/// only fixed points are and the rest are dragged along by the simulation. </param>
 			void applyTransformation(glmmat4 transformation, bool simulateMovement)
 			{
-				for (ClothMassPoint& massPoint : m_massPoints)
+				for (ClothMassPoint& massPoint : m_massPoints)										// Iterate over all mass points
 				{
-					// Apply the full transformation if the point is fixed or movement is not
-					// simulated
-					if (!simulateMovement || massPoint.isFixed)
-					{
+					if (!simulateMovement || massPoint.isFixed)										// Apply the full transformation if the point is fixed or movement is not																
+					{																				// simulated
 						massPoint.prevPos = massPoint.pos;
 						massPoint.pos = transformation * glmvec4(massPoint.pos, 1);
 					}
-						
-					// Elsewise interpolate points not fixed
-					else if (simulateMovement && !massPoint.isFixed)
+					
+					else if (simulateMovement && !massPoint.isFixed)								// Elsewise interpolate the point to be dragged along
 					{
 						glmvec3 transformedPos = transformation * glmvec4(massPoint.pos, 1);
 						glmvec3 posToTransPos = transformedPos - massPoint.pos;
 						massPoint.prevPos = massPoint.pos;
-						massPoint.pos = massPoint.pos + posToTransPos * c_movementSimulation;
-					}
+						massPoint.pos = massPoint.pos + posToTransPos * c_movementSimulation;		// If c_movementSimulation is 0, the point is fully dragged along
+					}																				// This results in a lot of stretchyness and unrealistic behaviour
 
-					massPoint.resolvePolytopeCollisions(m_bodiesNearby, 0);
+					massPoint.resolvePolytopeCollisions(m_bodiesNearby, 0);							// Check for and solve collisions at the new position
 				}
 			}
 
+			/// <summary>
+			/// Apply a transformation to the initial position of the cloth.
+			/// </summary>
+			/// <param name="transformation"> The transformation matrix. </param>
+			/// <param name="simulateMovement"> If false, all points are fully transformed. If true,
+			/// only fixed points are and the rest are dragged along by the simulation. </param>
 			void setTransformation(glmmat4 transformation, bool simulateMovement)
 			{
-				for (ClothMassPoint& massPoint : m_massPoints)
+				for (ClothMassPoint& massPoint : m_massPoints)										// Iterate over all mass points
 				{
-					// Apply the full transformation if the point is fixed or movement is not
-					// simulated
-					if (!simulateMovement || massPoint.isFixed)
-					{
+					if (!simulateMovement || massPoint.isFixed)										// Apply the full transformation if the point is fixed or movement is not																
+					{																				// simulated
 						massPoint.prevPos = massPoint.pos;
-						massPoint.pos = transformation * glmvec4(massPoint.initialPos, 1);
+						massPoint.pos = transformation * glmvec4(massPoint.initialPos, 1);			// Use the initial position of the mass point
 					}
 
-					// Elsewise interpolate points not fixed
-					else if (simulateMovement && !massPoint.isFixed)
+					else if (simulateMovement && !massPoint.isFixed)								// Elsewise interpolate the point to be dragged along
 					{
-						glmvec3 transformedPos = transformation * glmvec4(massPoint.initialPos, 1);
+						glmvec3 transformedPos = transformation * glmvec4(massPoint.initialPos, 1);	// Use the initial position of the mass point
 						glmvec3 posToTransPos = transformedPos - massPoint.pos;
 						massPoint.prevPos = massPoint.pos;
-						massPoint.pos = massPoint.pos + posToTransPos * c_movementSimulation;
-					}
+						massPoint.pos = massPoint.pos + posToTransPos * c_movementSimulation;		// If c_movementSimulation is 0, the point is fully dragged along
+					}																				// This results in a lot of stretchyness and unrealistic behaviour
 
-					massPoint.resolvePolytopeCollisions(m_bodiesNearby, 0);
+					massPoint.resolvePolytopeCollisions(m_bodiesNearby, 0);							// Check for and solve collisions at the new position
 				}
 			}
 		
 		private:
+			/// <summary>
+			/// Checks which bodies are within the cloth's grid cell and neighbors and sufficiently
+			/// nearby
+			/// </summary>
+			/// <param name="rigidBodyGrid"> The rigid body grid. </param>
 			void updateBodiesNearby(const std::unordered_map<intpair_t, body_map>& rigidBodyGrid)
 			{
-				// Position of cloth in grid
-				int_t gridX = static_cast<int_t>(m_massPoints[0].pos.x / m_physics->m_width);
+				int_t gridX = static_cast<int_t>(m_massPoints[0].pos.x / m_physics->m_width);		// Cell coordinates of cloth in grid
 				int_t gridZ = static_cast<int_t>(m_massPoints[0].pos.z / m_physics->m_width);
 
-				// Initiate previous position with value different from current one
-				static int_t prevGridX = gridX + 1;
+				static int_t prevGridX = gridX + 1;													// Initiate previous position with value different from current one
 				static int_t prevGridZ = gridZ + 1;
 				
-				// Count how many rigid bodies are currently in cell or neighbor cells
-				size_t bodiesNearbyCount = 0;
+				size_t bodiesNearbyCount = 0;														
 				static int_t prevBodiesNearbyCount = 0;
 
-				for (const auto& cell : rigidBodyGrid)
+				for (const auto& cell : rigidBodyGrid)												// Count how many rigid bodies are currently in cell or neighbor cells
 					if (std::abs(cell.first.first - gridX) < 2
 						&& std::abs(cell.first.second - gridZ) < 2)
 						bodiesNearbyCount += cell.second.size();
 
-				// Return if grid position of the cloth and amount of bodies nearby are unchanged
-				if (gridX != prevGridX || gridZ != prevGridZ ||
-					bodiesNearbyCount != prevBodiesNearbyCount)
+				if (gridX != prevGridX || gridZ != prevGridZ ||										// Only check for changes if either the cloth's cell has changed or there
+					bodiesNearbyCount != prevBodiesNearbyCount)										// are new bodies nearby.
 				{
-					// Reset vector of bodies nearby
-					m_bodiesNearby.clear();
+					m_bodiesNearby.clear();															// Reset vector of bodies nearby
 
-					// Iterate over all non-empty cells
-					for (const auto& cell : rigidBodyGrid)
-						// Check if it is cloths or neighboring cell
-						if (std::abs(cell.first.first - gridX) < 2
+					for (const auto& cell : rigidBodyGrid)											// Iterate over all non-empty cells
+						if (std::abs(cell.first.first - gridX) < 2									// Check if it is the cell of the cloth or a neighbor
 							&& std::abs(cell.first.second - gridZ) < 2)
-							// Add all bodies within the cell
-							for (auto it = cell.second.begin(); it != cell.second.end(); ++it)
+							for (auto it = cell.second.begin(); it != cell.second.end(); ++it)		// If so, add all bodies within the cell
 								m_bodiesNearby.push_back(it->second);
 				}
-
 				
-				// Do an additional check if bodies within cell can collide with cloth
-				// This is cheaper than iterating through all mass points
-				auto it = m_bodiesNearby.begin();
-				while (it != m_bodiesNearby.end())
-				{
-					// Tranform position of cloth into bodies local space
-					glmvec3 clothLocalPos =
-						(*it)->m_model_inv * glmvec4(m_massPoints[0].pos, 1);
+				auto it = m_bodiesNearby.begin();													// Iterate over all bodies of cloth's current cell and its neighbors to do an 
+				while (it != m_bodiesNearby.end())													// additional check if the bodies are near enough to collide; This is cheaper than
+				{																					// iterating through all mass points for a body that can't collide anyway														
+					glmvec3 clothLocalPos =															
+						(*it)->m_model_inv * glmvec4(m_massPoints[0].pos, 1);						// Tranform position of cloth into bodies local space
 
-					// Remove nearby body if it cannot touch cloth
-					if (glm::length(clothLocalPos) > ((*it)->boundingSphereRadius() +
+					if (glm::length(clothLocalPos) > ((*it)->boundingSphereRadius() +				// Remove nearby body if it cannot touch cloth
 						m_maxMassPointDistance) * 2)
 					{
 						it = m_bodiesNearby.erase(it);
@@ -2039,104 +2071,68 @@ namespace vpe {
 						++it;
 				}
 				
-
-				// Save current values for next call
-				prevGridX = gridX;
+				prevGridX = gridX;																	// Save current values for next call
 				prevGridZ = gridZ;
 				prevBodiesNearbyCount = bodiesNearbyCount;
 			}
 
-			void createMassPoints(const std::vector<vh::vhVertex>& vertices)
+			/// <summary>
+			/// Creates a mass point for each unique vertex-position
+			/// nearby
+			/// </summary>
+			/// <param name="vertices"> The vertices of the mesh. </param>
+			/// <param name="fixedPointsPositions"> The positions of the vertices that should be
+			/// fixed. </param>
+			void createMassPoints(const std::vector<vh::vhVertex>& vertices,
+				const std::vector<glmvec3> fixedPointsPositions)
 			{
-				// Already stored positions for duplicate removal
-				// first is the position, second the index of the corresponding mass point
-				std::map<std::vector<real>, int> alreadyAddedPositions{};
-
+				std::map<std::vector<real>, int> alreadyAddedPositions{};							// Already stored positions for duplicate removal
+																									// first is the position, second the index of the corresponding mass point
 				for (size_t i = 0; i < vertices.size(); ++i)
 				{
-					// Convert glm::vec3 to std::vector for stl algorithms to work
-					glmvec3 vertexPosGlm = vertices[i].pos;
+					glmvec3 vertexPosGlm = vertices[i].pos;											// Convert glm::vec3 to std::vector for stl algorithms to work
 					std::vector vertexPos = { vertexPosGlm.x, vertexPosGlm.y, vertexPosGlm.z };
 
-					// Add an associated vertex to the mass point if it already exists
-					if (alreadyAddedPositions.count(vertexPos))
+					if (alreadyAddedPositions.count(vertexPos))										// Add an associated vertex to the mass point if it already exists
 					{
 						int massPointIndex = alreadyAddedPositions[vertexPos];
 						m_massPoints[massPointIndex].m_associatedVertices.push_back(i);
 					}
-					// Create a new mass point if none exists yet
-					else
+					else																			// Create a new mass point if none exists yet
 					{
 						alreadyAddedPositions[vertexPos] = m_massPoints.size();
 
-						// Convert from std::vector back to glm::vec3
-						glm::vec3 vertexPosGlm = { vertexPos[0], vertexPos[1], vertexPos[2] };
+						glm::vec3 vertexPosGlm = { vertexPos[0], vertexPos[1], vertexPos[2] };		// Convert from std::vector back to glm::vec3
 
 						ClothMassPoint massPoint(vertexPosGlm);
+
+						if (std::find(fixedPointsPositions.begin(), fixedPointsPositions.end(),		// Fixate the point if its position is within the fixed points vector
+							vertexPosGlm) != fixedPointsPositions.end())
+							massPoint.isFixed = true;
 
 						m_massPoints.push_back(massPoint);
 						m_massPoints[m_massPoints.size() - 1].m_associatedVertices.push_back(i);
 					}
 				}
 			}
-
-			void chooseFixedPoints(FixationMode fixationMode)
-			{
-				if (fixationMode == FixationMode::TOP2)
-				{
-					std::vector<uint32_t> topRowPointIndices{};
-
-					for (uint32_t i = 0; i < m_massPoints.size(); ++i)
-					{
-						if (topRowPointIndices.empty()
-							|| m_massPoints[i].pos.y >
-								m_massPoints[topRowPointIndices[0]].pos.y)
-						{
-							topRowPointIndices.clear();
-							topRowPointIndices.push_back(i);
-						}
-						else if (m_massPoints[i].pos.y == m_massPoints[topRowPointIndices[0]].pos.y)
-							topRowPointIndices.push_back(i);
-					}
-
-					if (topRowPointIndices.empty())
-						return;
-
-					uint32_t leftPointIndex = topRowPointIndices[0];
-					uint32_t rightPointIndex = topRowPointIndices[0];
-
-					for (uint32_t topRowPointIndex : topRowPointIndices)
-					{
-						if (m_massPoints[topRowPointIndex].pos.x <
-							m_massPoints[leftPointIndex].pos.x)
-						{
-							leftPointIndex = topRowPointIndex;
-						}
-
-						if (m_massPoints[topRowPointIndex].pos.x >
-							m_massPoints[rightPointIndex].pos.x)
-							rightPointIndex = topRowPointIndex;
-					}
-
-					m_massPoints[leftPointIndex].isFixed = true;
-					m_massPoints[rightPointIndex].isFixed = true;
-				}
-			}
 			
+			/// <summary>
+			/// Check the distance between all mass points and store the longest one for collision
+			/// checking.
+			/// </summary>
 			void calcMaxMassPointDistance()
 			{
 				real maxDistance = 0;
 
 				for (const ClothMassPoint& point0 : m_massPoints)
-				{
 					for (const ClothMassPoint& point1 : m_massPoints)
 					{
 						real distance = glm::distance(point0.pos, point1.pos);
 						if (distance > maxDistance)
 							m_maxMassPointDistance = distance;
 					}
-				}
 			}
+
 
 			void createTriangles(std::vector<uint32_t> indices)
 			{
@@ -2268,11 +2264,10 @@ namespace vpe {
 
 };
 
-//-------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 //Geometry functions
 
 namespace geometry {
-
 
 	//https://box2d.org/posts/2014/02/computing-a-basis/
 	inline void computeBasis(const glmvec3& a, glmvec3& b, glmvec3& c)
