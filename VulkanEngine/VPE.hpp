@@ -1810,7 +1810,6 @@ namespace vpe {
 		};
 
 		// TODO: Some issues arise when the limited angle is almost a full rotation. 
-		// TODO: Try dynamic bias for hinge limit: Large when difference is big, small otherwise
 		// It seems like the constraint can't fix the overshoot fast enough and then does way too much to try and compensate it
 		// Bug: Negative Gravity with y-hinge axis???
 		/// <summary>
@@ -1821,29 +1820,33 @@ namespace vpe {
 			std::shared_ptr<Body> m_body2;
 
 			std::shared_ptr<VPEBallSocketJointConstraint> m_ballsocket; // Used for the anchor point connection
-			real m_bias_rot = 0.001_real; // Bias factor for Baumgarte stabilization
-			real m_bias_trans = 0.06_real; // Bias factor for Baumgarte stabilization
+			real m_bias_rot = 0.001_real;								// Bias factor for translation constraint Baumgarte stabilization
+			real m_bias_trans = 0.06_real;								// Bias factor for rotation constraint Baumgarte stabilization
+			real m_bias_limit = 0.04_real;								// Bias factor for limit constraint Baumgarte stabilization
 
-			glmvec3 m_rot_axis_w; // Hinge axis in world space
-			glmvec3 m_rot_axis_body1; // Hinge axis in body1's local space
-			glmvec3 m_rot_axis_body2; // Hinge axis in body2's local space
+			glmvec3 m_rot_axis_w;										// Hinge axis in world space
+			glmvec3 m_rot_axis_body1;									// Hinge axis in body1's local space
+			glmvec3 m_rot_axis_body2;									// Hinge axis in body2's local space
 
-			bool m_limit_active;
-			glmquat m_init_orientation;
+			bool m_limit_active;										// Flag that enables angle limits
+			real m_limit_max;											// Maximum angle i.e. max rotation in positive direction
+			real m_limit_min;											// Minimum angle i.e. max rotation in negative direction
+			glmquat m_init_orientation_inv;								// Inverse of initial orientation between the two bodies
 
 		public:
-			VPEHingeConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis, bool limitActive = false) : m_body1{ body1 }, m_body2{ body2 }, m_limit_active{ limitActive } {
+			VPEHingeConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis, bool limit_active = false, real limit_min = -pi2, real limit_max = pi2) :
+				m_body1{ body1 }, m_body2{ body2 }, m_limit_active{ limit_active }, m_limit_min{ limit_min }, m_limit_max{ limit_max } {
 				m_ballsocket = std::make_shared<VPEWorld::VPEBallSocketJointConstraint>(m_body1, m_body2, anchor);
 				m_ballsocket->setTranslationBias(m_bias_trans);
 				m_rot_axis_w = glm::normalize(axis);
 				m_rot_axis_body1 = glm::normalize(m_body1->m_model_inv * glmvec4(m_rot_axis_w, 0.0_real));
 				m_rot_axis_body2 = glm::normalize(m_body2->m_model_inv * glmvec4(m_rot_axis_w, 0.0_real));
 
-				// assert(min_angle < max_angle)
-
-				m_init_orientation = glm::normalize(m_body2->m_orientationLW * glm::inverse(m_body1->m_orientationLW));
-				// Invert this right here to not have to do it each iteration later on
-				glm::inverse(m_init_orientation);
+				if (m_limit_min) {
+					assert(m_limit_min < m_limit_max);
+					m_init_orientation_inv = glm::normalize(m_body2->m_orientationLW * glm::inverse(m_body1->m_orientationLW));
+					glm::inverse(m_init_orientation_inv);
+				}
 			}
 			~VPEHingeConstraint() {}
 
@@ -1856,16 +1859,20 @@ namespace vpe {
 				m_bias_rot = new_bias;
 			}
 
-			void solve(real dt) override {
+			void setLimitBias(real new_bias) {
+				m_bias_limit = new_bias;
+			}
 
+			void setLimitActive(bool limitActive) {
+				m_limit_active = limitActive;
+			}
+
+			void solve(real dt) override {
 				// Handle limit constraints
 				if (m_limit_active) {
 					glmquat current_orientation = m_body2->m_orientationLW * glm::inverse(m_body1->m_orientationLW);
 					// Difference between original orientation and current one
-					glmquat diff_orientation = glm::normalize(current_orientation * m_init_orientation);
-
-					real m_max_angle = 0;
-					real min_angle = -pi*1.5;
+					glmquat diff_orientation = glm::normalize(current_orientation * m_init_orientation_inv);
 
 					// Recover rotation angle theta from quaternion
 					// See https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation (section Recovering the axis-angle representation)
@@ -1874,37 +1881,32 @@ namespace vpe {
 					real w = diff_orientation.w;
 					if (glm::dot(rel_rot_axis, m_rot_axis_w) < 0.0_real) w = -w; // axes point in different directions
 
-					// This calculates the an angle in [0; 2pi] and converts it to [-pi, pi]
+					// This calculates the angle in [0; 2pi] and converts it to [-pi, pi]
 					real theta = std::remainder(2.0_real * std::atan2(glm::length(rel_rot_axis), w), pi2);
 
 					// Our angle is now in [-pi; pi], so negative values go in one direction and positive ones in the other
 					// However, a positive rotation can also be the continuation of a negative one (since it flips over when you go lower than -pi) and vice versa
 					// Even if theta is larger/lower than one of the angle limits,
 					// we only want to compare to the angle that is closer to theta, so convert it accordingly
-					if (theta > m_max_angle) {
-						if (std::abs(std::remainder(theta - m_max_angle, pi2)) > std::abs(std::remainder(theta - min_angle, pi2))) {
+					if (theta > m_limit_max) {
+						if (std::abs(std::remainder(theta - m_limit_max, pi2)) > std::abs(std::remainder(theta - m_limit_min, pi2))) {
 							theta -= pi2;
 						}
 					}
-					else if (theta < min_angle) {
-						if (std::abs(std::remainder(m_max_angle - theta, pi2)) < std::abs(std::remainder(min_angle - theta, pi2))) {
+					else if (theta < m_limit_min) {
+						if (std::abs(std::remainder(m_limit_max - theta, pi2)) < std::abs(std::remainder(m_limit_min - theta, pi2))) {
 							theta += pi2;
 						}
 					}
 
-					real max_offset = m_max_angle - theta;
-					real min_offset = theta - min_angle;
-
 					real constraint_mass = glm::dot(m_rot_axis_w * m_body1->m_inertia_invW, m_rot_axis_w) + glm::dot(m_rot_axis_w * m_body2->m_inertia_invW, m_rot_axis_w);
 	
-					if (theta < min_angle) {
-						glmvec3 j1(0.0_real);
+					if (theta < m_limit_min) {
 						glmvec3 j2 = -m_rot_axis_w;
-						glmvec3 j3(0.0_real);
 						glmvec3 j4 = m_rot_axis_w;
 
 						real jv = glm::dot(m_rot_axis_w, -m_body1->m_angular_velocityW + m_body2->m_angular_velocityW);
-						real bias = (0.005_real / dt) * min_offset;
+						real bias = (m_bias_limit / dt) * (theta - m_limit_min);
 						real lambda = (-jv - bias) / constraint_mass;
 
 						glmvec3 impulse1 = j2 * lambda;
@@ -1914,14 +1916,12 @@ namespace vpe {
 						m_body2->m_angular_velocityW += m_body2->m_inertia_invW * impulse2;
 					}
 
-					if (theta > m_max_angle) {
-						glmvec3 j1(0.0_real);
+					if (theta > m_limit_max) {
 						glmvec3 j2 = m_rot_axis_w;
-						glmvec3 j3(0.0_real);
 						glmvec3 j4 = -m_rot_axis_w;
 
 						real jv = glm::dot(m_rot_axis_w, m_body1->m_angular_velocityW - m_body2->m_angular_velocityW);
-						real bias = (0.005_real / dt) * max_offset;
+						real bias = (m_bias_limit / dt) * (m_limit_max - theta);
 						real lambda = (-jv - bias) / constraint_mass;
 
 						glmvec3 impulse1 = j2 * lambda;
@@ -1950,12 +1950,9 @@ namespace vpe {
 					glmvec3 cCa = glm::cross(c, axis1);
 
 					// Compute Jacobian matrix
-					glmvec3 j11(0.0_real);
-					glmvec3 j21(0.0_real);
+					// Missing compontents are 0
 					glmvec3 j12 = -bCa;
 					glmvec3 j22 = -cCa;
-					glmvec3 j13(0.0_real);
-					glmvec3 j23(0.0_real);
 					glmvec3 j14 = bCa;
 					glmvec3 j24 = cCa;
 
