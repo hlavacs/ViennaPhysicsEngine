@@ -1008,11 +1008,14 @@ namespace vpe {
 				m_num_active = 0.9_real * m_num_active + 0.1_real * num_active;						// smooth the number of active nodies
 				if (m_num_active < c_small) m_num_active = 0;										// If near 0, set to 0
 				
-				// Cloths
-				for (auto& cloth : m_cloths)
-				{
-					cloth.second->integrate(m_grid, m_sim_delta_time);
-				}
+				
+				//--------------------------Begin-Cloth-Simulation-Stuff----------------------------
+				// by Felix Neumann
+
+				for (auto& cloth : m_cloths)														// Integrate all cloths which means solve their constraints
+					cloth.second->integrate(m_grid, m_sim_delta_time);								// and resolve their collisions
+
+				//---------------------------End-Cloth-Simulation-Stuff-----------------------------
 
 				m_last_slot = m_next_slot;															// Remember last slot
 				m_next_slot += m_sim_delta_time;													// Move to next time slot as slong as we do not surpass current time
@@ -1029,12 +1032,14 @@ namespace vpe {
 				}
 			}
 
-			// Soft Bodies
-			for (auto& cloth : m_cloths) {
-				if (cloth.second->m_on_move) {											
-					cloth.second->m_on_move(m_current_time - m_last_slot, cloth.second);			
-				}
-			}
+			//----------------------------Begin-Cloth-Simulation-Stuff------------------------------
+			// by Felix Neumann
+
+			for (auto& cloth : m_cloths)															// Notify the owner of the cloth that the cloth has moved
+				if (cloth.second->m_on_move)														
+					cloth.second->m_on_move(m_current_time - m_last_slot, cloth.second);
+
+			//-----------------------------End-Cloth-Simulation-Stuff-------------------------------
 
 			m_last_time = m_current_time;															//save last time
 		};
@@ -1864,7 +1869,6 @@ namespace vpe {
 		private:
 			VPEWorld* m_physics;																	// Pointer to the physics world to access parameters
 			std::vector<ClothMassPoint> m_massPoints{};												// All mass points of the cloth
-			std::vector<ClothTriangle> m_triangles{};												// Triangles of the mesh, used to generate constraints
 			std::vector<ClothConstraint> m_constraints{};											// All constraints (bending and stretching) of the cloth
 			std::vector<vh::vhVertex> m_vertices;													// The vertices of the mesh that was used to create the cloth
 			real m_maxMassPointDistance;															// The max distance between two arbitrary mass points at their inital position
@@ -1905,8 +1909,7 @@ namespace vpe {
 				c_movementSimulation{ movementSimulation }
 			{
 				createMassPoints(vertices, fixedPointsPositions);
-				createTriangles(indices);
-				generateConstraints(bendingCompliance);
+				generateConstraints(createTriangles(indices), bendingCompliance);
 				calcMaxMassPointDistance();
 				applyTransformation(glm::rotate(													// Apply a slight rotation to give the sim a degree of freedom for all three dimensions
 					glm::mat4(1.0f), glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f)), true);
@@ -1951,6 +1954,8 @@ namespace vpe {
 			/// <summary>
 			/// Create an updated vertices vector based on the new positions of the mass points
 			/// </summary>
+			/// <returns> A vector with vertices of same length as the initial vertices vector with
+			/// updated position data. </returns>
 			std::vector<vh::vhVertex> generateVertices()
 			{
 				int vertexCount = 0;
@@ -2140,8 +2145,10 @@ namespace vpe {
 			/// Also sets the inverse mass of each mass point since it depends on the triangle size.
 			/// </summary>
 			/// <param name="indices"> The indices vector of the mesh. </param>
-			void createTriangles(std::vector<uint32_t> indices)
+			/// <returns> A vector of all triangles of mass points of the mesh. </returns>
+			std::vector<ClothTriangle> createTriangles(std::vector<uint32_t> indices)
 			{
+				std::vector<ClothTriangle> triangles;
 				ClothTriangle triangle{};
 
 				for (uint32_t indicesIndex = 0; indicesIndex < indices.size(); ++indicesIndex)		// Iterate over all vertex indices, 3 vertices in a row form a triangle
@@ -2190,11 +2197,13 @@ namespace vpe {
 						p1.invMass = invMass;
 						p2.invMass = invMass;
 
-						m_triangles.push_back(triangle);
+						triangles.push_back(triangle);
 					}
 				}
+
+				return triangles;
 			}
-#
+
 			/// <summary>
 			/// Generates constraints between mass points used to simulate the cloth.
 			/// Two types of constraints are being generated: Edge-constraints between all pairs of
@@ -2209,14 +2218,15 @@ namespace vpe {
 			/// https://www.youtube.com/watch?v=z5oWopN39OU
 			/// </summary>
 			/// <param name="bendingCompliance"> The inverse of stiffness. 0 = max stiff </param>
-			void generateConstraints(real bendingCompliance)
+			void generateConstraints(const std::vector<ClothTriangle>& triangles,
+				real bendingCompliance)
 			{
 				std::vector<std::array<uint32_t, 3>> edges;											// Edge List: Each entry contains the indices of two mass points of an
 																									// edge in sorted order and the third mass point index of the triangle
-				for (uint32_t triangleIndex = 0; triangleIndex < m_triangles.size();				// Iterate over all triangles
+				for (uint32_t triangleIndex = 0; triangleIndex < triangles.size();				// Iterate over all triangles
 					++triangleIndex)
 				{
-					ClothTriangle triangle = m_triangles[triangleIndex];
+					ClothTriangle triangle = triangles[triangleIndex];
 					
 					std::array<uint32_t, 3> edge0 = {
 						std::min(triangle.massPoint0Index, triangle.massPoint1Index),
@@ -2262,8 +2272,10 @@ namespace vpe {
 					}
 			}
 		};
-	};
 
+	//---------------------------------End-Cloth-Simulation-Stuff-----------------------------------
+
+	};
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -2288,7 +2300,6 @@ namespace geometry {
 		b = glm::normalize(b);
 		c = glm::cross(a, b);
 	}
-
 
 	//https://rosettacode.org/wiki/Sutherland-Hodgman_polygon_clipping
 	//rewritten for std::vector
@@ -2398,4 +2409,6 @@ namespace geometry {
 
 		return 0.939808635172325 * max + 0.389281482723725 * med + 0.29870618761438 * min;
 	}
+
+	//---------------------------------End-Cloth-Simulation-Stuff-----------------------------------
 }
