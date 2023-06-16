@@ -2139,6 +2139,7 @@ namespace vpe {
 			/// where there is only one mass point.
 			/// Also sets the inverse mass of each mass point since it depends on the triangle size.
 			/// </summary>
+			/// <param name="indices"> The indices vector of the mesh. </param>
 			void createTriangles(std::vector<uint32_t> indices)
 			{
 				ClothTriangle triangle{};
@@ -2194,15 +2195,25 @@ namespace vpe {
 				}
 			}
 #
-
+			/// <summary>
+			/// Generates constraints between mass points used to simulate the cloth.
+			/// Two types of constraints are being generated: Edge-constraints between all pairs of
+			/// mass points that form an edge of a triangle and bending-constraints between all
+			/// pairs of points of triangles with a shared edge that are themselves not part of the
+			/// shared edge.
+			/// The method of using edge and bending constraints to simulate a cloth is commonly
+			/// used with XPBD, a soft-body simulation method developed by Miles Macklin, Matthias
+			/// Muller and Nuttapong Chentanez for NVIDIA.
+			/// https://matthias-research.github.io/pages/publications/XPBD.pdf
+			/// The algorithm for finding neighboring triangles is from this video:
+			/// https://www.youtube.com/watch?v=z5oWopN39OU
+			/// </summary>
+			/// <param name="bendingCompliance"> The inverse of stiffness. 0 = max stiff </param>
 			void generateConstraints(real bendingCompliance)
 			{
-				// Create Edge Vector
-				// An entry contains an edges two mass point indices in sorted order
-				// and the third mass point index of the triangle
-				std::vector<std::array<uint32_t, 3>> edges;
-
-				for (uint32_t triangleIndex = 0; triangleIndex < m_triangles.size();
+				std::vector<std::array<uint32_t, 3>> edges;											// Edge List: Each entry contains the indices of two mass points of an
+																									// edge in sorted order and the third mass point index of the triangle
+				for (uint32_t triangleIndex = 0; triangleIndex < m_triangles.size();				// Iterate over all triangles
 					++triangleIndex)
 				{
 					ClothTriangle triangle = m_triangles[triangleIndex];
@@ -2230,29 +2241,25 @@ namespace vpe {
 					edges.push_back(edge2);
 				}
 
-				std::sort(edges.begin(), edges.end());
-
-				// Iterate over all edges
-				for (uint32_t edgeIndex = 0; edgeIndex < edges.size(); ++edgeIndex)
-				{
-					// For unique edges:
-					// Create edge constraints
-					if (edgeIndex == edges.size() - 1 ||
-						edges[edgeIndex][0] != edges[edgeIndex + 1][0] ||
+				std::sort(edges.begin(), edges.end());												// Sort the edge list. Shared edges are now right after each other.
+																									
+				for (uint32_t edgeIndex = 0; edgeIndex < edges.size(); ++edgeIndex)					// Iterate over all edges
+					if (edgeIndex == edges.size() - 1 ||											// If it is the last edge or one of its edge mass point indices differs
+						edges[edgeIndex][0] != edges[edgeIndex + 1][0] ||							// from the next entry, the edge is unique
 						edges[edgeIndex][1] != edges[edgeIndex + 1][1])
 					{
-						ClothConstraint newEdgeConstraint(&m_massPoints[edges[edgeIndex][0]],
+						ClothConstraint newEdgeConstraint(&m_massPoints[edges[edgeIndex][0]],		// Create edge constraint between the points of the edge
 							&m_massPoints[edges[edgeIndex][1]], 0);
+						
 						m_constraints.push_back(newEdgeConstraint);
 					}
-					// For duplicates create a bending constraint
-					else
+					else																			// Elsewise the edge is shared between triangles
 					{
-						ClothConstraint newBendingConstraint(&m_massPoints[edges[edgeIndex][2]],
+						ClothConstraint newBendingConstraint(&m_massPoints[edges[edgeIndex][2]],	// Create bending constraint between the points not part of the edge
 							&m_massPoints[edges[edgeIndex + 1][2]], bendingCompliance);
+						
 						m_constraints.push_back(newBendingConstraint);
 					}
-				}
 			}
 		};
 	};
@@ -2358,8 +2365,12 @@ namespace geometry {
 
 	//----------------------------------Cloth-Simulation-Stuff--------------------------------------
 	// by Felix Neumann
-	// Alpha Max Plus Beta Min - square root of the sum of two squares approximation
-	// https://en.wikipedia.org/wiki/Alpha_max_plus_beta_min_algorithm
+	
+	/// <summary>
+	/// Alpha Max Plus Beta Min - Approximates square root of the sum of two squares (magnitude of a
+	/// 2d vector).
+	/// https://en.wikipedia.org/wiki/Alpha_max_plus_beta_min_algorithm
+	/// </summary>
 	inline real alphaMaxPlusBetaMin(real a, real b)
 	{
 		real absA = fabs(a);
@@ -2370,9 +2381,11 @@ namespace geometry {
 		return 0.96043387010342 * absB + 0.397824734759316 * absA;
 	}
 
-	// Alpha Max Plus Beta Min extented to three dimensions
-	// https://math.stackexchange.com/questions/1282435/alpha-max-plus-beta-min-algorithm-for-three-numbers
-	// https://stackoverflow.com/questions/1582356/fastest-way-of-finding-the-middle-value-of-a-triple/14676309#14676309
+	/// <summary>
+	/// Alpha Max Plus Beta Min extented to 3 dimensions. Approximates the magnitude of a 3d vector.
+	/// https://math.stackexchange.com/questions/1282435/
+	/// https://stackoverflow.com/questions/1582356/
+	/// </summary>
 	inline real alphaMaxPlusBetaMedPlusGammaMin(real a, real b, real c)
 	{
 		real absA = fabs(a);
