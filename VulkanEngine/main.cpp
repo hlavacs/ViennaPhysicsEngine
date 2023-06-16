@@ -60,20 +60,34 @@ namespace ve {
 			((VESceneNode*)body->m_owner)->getName());
 	};
 
+	//--------------------------------Begin-Cloth-Simulation-Stuff----------------------------------
+	// by Felix Neumann
+
+	/// <summary>
+	/// Called by the cloth of it moves.
+	/// </summary>
+	/// <param name="dt"> Delta time.</param>
+	/// <param name="cloth"> Pointer to the cloth so that the owner can get the data. </param>
 	inline VPEWorld::callback_move_cloth onMoveCloth =
 		[&](double dt, std::shared_ptr<VPEWorld::Cloth> cloth)
 	{
-		VEClothEntity* clothOwner = static_cast<VEClothEntity*>(cloth->m_owner);
-		auto vertices = cloth->generateVertices();
-		(static_cast<VEClothMesh*> (clothOwner->m_pMesh))->updateVertices(vertices);
+		VEClothEntity* clothOwner = static_cast<VEClothEntity*>(cloth->m_owner);					// Owner is a pointer to a scene node
+		auto vertices = cloth->generateVertices();													// Vertices with updated position data
+		(static_cast<VEClothMesh*> (clothOwner->m_pMesh))->updateVertices(vertices);				// Update the vertices of the mesh
 	};
 
+	/// <summary>
+	/// Called by the cloth if it is erased.
+	/// </summary>
+	/// <param name="cloth"> Shared pointer to the cloth. </param>
 	inline VPEWorld::callback_erase_cloth onEraseCloth =
 		[&](std::shared_ptr<VPEWorld::Cloth> cloth) {
-		VESceneNode* node = static_cast<VESceneNode*>(cloth->m_owner);							//Owner is a pointer to a scene node
-		getSceneManagerPointer()->deleteSceneNodeAndChildren(
-			((VESceneNode*)cloth->m_owner)->getName());
+		VESceneNode* node = static_cast<VESceneNode*>(cloth->m_owner);								// Owner is a pointer to a scene node
+		getSceneManagerPointer()->deleteSceneNodeAndChildren(										// Delete the owner and child node
+			((VESceneNode*)cloth->m_owner)->getName());												// associated with the cloth
 	};
+
+	//---------------------------------End-Cloth-Simulation-Stuff-----------------------------------
 
 	/// <summary>
 	/// This is an example callback that is called if a body collides with another body.
