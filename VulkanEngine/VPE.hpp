@@ -2133,49 +2133,43 @@ namespace vpe {
 					}
 			}
 
-
+			/// <summary>
+			/// Creates triangles of mass points based on the triangles of vertices of the mesh.
+			/// This is necessary since in the mesh there might be multiple vertices at a position
+			/// where there is only one mass point.
+			/// Also sets the inverse mass of each mass point since it depends on the triangle size.
+			/// </summary>
 			void createTriangles(std::vector<uint32_t> indices)
 			{
 				ClothTriangle triangle{};
 
-				// Iterate over all vertex indices, 3 vertices in a row form a triangle
-				for (uint32_t indicesIndex = 0; indicesIndex < indices.size(); ++indicesIndex)
+				for (uint32_t indicesIndex = 0; indicesIndex < indices.size(); ++indicesIndex)		// Iterate over all vertex indices, 3 vertices in a row form a triangle
 				{
-					uint32_t vertexIndex = indices[indicesIndex];
+					uint32_t vertexIndex = indices[indicesIndex];									// The index of the vertex
+					uint32_t associatedMassPointIndex = 0;
 
-					// Find the mass point corresponding to the vertex index
-					for (uint32_t massPointIndex = 0; massPointIndex < m_massPoints.size();
+					for (uint32_t massPointIndex = 0; massPointIndex < m_massPoints.size();			// Find the index of the mass point that corresponds to the vertex
 						++massPointIndex)
 					{
-						bool isAssociatedMassPoint = false;
+						std::vector<uint32_t>& associatedVertices =
+							m_massPoints[massPointIndex].m_associatedVertices;
 
-						// Iterate over its associated vertex indices
-						for (uint32_t associatedIndex :
-							m_massPoints[massPointIndex].m_associatedVertices)
+						if (std::find(associatedVertices.begin(), associatedVertices.end(),			// The mass point corresponds if its associated vertices vector 
+							vertexIndex) != associatedVertices.end())								// contains the index of the vertex
 						{
-							if (associatedIndex == vertexIndex)
-							{
-								isAssociatedMassPoint = true;
-								break;
-							}
-						}
-
-						if (isAssociatedMassPoint)
-						{
-							if (indicesIndex % 3 == 0)
-								triangle.massPoint0Index = massPointIndex;
-							else if (indicesIndex % 3 == 1)
-								triangle.massPoint1Index = massPointIndex;
-							else
-								triangle.massPoint2Index = massPointIndex;
-							break;
+							associatedMassPointIndex = massPointIndex;
+							break;																	// Stop searching once the corresponding mass point was found
 						}
 					}
 
-					// If it was the third vertex of a triangle, add a copy of the triangle to the
-					// triangle vector and calculate the mass points' masses
-					if (indicesIndex % 3 == 2)
-					{
+					if (indicesIndex % 3 == 0)														// Add the index of the mass point to the triangle
+						triangle.massPoint0Index = associatedMassPointIndex;
+					else if (indicesIndex % 3 == 1)
+						triangle.massPoint1Index = associatedMassPointIndex;
+					else																			// If it is the final corner of the triangle, calculate the inverse mass
+					{																				// for each point and add the triangle to the triangles vector
+						triangle.massPoint2Index = associatedMassPointIndex;
+
 						ClothMassPoint& p0 = m_massPoints[triangle.massPoint0Index];
 						ClothMassPoint& p1 = m_massPoints[triangle.massPoint1Index];
 						ClothMassPoint& p2 = m_massPoints[triangle.massPoint2Index];
@@ -2199,6 +2193,7 @@ namespace vpe {
 					}
 				}
 			}
+#
 
 			void generateConstraints(real bendingCompliance)
 			{
