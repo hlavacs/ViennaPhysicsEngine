@@ -1060,7 +1060,7 @@ namespace vh
 	}
 
 
-	//----------------------------------Cloth-Simulation-Stuff--------------------------------------
+	//--------------------------------Begin-Cloth-Simulation-Stuff----------------------------------
 	// by Felix Neumann
 
 	/// <summary>
@@ -1137,5 +1137,7 @@ namespace vh
 
 		return VK_SUCCESS;
 	}
+
+	//---------------------------------End-Cloth-Simulation-Stuff-----------------------------------
 
 } // namespace vh

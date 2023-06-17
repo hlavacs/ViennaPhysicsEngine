@@ -404,7 +404,7 @@ namespace ve {
 				nk_label(ctx, "", NK_TEXT_LEFT);
 
 				nk_layout_row_dynamic(ctx, 30, 1);
-				nk_label(ctx, "Soft Body Controls", NK_TEXT_LEFT);
+				nk_label(ctx, "Cloth Body Controls", NK_TEXT_LEFT);
 
 				nk_layout_row_dynamic(ctx, 30, 1);
 				nk_label(ctx, "Move along x : 'J' 'L'", NK_TEXT_LEFT);

@@ -1,3 +1,8 @@
+//----------------------------------Shader-for-Cloth-Simulation-------------------------------------
+// by Felix Neumann
+// Modification of D/shader.frag
+// For the vertex shader D/shader.vert can be used.
+
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_GOOGLE_include_directive : enable
@@ -43,15 +48,15 @@ void main() {
     vec2 texCoord   = (fragTexCoord + texParam.zw)*texParam.xy;
     ivec4 iparam    = objectUBO.data.iparam;
     uint resIdx     = iparam.x % RESOURCEARRAYLENGTH;
-    vec3 normalW    = fragNormalW; //to be consistent with DN
+    vec3 normalW    = fragNormalW;                                                                  //to be consistent with DN
 
-    // Soft Body Stuff
-    bool castNoShadow = false;
-
+    bool drawShadow = true;                                                                         // Soft Body Stuff
+                                                                                                    // Shadows should only be drawn once onto the cloth
     if (!gl_FrontFacing) { normalW *= -1; }
-    if (length(normalW) > 1.1) {
-        normalW = normalize(normalW);
-        castNoShadow = true;
+
+    if (length(normalW) > 1.1) {                                                                    // Hacky way to tell the shader whether the triangle
+        normalW = normalize(normalW);                                                               // belongs to the back or front-side. If it's the backside
+        drawShadow = false;                                                                         // the normal has a length of 2. Then, no shadows are drawn.
     }
 
     //colors
@@ -66,7 +71,7 @@ void main() {
     float shadowFactor = 1.0;
 
     if (lightType == LIGHT_DIR) {
-        if (!castNoShadow) {
+        if (drawShadow) {
             sIdx = shadowIdxDirectional(cameraUBO.data.param, gl_FragCoord,
                 lightUBO.data.shadowCameras[0].param[3],
                 lightUBO.data.shadowCameras[1].param[3],
@@ -79,9 +84,8 @@ void main() {
             ambcol, diffcol, speccol, fragPosW, normalW, fragColor);
     }
 
-
     if (lightType == LIGHT_POINT) {
-        if (!castNoShadow) {
+        if (drawShadow) {
             sIdx = shadowIdxPoint(lightPosW, fragPosW);
             s = lightUBO.data.shadowCameras[sIdx];
             shadowFactor = shadowFunc(fragPosW, s.camView, s.camProj, shadowMap[sIdx]);
@@ -92,7 +96,7 @@ void main() {
     }
 
     if (lightType == LIGHT_SPOT) {
-        if (!castNoShadow) {
+        if (drawShadow) {
             shadowFactor = shadowFunc(fragPosW, s.camView, s.camProj, shadowMap[sIdx]);
         }
 

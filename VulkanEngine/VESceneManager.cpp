@@ -1307,74 +1307,67 @@ namespace ve
 	}
 
 
-	//----------------------------------Cloth-Simulation-Stuff--------------------------------------
+	//--------------------------------Begin-Cloth-Simulation-Stuff---------------------------------
 	// by Felix Neumann
 
+	/// <summary>
+	/// Loads a cloth model from the given path by using assimp and creates an entitiy from it.
+	/// Ít is assumed that the cloth's aiScene only contains one child (at index 0) with only one
+	/// mesh (at index 0). Other meshes will not be loaded. The corresponding material is stored at
+	/// index 1 (0 is a default material).
+	/// </summary>
+	/// <param name="entityName"> The name the entity should have. </param>
+	/// <param name="basedir"> Directory. </param>
+	/// <param name="filename"> Name of the file within the directory. </param>
+	/// <returns> Pointer to the Entitiy. </returns>
 	VEClothEntity* VESceneManager::loadClothModel(std::string entityName, std::string basedir,
 		std::string filename)
 	{
-		// The Soft Body assumes that the aiScene contains only one child (at
-		// index 0) with only one mesh (at index 0)
-		// Other meshes will not be loaded. The corresponding material is stored
-		// at index 1 (0 is a default material).
 		constexpr size_t FIRST_MESH_INDEX = 0;
+		constexpr size_t FIRST_MATERIAL_INDEX = 1;
 
 		std::lock_guard<std::mutex> lock(m_mutex);
 
-		// If an entity with this name already exists return it
-		if (m_sceneNodes.count(entityName) > 0)
+		if (m_sceneNodes.count(entityName) > 0)														// If an entity with this name already exists return it
 			return (VEClothEntity*) m_sceneNodes[entityName];
 
 		Assimp::Importer importer;
 		std::string filekey = basedir + "/" + filename;
+		
+		importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_NORMALS);					// Ignore normals (need to be calculated dynamically)
 
-		// Ignore normals (need to be calculated dynamically)
-		importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_NORMALS);
-
-		// Load the scene from the file
-		const aiScene* pScene = importer.ReadFile(filekey,
+		const aiScene* pScene = importer.ReadFile(filekey,											// Load the scene from the file
 			aiProcess_RemoveComponent | aiProcess_JoinIdenticalVertices);
 
-		// Check if the loaded scene is valid
-		if (!pScene)
-		{
-			std::string error = importer.GetErrorString();
-		}
-		VECHECKPOINTER((void*)pScene);
+		VECHECKPOINTER((void*) pScene);																// Check if the loaded scene is valid
 
-		// Get the model (first (and idealy only) child) from the scene
-		auto node = pScene->mRootNode->mChildren[FIRST_MESH_INDEX];
+		auto node = pScene->mRootNode->mChildren[FIRST_MESH_INDEX];									// Get the model (first (and idealy only) child) from the scene
 
-		// Create a ClothMesh
-		VEClothMesh* pClothMesh =
-			new VEClothMesh(pScene->mMeshes[FIRST_MESH_INDEX]);
+		VEClothMesh* pClothMesh = new VEClothMesh(pScene->mMeshes[FIRST_MESH_INDEX]);				// Create a ClothMesh
 
-		// Create materials if there are any
-		std::vector<VEMaterial*> materials;
+		std::vector<VEMaterial*> materials;															// Create materials if there are any
 		createMaterials(pScene, basedir, filekey, materials);
 
-		VEMaterial* pMaterial = materials[materials.size() - 1];
+		VEMaterial* pMaterial = materials[FIRST_MATERIAL_INDEX];									// Only one material is assumed, since the material at 0 ist a default material 
+																									// it is expected to be at index 1
+		VEClothEntity* pEntity = new VEClothEntity(entityName, pClothMesh, pMaterial);				// Create the ClothEntity
 
-		// Create the ClothEntity
-		VEClothEntity* pEntity = new VEClothEntity(entityName, pClothMesh, pMaterial);
-
-		// Reserve an UBO
-		VESceneObject* pObject = (VESceneObject*) pEntity;
+		VESceneObject* pObject = (VESceneObject*) pEntity;											// Reserve an UBO
 		if (pObject->m_memoryHandle.owner == nullptr)
 			vh::vhMemBlockListAdd(m_memoryBlockMap[pObject->getObjectType()], pObject,
 				&pObject->m_memoryHandle);
 
-		// Store the Entity in the node list
-		m_sceneNodes[pEntity->getName()] = pEntity;
+		m_sceneNodes[pEntity->getName()] = pEntity;													// Store the Entity in the node list
 
-		// Add the Entity to the Subrenderer
-		getEnginePointer()->getRenderer()->addEntityToSubrenderer(pEntity);
+		getEnginePointer()->getRenderer()->addEntityToSubrenderer(pEntity);							// Add the Entity to the Subrenderer
 
-		// Notify the Renderer to rerecord the cmd buffers
-		sceneGraphChanged2();
+		sceneGraphChanged2();																		// Notify the Renderer to rerecord the cmd buffers
 
 		return pEntity;
 	}
+
+	//---------------------------------End-Cloth-Simulation-Stuff-----------------------------------
+
 
 	//---------------------------------------------------------------------------------------------
 	//deprecated
