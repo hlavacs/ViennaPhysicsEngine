@@ -519,7 +519,7 @@ namespace ve {
 
 				pScene->addChild(clothEntity);
 
-				auto vertices = ((VEClothMesh*) (clothEntity->m_pMesh))->getVertices();
+				auto vertices = ((VEClothMesh*) (clothEntity->m_pMesh))->getInitialVertices();
 				auto indices = ((VEClothMesh*) (clothEntity->m_pMesh))->getIndices();
 				std::vector<glm::vec3> fixedPoints =
 					{ {-1.000000, 2.000000, -0.000000}, {1.000000, 2.000000, 0.000000} };

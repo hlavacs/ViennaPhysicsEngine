@@ -1354,11 +1354,9 @@ namespace ve
 		createMaterials(pScene, basedir, filekey, materials);
 
 		VEMaterial* pMaterial = materials[materials.size() - 1];
-		glm::mat4* pMatrix = (glm::mat4*)&node->mTransformation;
 
 		// Create the ClothEntity
-		VEClothEntity* pEntity = new VEClothEntity(entityName,
-			pClothMesh, pMaterial, *pMatrix);
+		VEClothEntity* pEntity = new VEClothEntity(entityName, pClothMesh, pMaterial);
 
 		// Reserve an UBO
 		VESceneObject* pObject = (VESceneObject*) pEntity;
