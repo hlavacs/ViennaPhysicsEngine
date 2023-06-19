@@ -1828,30 +1828,33 @@ namespace vpe {
 			glmvec3 m_rot_axis_body1;									// Hinge axis in body1's local space
 			glmvec3 m_rot_axis_body2;									// Hinge axis in body2's local space
 
-			bool m_limit_active;										// Flag that enables angle limits
-			real m_limit_max;											// Maximum angle i.e. max rotation in positive direction
-			real m_limit_min;											// Minimum angle i.e. max rotation in negative direction
+			bool m_limit_active = false;								// Flag that enables angle limits
+			real m_limit_max = -pi2;									// Maximum angle i.e. max rotation in positive direction
+			real m_limit_min = pi2;										// Minimum angle i.e. max rotation in negative direction
 			glmquat m_init_orientation_inv;								// Inverse of initial orientation between the two bodies
 
+			bool m_motor_active = false;
+			real m_fmotor = 0.0_real;
+			real m_fmotor_max = 0.0_real;
+
+			/// <summary>
+			/// Returns the inverse mass matrix for the motor and limit constraints
+			/// </summary>
+			/// <returns></returns>
 			real getMotorAndLimitMass() {
-				return glm::dot(m_rot_axis_w * m_body1->m_inertia_invW, m_rot_axis_w) + glm::dot(m_rot_axis_w * m_body2->m_inertia_invW, m_rot_axis_w);
+				real mass = glm::dot(m_rot_axis_w * m_body1->m_inertia_invW, m_rot_axis_w) + glm::dot(m_rot_axis_w * m_body2->m_inertia_invW, m_rot_axis_w);
+				return mass < Constraint::epsilon ? 0.0_real : 1.0_real / mass;
 			}
 
 		public:
-			HingeConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis, bool limit_active = false, real limit_min = -pi2, real limit_max = pi2) :
-				m_body1{ body1 }, m_body2{ body2 }, m_limit_active{ limit_active }, m_limit_min{ limit_min }, m_limit_max{ limit_max } {
+			HingeConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis) : m_body1{ body1 }, m_body2{ body2 } {
 				m_ballsocket = std::make_shared<VPEWorld::BallSocketJointConstraint>(m_body1, m_body2, anchor);
 				m_ballsocket->setTranslationBias(m_bias_trans);
 				m_rot_axis_w = glm::normalize(axis);
 				m_rot_axis_body1 = glm::normalize(m_body1->m_model_inv * glmvec4(m_rot_axis_w, 0.0_real));
 				m_rot_axis_body2 = glm::normalize(m_body2->m_model_inv * glmvec4(m_rot_axis_w, 0.0_real));
-
-				if (m_limit_min) {
-					assert(m_limit_min < m_limit_max);
-					m_init_orientation_inv = glm::normalize(m_body2->m_orientationLW * glm::inverse(m_body1->m_orientationLW));
-					glm::inverse(m_init_orientation_inv);
-				}
 			}
+
 			~HingeConstraint() {}
 
 			void setTranslationBias(real new_bias) {
@@ -1867,8 +1870,38 @@ namespace vpe {
 				m_bias_limit = new_bias;
 			}
 
-			void setLimitActive(bool limitActive) {
-				m_limit_active = limitActive;
+			/// <summary>
+			/// Enables angle limits for the hinge joint. 
+			/// The current relative orientation of the bodies is used for the initial orientation,
+			/// which corresponds to an angle of 0.
+			/// </summary>
+			/// <param name="min_angle">Angle that the hinge should be able to rotate around in the negative direction in radians</param>
+			/// <param name="max_angle">Angle that the hinge should be able to rotate around in the positive direction in radians</param>
+			void enableLimit(real min_angle, real max_angle) {
+				assert(min_angle < max_angle);
+				m_limit_min = min_angle;
+				m_limit_max = max_angle;
+				m_init_orientation_inv = glm::normalize(m_body2->m_orientationLW * glm::inverse(m_body1->m_orientationLW));
+				glm::inverse(m_init_orientation_inv);
+				m_limit_active = true;
+			}
+
+			/// <summary>
+			/// Disables the angle limits for the hinge joint
+			/// </summary>
+			void disableLimit() {
+				m_limit_active = false;
+			}
+
+			void enableMotor(real motor_speed, real max_force) {
+				assert(max_force > 0.0_real);
+				m_fmotor = motor_speed;
+				m_fmotor_max = max_force;
+				m_motor_active = true;
+			}
+
+			void disableMotor() {
+				m_motor_active = false;
 			}
 
 			void solve(real dt) override {
@@ -1903,7 +1936,7 @@ namespace vpe {
 						}
 					}
 
-					real constraint_mass = getMotorAndLimitMass();
+					real inv_constraint_mass = getMotorAndLimitMass();
 	
 					if (theta < m_limit_min) {
 						glmvec3 j2 = -m_rot_axis_w;
@@ -1911,7 +1944,7 @@ namespace vpe {
 
 						real jv = glm::dot(m_rot_axis_w, -m_body1->m_angular_velocityW + m_body2->m_angular_velocityW);
 						real bias = (m_bias_limit / dt) * (theta - m_limit_min);
-						real lambda = (-jv - bias) / constraint_mass;
+						real lambda = inv_constraint_mass * (-jv - bias);
 
 						glmvec3 impulse1 = j2 * lambda;
 						glmvec3 impulse2 = j4 * lambda;
@@ -1926,7 +1959,7 @@ namespace vpe {
 
 						real jv = glm::dot(m_rot_axis_w, m_body1->m_angular_velocityW - m_body2->m_angular_velocityW);
 						real bias = (m_bias_limit / dt) * (m_limit_max - theta);
-						real lambda = (-jv - bias) / constraint_mass;
+						real lambda = inv_constraint_mass * (-jv - bias);
 
 						glmvec3 impulse1 = j2 * lambda;
 						glmvec3 impulse2 = j4 * lambda;
@@ -1937,13 +1970,9 @@ namespace vpe {
 				}
 
 				// Handle motor constraint
-				real fmax = 3.0_real;
-				real fmotor = -10.0_real;
-				bool m_motor_enabled = true;
-
-				if (m_motor_enabled) {
+				if (m_motor_active) {
 					real speed_projection = glm::dot(m_body2->m_angular_velocityW - m_body1->m_angular_velocityW, m_rot_axis_w);
-					real offset = speed_projection + fmotor;
+					real offset = speed_projection + m_fmotor;
 
 					if (std::abs(offset) > 0.0_real) {
 						glmvec3 j2 = -m_rot_axis_w;
@@ -1951,11 +1980,11 @@ namespace vpe {
 
 						real jv = glm::dot(m_rot_axis_w, m_body2->m_angular_velocityW - m_body1->m_angular_velocityW);
 
-						real constraint_mass = getMotorAndLimitMass();
-						real bias = fmotor;
-						real lambda = (-jv - bias) / constraint_mass;
+						real inv_constraint_mass = getMotorAndLimitMass();
+						real bias = m_fmotor;
+						real lambda = inv_constraint_mass * (-jv - bias);
 
-						real lambda_bounds = fmax;
+						real lambda_bounds = m_fmotor_max;
 						lambda = std::clamp(lambda, -lambda_bounds, lambda_bounds);
 
 						glmvec3 impulse1 = j2 * lambda;
