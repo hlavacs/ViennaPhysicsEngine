@@ -198,7 +198,7 @@ namespace ve {
 					m_physics->addBody(body);
 
 					if (i > 0) {
-						auto constraint = std::make_shared<VPEWorld::VPEDistanceConstraint>(body, prevBody, 2.3_real);
+						auto constraint = std::make_shared<VPEWorld::DistanceConstraint>(body, prevBody, 2.3_real);
 						m_physics->addConstraint(constraint);
 					}
 
@@ -235,7 +235,7 @@ namespace ve {
 				body1->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
 				m_physics->addBody(body1);
 
-				auto constraint = std::make_shared<VPEWorld::VPEBallSocketJointConstraint>(body, body1, jointAnchor);
+				auto constraint = std::make_shared<VPEWorld::BallSocketJointConstraint>(body, body1, jointAnchor);
 				m_physics->addConstraint(constraint);
 				
 			}
@@ -268,7 +268,7 @@ namespace ve {
 				body1->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
 				m_physics->addBody(body1);
 
-				auto constraint = std::make_shared<VPEWorld::VPEHingeConstraint>(body, body1, jointAnchor, jointAxis, true, -pi/2, pi/2);
+				auto constraint = std::make_shared<VPEWorld::HingeConstraint>(body, body1, jointAnchor, jointAxis, true, -pi/2, pi/2);
 				m_physics->addConstraint(constraint);
 
 			}

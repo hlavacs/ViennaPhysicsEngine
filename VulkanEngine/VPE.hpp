@@ -937,8 +937,8 @@ namespace vpe {
 		/// <summary>
 		///  Holds all constraints 
 		/// </summary>
-		class VPEConstraint;
-		std::vector<std::shared_ptr<VPEConstraint>> m_constraints;
+		class Constraint;
+		std::vector<std::shared_ptr<Constraint>> m_constraints;
 
 		//-----------------------------------------------------------------------------------------------------
 
@@ -1642,7 +1642,7 @@ namespace vpe {
 		/// Adds a constraint to the physics simulation
 		/// </summary>
 		/// <param name="constraint">Pointer to the constraint to be added</param>
-		void addConstraint(std::shared_ptr<VPEConstraint> constraint) {
+		void addConstraint(std::shared_ptr<Constraint> constraint) {
 			m_constraints.push_back(constraint);
 		}
 
@@ -1650,7 +1650,7 @@ namespace vpe {
 		/// Removes a constraint to the physics simulation
 		/// </summary>
 		/// <param name="constraint">Pointer to the constraint to be removed</param>
-		void removeConstraint(std::shared_ptr<VPEConstraint> constraint) {
+		void removeConstraint(std::shared_ptr<Constraint> constraint) {
 			std::erase(m_constraints, constraint);
 		}
 
@@ -1658,12 +1658,12 @@ namespace vpe {
 		/// Base class for all constraints
 		/// All inherenting classes need to implement a solver and a method to check whether a given body is part of the constraint
 		/// </summary>
-		class VPEConstraint {
+		class Constraint {
 		protected:
 			static constexpr real epsilon = 0.0000001_real;
 		public:
-			VPEConstraint() {}
-			~VPEConstraint() {}
+			Constraint() {}
+			~Constraint() {}
 
 			virtual void solve(real dt) = 0;
 			/// <summary>
@@ -1681,14 +1681,14 @@ namespace vpe {
 		/// A very simple distance constraint, only acting on the linear velocities of the affected bodies
 		/// Given two bodies, the constraint makes sure there is always a given distance between their center points
 		/// </summary>
-		class VPEDistanceConstraint : public VPEConstraint {
+		class DistanceConstraint : public Constraint {
 			std::shared_ptr<Body> m_body1;	// First body
 			std::shared_ptr<Body> m_body2;	// Second body
 			real m_distance;				// The distance the constraint has to maintain
 			real m_bias_factor = 0.01_real;		// Bias factor for Baumgarte stabilization
 		public:
-			VPEDistanceConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, real distance) : m_body1{ body1 }, m_body2{ body2 }, m_distance{ distance } {}
-			~VPEDistanceConstraint() {}
+			DistanceConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, real distance) : m_body1{ body1 }, m_body2{ body2 }, m_distance{ distance } {}
+			~DistanceConstraint() {}
 
 			void setTranslationBias(real new_bias) {
 				m_bias_factor = new_bias;
@@ -1700,7 +1700,7 @@ namespace vpe {
 				real obj_distance = glm::length(relative_position);
 				real offset = m_distance - obj_distance;
 				
-				if (abs(offset) > VPEConstraint::epsilon) {
+				if (abs(offset) > Constraint::epsilon) {
 					// Compute parts of the jacobian matrix; in this case the relative positions
 					glmvec3 j1 = glm::normalize(relative_position);
 					glmvec3 j2 = -j1;
@@ -1728,7 +1728,7 @@ namespace vpe {
 		/// <summary>
 		/// A constraint that models a ball-socket joint. The two bodies are connected at the anchor point given in world space
 		/// </summary>
-		class VPEBallSocketJointConstraint : public VPEConstraint {
+		class BallSocketJointConstraint : public Constraint {
 			std::shared_ptr<Body> m_body1;
 			std::shared_ptr<Body> m_body2;
 
@@ -1745,12 +1745,12 @@ namespace vpe {
 			/// <param name="body1">First body</param>
 			/// <param name="body2">Second body</param>
 			/// <param name="anchor">Anchor point in world space</param>
-			VPEBallSocketJointConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor) : m_body1{ body1 }, m_body2{ body2 }, m_anchor_w{ anchor } {
+			BallSocketJointConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor) : m_body1{ body1 }, m_body2{ body2 }, m_anchor_w{ anchor } {
 				// Include translation? Yes/no?
 				m_anchor_body1 = m_body1->m_model_inv * glmvec4(m_anchor_w, 1.0_real);
 				m_anchor_body2 = m_body2->m_model_inv * glmvec4(m_anchor_w, 1.0_real);
 			}
-			~VPEBallSocketJointConstraint() {}
+			~BallSocketJointConstraint() {}
 
 			void setTranslationBias(real new_bias) {
 				m_bias_factor = new_bias;
@@ -1768,7 +1768,7 @@ namespace vpe {
 				glmvec3 offset = m_body2->m_positionW + r2 - m_body1->m_positionW - r1;
 				glmvec3 abs_offset = glm::abs(offset);
 
-				if (abs_offset.x > VPEConstraint::epsilon || abs_offset.y > VPEConstraint::epsilon || abs_offset.z > VPEConstraint::epsilon) {
+				if (abs_offset.x > Constraint::epsilon || abs_offset.y > Constraint::epsilon || abs_offset.z > Constraint::epsilon) {
 					// Compute components of Jacobian matrix
 					glmmat3 j1 = glm::mat3(-1.0_real);
 					glmmat3 j2 = glm::matrixCross3(r1);
@@ -1815,11 +1815,11 @@ namespace vpe {
 		/// <summary>
 		/// A hinge constraint that connects two bodies via an anchor point and only allows them to rotate around a given hinge axis in world space
 		/// </summary>
-		class VPEHingeConstraint : public VPEConstraint {
+		class HingeConstraint : public Constraint {
 			std::shared_ptr<Body> m_body1;
 			std::shared_ptr<Body> m_body2;
 
-			std::shared_ptr<VPEBallSocketJointConstraint> m_ballsocket; // Used for the anchor point connection
+			std::shared_ptr<BallSocketJointConstraint> m_ballsocket; // Used for the anchor point connection
 			real m_bias_rot = 0.001_real;								// Bias factor for translation constraint Baumgarte stabilization
 			real m_bias_trans = 0.06_real;								// Bias factor for rotation constraint Baumgarte stabilization
 			real m_bias_limit = 0.04_real;								// Bias factor for limit constraint Baumgarte stabilization
@@ -1834,9 +1834,9 @@ namespace vpe {
 			glmquat m_init_orientation_inv;								// Inverse of initial orientation between the two bodies
 
 		public:
-			VPEHingeConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis, bool limit_active = false, real limit_min = -pi2, real limit_max = pi2) :
+			HingeConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis, bool limit_active = false, real limit_min = -pi2, real limit_max = pi2) :
 				m_body1{ body1 }, m_body2{ body2 }, m_limit_active{ limit_active }, m_limit_min{ limit_min }, m_limit_max{ limit_max } {
-				m_ballsocket = std::make_shared<VPEWorld::VPEBallSocketJointConstraint>(m_body1, m_body2, anchor);
+				m_ballsocket = std::make_shared<VPEWorld::BallSocketJointConstraint>(m_body1, m_body2, anchor);
 				m_ballsocket->setTranslationBias(m_bias_trans);
 				m_rot_axis_w = glm::normalize(axis);
 				m_rot_axis_body1 = glm::normalize(m_body1->m_model_inv * glmvec4(m_rot_axis_w, 0.0_real));
@@ -1848,7 +1848,7 @@ namespace vpe {
 					glm::inverse(m_init_orientation_inv);
 				}
 			}
-			~VPEHingeConstraint() {}
+			~HingeConstraint() {}
 
 			void setTranslationBias(real new_bias) {
 				m_bias_trans = new_bias;
@@ -1945,7 +1945,7 @@ namespace vpe {
 				glmvec2 offset(glm::dot(axis1, b), glm::dot(axis2, c));
 				glmvec2 abs_offset = glm::abs(offset);
 		
-				if (abs_offset.x > VPEConstraint::epsilon || abs_offset.y > VPEConstraint::epsilon) {
+				if (abs_offset.x > Constraint::epsilon || abs_offset.y > Constraint::epsilon) {
 					glmvec3 bCa = glm::cross(b, axis1);
 					glmvec3 cCa = glm::cross(c, axis1);
 
