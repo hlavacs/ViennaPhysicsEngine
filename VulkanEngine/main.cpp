@@ -300,7 +300,6 @@ namespace ve {
 		std::uniform_real_distribution<> rnd_unif{ 0.0f, 1.0f };		//Random numbers
 
 		virtual void onDrawOverlay(veEvent event) {
-			return;
 			VESubrender_Nuklear* pSubrender = (VESubrender_Nuklear*)getEnginePointer()->getRenderer()->getOverlay();
 			if (pSubrender == nullptr)
 				return;
@@ -362,6 +361,13 @@ namespace ve {
 				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
 				if (nk_button_label(ctx, "-5")) { m_physics->m_loops = std::max(5, m_physics->m_loops - 5); }
 				if (nk_button_label(ctx, "+5")) { m_physics->m_loops += 5; }
+
+				str.str("");
+				str << "Constraint Loops " << m_physics->m_constraint_iterations;
+				nk_layout_row_dynamic(ctx, 30, 3);
+				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+				if (nk_button_label(ctx, "-5")) { m_physics->m_constraint_iterations = std::max(5, m_physics->m_constraint_iterations - 5); }
+				if (nk_button_label(ctx, "+5")) { m_physics->m_constraint_iterations += 5; }
 
 				str.str("");
 				str << "Resting Fac " << m_physics->m_resting_factor;

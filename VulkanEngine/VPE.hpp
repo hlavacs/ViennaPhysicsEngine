@@ -1118,7 +1118,7 @@ namespace vpe {
 				for (auto& body : m_bodies) { body.second->stepVelocity(m_sim_delta_time); }		//Integration step for velocity
 				calculateImpulses(m_loops, m_sim_delta_time);	//Calculate and apply impulses
 
-				solveConstraints(dt);
+				solveConstraints(dt); // Solve constraints
 
 				for (auto& body : m_bodies) {	//integrate positions and update the matrices for the bodies
 					if (body.second->stepPosition(m_sim_delta_time, body.second->m_positionW, body.second->m_orientationLW)) ++num_active;
