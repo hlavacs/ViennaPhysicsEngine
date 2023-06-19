@@ -1833,6 +1833,10 @@ namespace vpe {
 			real m_limit_min;											// Minimum angle i.e. max rotation in negative direction
 			glmquat m_init_orientation_inv;								// Inverse of initial orientation between the two bodies
 
+			real getMotorAndLimitMass() {
+				return glm::dot(m_rot_axis_w * m_body1->m_inertia_invW, m_rot_axis_w) + glm::dot(m_rot_axis_w * m_body2->m_inertia_invW, m_rot_axis_w);
+			}
+
 		public:
 			HingeConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis, bool limit_active = false, real limit_min = -pi2, real limit_max = pi2) :
 				m_body1{ body1 }, m_body2{ body2 }, m_limit_active{ limit_active }, m_limit_min{ limit_min }, m_limit_max{ limit_max } {
@@ -1899,7 +1903,7 @@ namespace vpe {
 						}
 					}
 
-					real constraint_mass = glm::dot(m_rot_axis_w * m_body1->m_inertia_invW, m_rot_axis_w) + glm::dot(m_rot_axis_w * m_body2->m_inertia_invW, m_rot_axis_w);
+					real constraint_mass = getMotorAndLimitMass();
 	
 					if (theta < m_limit_min) {
 						glmvec3 j2 = -m_rot_axis_w;
@@ -1930,6 +1934,37 @@ namespace vpe {
 						m_body1->m_angular_velocityW += m_body1->m_inertia_invW * impulse1;
 						m_body2->m_angular_velocityW += m_body2->m_inertia_invW * impulse2;
 					}
+				}
+
+				// Handle motor constraint
+				real fmax = 3.0_real;
+				real fmotor = -10.0_real;
+				bool m_motor_enabled = true;
+
+				if (m_motor_enabled) {
+					real speed_projection = glm::dot(m_body2->m_angular_velocityW - m_body1->m_angular_velocityW, m_rot_axis_w);
+					real offset = speed_projection + fmotor;
+
+					if (std::abs(offset) > 0.0_real) {
+						glmvec3 j2 = -m_rot_axis_w;
+						glmvec3 j4 = m_rot_axis_w;
+
+						real jv = glm::dot(m_rot_axis_w, m_body2->m_angular_velocityW - m_body1->m_angular_velocityW);
+
+						real constraint_mass = getMotorAndLimitMass();
+						real bias = fmotor;
+						real lambda = (-jv - bias) / constraint_mass;
+
+						real lambda_bounds = fmax;
+						lambda = std::clamp(lambda, -lambda_bounds, lambda_bounds);
+
+						glmvec3 impulse1 = j2 * lambda;
+						glmvec3 impulse2 = j4 * lambda;
+
+						m_body1->m_angular_velocityW += m_body1->m_inertia_invW * impulse1;
+						m_body2->m_angular_velocityW += m_body2->m_inertia_invW * impulse2;
+					}
+
 				}
 
 				m_ballsocket->solve(dt);
