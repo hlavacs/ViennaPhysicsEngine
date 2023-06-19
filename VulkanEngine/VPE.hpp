@@ -1397,7 +1397,7 @@ namespace vpe {
 		/// <param name="dt">Elapsed time</param>
 		void solveConstraints(double dt) {
 			for (int i = 0; i < m_constraint_iterations; ++i) {
-				for (auto& constraint : m_constraints) {
+				for (const auto& constraint : m_constraints) {
 					constraint->solve((real) dt);
 				}
 			}
@@ -1661,33 +1661,35 @@ namespace vpe {
 		class Constraint {
 		protected:
 			static constexpr real epsilon = 0.0000001_real;
+
+			std::shared_ptr<Body> m_body1;	// First body
+			std::shared_ptr<Body> m_body2;	// Second body
 		public:
-			Constraint() {}
+			Constraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2) : m_body1 { body1 }, m_body2{ body2 } {}
 			~Constraint() {}
 
-			virtual void solve(real dt) = 0;
+			virtual void solve(real dt) const = 0;
 			/// <summary>
 			/// Should return true if the body is part of the constraint
 			/// </summary>
 			/// <param name="body">Body to check for</param>
 			/// <returns></returns>
-			virtual bool containsBody(std::shared_ptr<Body> body) const = 0;
+			bool containsBody(std::shared_ptr<Body> body) const {
+				return body == m_body1 || body == m_body2;
+			}
 
 		};
 
-		// Maybe: Make second point being relative to object's center?
-		
 		/// <summary>
 		/// A very simple distance constraint, only acting on the linear velocities of the affected bodies
 		/// Given two bodies, the constraint makes sure there is always a given distance between their center points
 		/// </summary>
 		class DistanceConstraint : public Constraint {
-			std::shared_ptr<Body> m_body1;	// First body
-			std::shared_ptr<Body> m_body2;	// Second body
+
 			real m_distance;				// The distance the constraint has to maintain
 			real m_bias_factor = 0.01_real;	// Bias factor for Baumgarte stabilization
 		public:
-			DistanceConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, real distance) : m_body1{ body1 }, m_body2{ body2 }, m_distance{ distance } {}
+			DistanceConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, real distance) : Constraint(body1, body2), m_distance{ distance } {}
 			~DistanceConstraint() {}
 
 			/// <summary>
@@ -1698,7 +1700,7 @@ namespace vpe {
 				m_bias_factor = new_bias;
 			}
 
-			void solve(real dt) override {
+			void solve(real dt) const override {
 				// Compute distance between the objects' center, their distance and the difference to the constraint distance
 				glmvec3 relative_position = m_body1->m_positionW - m_body2->m_positionW;
 				real obj_distance = glm::length(relative_position);
@@ -1724,19 +1726,12 @@ namespace vpe {
 					m_body2->m_linear_velocityW += impulse2;
 				}				
 			}
-
-			bool containsBody(std::shared_ptr<Body> body) const {
-				return body == m_body1 || body == m_body2;
-			}
 		};
 
 		/// <summary>
 		/// A constraint that models a ball-socket joint. The two bodies are connected at the anchor point given in world space
 		/// </summary>
 		class BallSocketJointConstraint : public Constraint {
-			std::shared_ptr<Body> m_body1;
-			std::shared_ptr<Body> m_body2;
-
 			real m_bias_factor = 0.01_real; // Bias factor for Baumgarte stabilization
 
 			glmvec3 m_anchor_w; // Anchor point in world space
@@ -1750,7 +1745,7 @@ namespace vpe {
 			/// <param name="body1">First body</param>
 			/// <param name="body2">Second body</param>
 			/// <param name="anchor">Anchor point in world space</param>
-			BallSocketJointConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor) : m_body1{ body1 }, m_body2{ body2 }, m_anchor_w{ anchor } {
+			BallSocketJointConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor) : Constraint(body1, body2), m_anchor_w{ anchor } {
 				// Include translation? Yes/no?
 				m_anchor_body1 = m_body1->m_model_inv * glmvec4(m_anchor_w, 1.0_real);
 				m_anchor_body2 = m_body2->m_model_inv * glmvec4(m_anchor_w, 1.0_real);
@@ -1765,7 +1760,7 @@ namespace vpe {
 				m_bias_factor = new_bias;
 			}
 
-			void solve(real dt) override {
+			void solve(real dt) const override {
 				// Move anchor points back to world space
 				glmvec3 anchor1 = m_body1->m_model * glmvec4(m_anchor_body1, 1.0_real);
 				glmvec3 anchor2 = m_body2->m_model * glmvec4(m_anchor_body2, 1.0_real);
@@ -1812,10 +1807,6 @@ namespace vpe {
 					m_body2->m_angular_velocityW += m_body2->m_inertia_invW * impulse4;
 				}
 			}
-
-			bool containsBody(std::shared_ptr<Body> body) const {
-				return body == m_body1 || body == m_body2;
-			}
 		};
 
 		// TODO: Some issues arise when the limited angle is almost a full rotation. 
@@ -1825,8 +1816,6 @@ namespace vpe {
 		/// A hinge constraint that connects two bodies via an anchor point and only allows them to rotate around a given hinge axis in world space
 		/// </summary>
 		class HingeConstraint : public Constraint {
-			std::shared_ptr<Body> m_body1;
-			std::shared_ptr<Body> m_body2;
 
 			std::shared_ptr<BallSocketJointConstraint> m_ballsocket; // Used for the anchor point connection
 			real m_bias_rot = 0.001_real;								// Bias factor for translation constraint Baumgarte stabilization
@@ -1850,13 +1839,13 @@ namespace vpe {
 			/// Returns the inverse mass matrix for the motor and limit constraints
 			/// </summary>
 			/// <returns></returns>
-			real getMotorAndLimitMass() {
+			real getMotorAndLimitMass() const {
 				real mass = glm::dot(m_rot_axis_w * m_body1->m_inertia_invW, m_rot_axis_w) + glm::dot(m_rot_axis_w * m_body2->m_inertia_invW, m_rot_axis_w);
 				return mass < Constraint::epsilon ? 0.0_real : 1.0_real / mass;
 			}
 
 		public:
-			HingeConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis) : m_body1{ body1 }, m_body2{ body2 } {
+			HingeConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis) : Constraint(body1, body2) {
 				m_ballsocket = std::make_shared<VPEWorld::BallSocketJointConstraint>(m_body1, m_body2, anchor);
 				m_ballsocket->setTranslationBias(m_bias_trans);
 				m_rot_axis_w = glm::normalize(axis);
@@ -1939,7 +1928,7 @@ namespace vpe {
 			/// Computes and applies constraint forces if necessary
 			/// </summary>
 			/// <param name="dt">Delta time since last frame</param>
-			void solve(real dt) override {
+			void solve(real dt) const override {
 				// Handle limit constraints
 				if (m_limit_active) {
 					glmquat current_orientation = m_body2->m_orientationLW * glm::inverse(m_body1->m_orientationLW);
@@ -2088,11 +2077,6 @@ namespace vpe {
 					m_body1->m_angular_velocityW += m_body1->m_inertia_invW * impulse1;
 					m_body2->m_angular_velocityW += m_body2->m_inertia_invW * impulse2;
 				}
-
-			}
-
-			bool containsBody(std::shared_ptr<Body> body) const {
-				return body == m_body1 || body == m_body2;
 			}
 		};
 
