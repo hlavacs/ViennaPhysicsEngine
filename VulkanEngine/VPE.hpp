@@ -1747,8 +1747,9 @@ namespace vpe {
 		public:
 			ClothMassPoint* point0;
 			ClothMassPoint* point1;
-			real length;
+			real length;																			// The inital legnth between the points
 			real compliance;																		// The inverse of stiffness. So if compliance is 0, the cloth is infinitely stiff
+			const real c_threshold = 0.0001;														// Points are only modified if the length difference is greater tthan this
 
 			/// <summary>
 			/// Constructor that calculates the length of the constraint and sets the compliance.
@@ -1756,8 +1757,7 @@ namespace vpe {
 			/// <param name="point0"> First mass point. </param>
 			/// <param name="point1"> Second mass point. </param>
 			/// <param name="compliance"> Compliance. The inverse of stiffness. </param>
-			ClothConstraint(ClothMassPoint* point0, ClothMassPoint* point1,
-				real compliance)
+			ClothConstraint(ClothMassPoint* point0, ClothMassPoint* point1, real compliance)
 				: point0{ point0 }, point1{ point1 }, compliance{ compliance }
 			{
 				length = glm::distance(point0->pos, point1->pos);
@@ -1792,7 +1792,7 @@ namespace vpe {
 
 				real lengthDifference = lengthBetweenPoints - length;								// Get the difference of initial length and current length
 
-				if (fabs(lengthDifference) > 0.0001)												// Threshold
+				if (fabs(lengthDifference) > c_threshold)											// Threshold
 				{
 					glmvec3 directionBetweenPoints = (pos1 - pos0) / lengthBetweenPoints;			
 
