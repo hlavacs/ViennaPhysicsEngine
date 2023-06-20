@@ -1685,12 +1685,10 @@ namespace vpe {
 				{
 					glmvec3 massPointLocalPos = body->m_model_inv * glmvec4(pos, 1);				// Transform the mass point's position into the body's local space
 
-					if (glm::distance(glmvec3(0, 0, 0), massPointLocalPos) <						// Check if the mass point is within the body's bounding sphere
-						body->boundingSphereRadius())
-					{
-						if (polytopeCollisionCheck(body, massPointLocalPos))						// Collision Check
-							resolvePolytopeCollision(body, massPointLocalPos, dt);					// Resolve collision
-					}
+					if (geometry::alphaMaxPlusBetaMedPlusGammaMin(									// Check if the mass point is within the body's bounding sphere
+							massPointLocalPos.x, massPointLocalPos.y, massPointLocalPos.z)
+							< body->boundingSphereRadius())						
+						resolvePolytopeCollision(body, massPointLocalPos, dt);						// Resolve possible collision
 				}
 			}
 			
@@ -1707,67 +1705,34 @@ namespace vpe {
 
 		private:
 			/// <summary>
-			/// Check if the mass point is within the polytope.
+			/// Check if the mass point is within the polytope and push it to the nearest point
+			/// outside if so, 
 			/// </summary>
-			/// <param name="body"> Body to collision check with. </param>
-			/// <param name="massPointLocalPos"> The position of the mass point in the body's local
-			/// space (body->invModel * massPoint.pos). </param>
-			bool polytopeCollisionCheck(const std::shared_ptr<Body> body, glmvec3 massPointLocalPos)
-			{
-				bool collision = true;																// Assume there is a collision in the beginning
-
-				for (const Face& face : body->m_polytope->m_faces)									// Iterate over all faces of the body's polytope
-				{
-					glmvec3 dirPointToFace =												        // Calculate the direction of the point towards the face
-						face.m_face_vertex_ptrs[0]->m_positionL +									
-						face.m_normalL * c_collisionMargin -									    // extra margin to avoid the cloth glitching through the polytope
-						massPointLocalPos;
-
-					if (glm::dot(face.m_normalL, dirPointToFace) < c_small)							// If the direction of the point to the face and the normal of the face point into
-					{																				// oppsite directions, the point must be outisde of the polytope.
-						collision = false;															// Therefore, no collision.
-						break;
-					}
-				}
-
-				return collision;
-			}
-
-			/// <summary>
-			/// Check if the mass point is within the polytope.
-			/// </summary>
-			/// <param name="body"> Body that collides. </param>
+			/// <param name="body"> Body that might collide. </param>
 			/// <param name="massPointLocalPos"> The position of the mass point in the body's local
 			/// space (body->invModel * massPoint.pos). </param>
 			/// <param name="dt"> Delta time. Only affects how much friction is applied in case
 			/// of a collision. Can be 0 to apply no friction. </param>
-			void resolvePolytopeCollision(const std::shared_ptr<Body> body,							// TODO Improve performance (e.g., immediately choose a projection point if its close)
+			void resolvePolytopeCollision(const std::shared_ptr<Body> body,							
 				glmvec3 massPointLocalPos, real dt)
 			{
-				std::vector<std::pair<glmvec3, glmvec3>> planeIntersectionPoints{};					// Projections of the mass point onto the faces and their corresponding normals
+				std::pair<glmvec3, real> nearestProjectionPoint{ {}, INFINITY };					// First: projection of mass point onto face, second: distance
 
 				for (const Face& face : body->m_polytope->m_faces)									// Iterate over all faces of the polytope
 				{
 					real t = dot(face.m_face_vertex_ptrs[0]->m_positionL +							// Calulate t (distance from face to point along its normal)
-						face.m_normalL * c_collisionMargin -										// extra margin so that cloth is in front of polytope
+						face.m_normalL * c_collisionMargin -										// Extra margin so that cloth is in front of polytope
 						massPointLocalPos, face.m_normalL);
 
-					planeIntersectionPoints.push_back({												// Store the projection for each face
-						massPointLocalPos + t * face.m_normalL, face.m_normalL });
-				}
+					if (t < c_small)																// If the point is in front of a face,
+						return;																		// there is no collision
 
-				std::pair<glmvec3, glmvec3> nearestIntersectionPoint =								// Find the nearest projection point
-					*std::min_element(
-						planeIntersectionPoints.begin(),
-						planeIntersectionPoints.end(),
-						[&](const auto& p0, const auto& p1)
-						{
-							return glm::distance(p0.first, massPointLocalPos) <						// TODO: Improve Performance/get rid of glm::distance
-								glm::distance(p1.first, massPointLocalPos);
-						});
-																									// TODO Maybe: Dont correct straight towards the face but a bit towards the movement of the cloth
-				prevPos = pos;																		
-				pos = body->m_model * (glmvec4(nearestIntersectionPoint.first, 1));					// Set the mass point's position which was inside the polytope to the projection point
+					if (t < nearestProjectionPoint.second)											// Check if the distance is smaller than the previous smallest
+						nearestProjectionPoint = { massPointLocalPos + t * face.m_normalL, t };		// Store the projection point and its distance
+				}
+																									// Possible simulation improvement: don't correct straight towards the face 
+				prevPos = pos;																		// but a bit towards the general movement of the cloth
+				pos = body->m_model * (glmvec4(nearestProjectionPoint.first, 1));					// Set the mass point's position which was inside the polytope to the projection point
 				vel -= vel * c_friction * dt;														// Apply friction
 			}
 		};
