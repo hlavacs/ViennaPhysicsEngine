@@ -1059,7 +1059,6 @@ namespace vh
 		return VK_SUCCESS;
 	}
 
-
 	//--------------------------------Begin-Cloth-Simulation-Stuff----------------------------------
 	// by Felix Neumann
 
@@ -1087,7 +1086,7 @@ namespace vh
 
 		VHCHECKRESULT(vmaMapMemory(allocator, *stagingBufferAllocation, ptrToStageBufMem));			// Map memory and keep it mapped for updating the vertices.
 
-		memcpy(*ptrToStageBufMem, vertices.data(), (size_t) *bufferSize);							// Copy the vertex data into the staging buffer
+		memcpy(*ptrToStageBufMem, vertices.data(), (size_t)*bufferSize);							// Copy the vertex data into the staging buffer
 
 		VHCHECKRESULT(vhBufCreateBuffer(allocator, *bufferSize,										// Create the vertex buffer
 			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
@@ -1112,7 +1111,7 @@ namespace vh
 	VkResult updateClothStagingBuffer(std::vector<vh::vhVertex>& vertices,
 		VkDeviceSize bufferSize, void* ptrToStageBufMem)
 	{
-		memcpy(ptrToStageBufMem, vertices.data(), (size_t) bufferSize);
+		memcpy(ptrToStageBufMem, vertices.data(), (size_t)bufferSize);
 
 		return VK_SUCCESS;
 	}

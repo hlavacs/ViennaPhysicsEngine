@@ -23,14 +23,16 @@ namespace ve
 		/// </summary>
 		/// <returns> The class class of the subrenderer. </returns>
 		virtual veSubrenderClass getClass() {
-			return VE_SUBRENDERER_CLASS_OBJECT; };
+			return VE_SUBRENDERER_CLASS_OBJECT;
+		};
 
 		/// <summary>
 		/// Getter for class type.
 		/// </summary>
 		/// <returns> The class class of the subrenderer. </returns>
 		virtual veSubrenderType getType() {
-			return VE_SUBRENDERER_TYPE_CLOTH; };
+			return VE_SUBRENDERER_TYPE_CLOTH;
+		};
 
 		/// <summary>
 		/// Initialize the subrenderer. Create descriptor set layout, pipeline layout and the PSO.

@@ -83,8 +83,7 @@ namespace ve
 	class VEMesh : public VENamedClass
 	{
 	protected:
-		VEMesh(std::string name);																	
-
+		VEMesh(std::string name);																	// Constructor that allows for bypassing the default buffer creation
 	public:
 		uint32_t m_vertexCount = 0; ///<Number of vertices in the vertex buffer
 		uint32_t m_indexCount = 0; ///<Number of indices in the index buffer
@@ -99,9 +98,8 @@ namespace ve
 
 		VEMesh(std::string name, std::vector<vh::vhVertex> &vertices, std::vector<uint32_t> &indices);
 
-		virtual ~VEMesh();																			
+		virtual ~VEMesh();
 	};
-
 
 	//--------------------------------Begin-Cloth-Simulation-Stuff----------------------------------
 	// by Felix Neumann
@@ -197,7 +195,7 @@ namespace ve
 		/// triangles. </returns>
 		static std::vector<uint32_t> createIndicesWithBack(std::vector<uint32_t>& indices,
 			uint32_t highestIndex);
-		
+
 		/// <summary>
 		/// Creates an index buffer and a vertex and vertex staging buffer.
 		/// </summary>

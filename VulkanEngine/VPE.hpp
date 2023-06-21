@@ -268,7 +268,7 @@ namespace vpe {
 		struct Face {
 			uint_t					m_id;						//Unique number within a polytope
 			std::vector<Vertex*>	m_face_vertex_ptrs{};		//pointers to the vertices of this face in correct orientation
-			std::vector<glmvec2>	m_face_vertex2D_T{};		//vertex 2D coordinates in tangent space
+			std::vector<glmvec2>	m_face_vertex2D_T{};	//vertex 2D coordinates in tangent space
 			std::vector<SignedEdge>	m_face_edge_ptrs{};			//pointers to the edges of this face and orientation factors
 			glmvec3					m_normalL{};				//normal vector in local space
 			glmmat4					m_LtoT;						//local to face tangent space
@@ -388,8 +388,8 @@ namespace vpe {
 				{ {4}, {5}, {6}, {7} },					//face 1
 				{ {0,-1}, {8,-1},  {4,-1}, {9,-1} },	//face 2
 				{ {2,-1}, {11,-1}, {6,-1}, {10,-1} },	//face 3
-				{ {8},    {3, -1}, {10},   {5, -1} },	//face 4
-				{ {9},    {7, -1}, {11},   {1, -1} }	//face 5
+				{ {3,-1}, {10},    {5,-1}, {8} },		//face 4
+				{ {1,-1}, {9},     {7,-1}, {11} }		//face 5
 			},
 			[&](real mass, glmvec3& s) { //callback for calculating the inertia tensor of this polytope
 				return mass * glmmat3{ {s.y * s.y + s.z * s.z,0,0}, {0,s.x * s.x + s.z * s.z,0}, {0,0,s.x * s.x + s.y * s.y} } / 12.0_real;
@@ -410,7 +410,7 @@ namespace vpe {
 		class Body {
 
 		public:
-			VPEWorld* m_physics;						//Pointer to the physics world to access parameters
+			VPEWorld* m_physics;			//Pointer to the physics world to access parameters
 			std::string	m_name;							//The name of this body
 
 			//-----------------------------------------------------------------------------
@@ -424,7 +424,7 @@ namespace vpe {
 			glmvec3		m_linear_velocityW{ 0,0,0 };	//linear velocity at time slot in world space
 			glmvec3		m_angular_velocityW{ 0,0,0 };	//angular velocity at time slot in world space
 			callback_move  m_on_move = nullptr;			//called if the body moves
-			callback_erase m_on_erase = nullptr;		//called if the body is erased
+			callback_erase m_on_erase = nullptr;			//called if the body is erased
 			real		m_mass_inv{ 0 };				//1 over mass
 			real		m_restitution{ 0 };				//coefficient of restitution eps
 			real		m_friction{ 1 };				//coefficient of friction mu
@@ -981,34 +981,29 @@ namespace vpe {
 		/// </summary>
 		/// <param name="event">The event data.</param>
 		void tick(double dt) {
-			if (m_mode == SIMULATION_MODE_REALTIME) {												// if the engine is in realtime mode, advance time
-				m_current_time = m_last_time + dt;													// advance time by the time that went by since the last loop
-				if (dt != 0.0) m_fps = 1.0_real / (real)dt;											// estimate for frames per second
+			if (m_mode == SIMULATION_MODE_REALTIME) {		//if the engine is in realtime mode, advance time
+				m_current_time = m_last_time + dt;	//advance time by the time that went by since the last loop
+				if (dt != 0.0) m_fps = 1.0_real / (real)dt; //estimate for frames per second
 			}
 
 			auto last_loop = m_loop;
-			while (m_current_time > m_next_slot) {													// compute position/vel only at time slots
-				++m_loop;																			// increase loop counter
-				
-				// Rigid Bodies
-				uint_t num_active{ 0 };																// set number currently active objects to 0
-				broadPhase();																		// run the broad phase
-				narrowPhase();																		// Run the narrow phase
-				warmStart();																		// Warm start the resting contacts if possible
+			while (m_current_time > m_next_slot) {	//compute position/vel only at time slots
+				++m_loop;				//increase loop counter
+				uint_t num_active{ 0 };	//set number currently active objects to 0
+				broadPhase();			//run the broad phase
+				narrowPhase();			//Run the narrow phase
+				warmStart();			//Warm start the resting contacts if possible
 
-				for (auto& body : m_bodies) { body.second->stepVelocity(m_sim_delta_time); }		// Integration step for velocity
-				calculateImpulses(m_loops, m_sim_delta_time);										// Calculate and apply impulses
+				for (auto& body : m_bodies) { body.second->stepVelocity(m_sim_delta_time); }		//Integration step for velocity
+				calculateImpulses(m_loops, m_sim_delta_time);	//Calculate and apply impulses
 
-				for (auto& body : m_bodies) {														// integrate positions and update the matrices for the bodies
-					if (body.second->stepPosition(m_sim_delta_time, body.second->m_positionW,
-						body.second->m_orientationLW)) ++num_active;
+				for (auto& body : m_bodies) {	//integrate positions and update the matrices for the bodies
+					if (body.second->stepPosition(m_sim_delta_time, body.second->m_positionW, body.second->m_orientationLW)) ++num_active;
 					body.second->updateMatrices();
 				}
+				m_num_active = 0.9_real * m_num_active + 0.1_real * num_active; //smooth the number of active nodies
+				if (m_num_active < c_small) m_num_active = 0;					//If near 0, set to 0
 
-				m_num_active = 0.9_real * m_num_active + 0.1_real * num_active;						// smooth the number of active nodies
-				if (m_num_active < c_small) m_num_active = 0;										// If near 0, set to 0
-				
-				
 				//--------------------------Begin-Cloth-Simulation-Stuff----------------------------
 				// by Felix Neumann
 
@@ -1017,18 +1012,15 @@ namespace vpe {
 
 				//---------------------------End-Cloth-Simulation-Stuff-----------------------------
 
-				m_last_slot = m_next_slot;															// Remember last slot
-				m_next_slot += m_sim_delta_time;													// Move to next time slot as slong as we do not surpass current time
+				m_last_slot = m_next_slot;			//Remember last slot
+				m_next_slot += m_sim_delta_time;	//Move to next time slot as slong as we do not surpass current time
 			}
-
-			if (m_loop > last_loop) {																// if we have entered a new time slot bodies might have moved, 
-				for (auto& body : m_bodies)															// so update broadphase grid
-					{ moveBodyInGrid(body.second); }												// update grid			
+			if (m_loop > last_loop) {	//if we have entered a new time slot bodies might have moved, so update broadphase grid
+				for (auto& body : m_bodies) { moveBodyInGrid(body.second); } //update grid
 			}
-
-			for (auto& body : m_bodies) {															// predict pos/vel at slot + delta, this is only a prediction for rendering
-				if (body.second->m_on_move) {														// this is not stored anywhere
-					body.second->m_on_move(m_current_time - m_last_slot, body.second);				//predict new pos/orient
+			for (auto& body : m_bodies) {	//predict pos/vel at slot + delta, this is only a prediction for rendering, this is not stored anywhere
+				if (body.second->m_on_move) {
+					body.second->m_on_move(m_current_time - m_last_slot, body.second); //predict new pos/orient
 				}
 			}
 
@@ -1036,12 +1028,12 @@ namespace vpe {
 			// by Felix Neumann
 
 			for (auto& cloth : m_cloths)															// Notify the owner of the cloth that the cloth has moved
-				if (cloth.second->m_on_move)														
+				if (cloth.second->m_on_move)
 					cloth.second->m_on_move(m_current_time - m_last_slot, cloth.second);
 
 			//-----------------------------End-Cloth-Simulation-Stuff-------------------------------
 
-			m_last_time = m_current_time;															//save last time
+			m_last_time = m_current_time;	//save last time
 		};
 
 		/// <summary>
@@ -1532,10 +1524,9 @@ namespace vpe {
 		VPEWorld() {};				///Constructor of class VPEWorld
 		virtual ~VPEWorld() {};		///Destructor of class VPEWorld
 
-
 	//--------------------------------Begin-Cloth-Simulation-Stuff----------------------------------
 	// by Felix Neumann
-	
+
 	public:
 		class Cloth;
 		class ClothConstraint;
@@ -1554,7 +1545,8 @@ namespace vpe {
 		/// </summary>
 		/// <param name="pbody"> The new body.</param>
 		void addCloth(std::shared_ptr<VPEWorld::Cloth> pCloth) {
-			m_cloths.insert( { pCloth->m_owner, pCloth } ); }
+			m_cloths.insert({ pCloth->m_owner, pCloth });
+		}
 
 		/// <summary>
 		/// Retrieve a cloth using the owner.
@@ -1562,7 +1554,8 @@ namespace vpe {
 		/// <param name="owner"> Pointer to the owner </param>
 		/// <returns> Shared pointer to the cloth. </returns>
 		auto getCloth(auto* owner) {
-			return m_cloths[(void*) owner]; }
+			return m_cloths[(void*)owner];
+		}
 
 		/// <summary>
 		/// Delete all cloths.
@@ -1624,7 +1617,7 @@ namespace vpe {
 			real invMass;																			// 1 - the mass of the mass point. Dynamically calulated depending on the associated triangles.
 			bool isFixed;																			// true ... transformations are fully applied, false ... point is dragged along by the simulation
 
-		private: 
+		private:
 			const real c_small = 0.01_real;															// Small threshold value
 			const real c_verySmall = c_small / 50.0_real;											// Even smaller threshold value
 			const real c_collisionMargin = 0.045_real;												// Margin for collision detection with polytopes to avoid glitches
@@ -1638,7 +1631,7 @@ namespace vpe {
 			/// <param name="pos"> Initial position of the mass point. </param>
 			/// <param name="isFixed"> Whether the point is fixed. </param>
 			ClothMassPoint(glm::vec3 pos, bool isFixed = false) : pos{ pos }, prevPos{ pos },
-				initialPos{ pos }, vel{ glmvec3(0._real) }, isFixed {isFixed} {}
+				initialPos{ pos }, vel{ glmvec3(0._real) }, isFixed{ isFixed }, invMass{ 0 } {}
 
 			/// <summary>
 			/// Apply some external force like gravity or wind.
@@ -1654,7 +1647,7 @@ namespace vpe {
 					pos += vel * dt;
 				}
 			}
-			
+
 			/// <summary>
 			/// Pushes the mass point slightly above the ground if it was below.
 			/// </summary>
@@ -1686,12 +1679,12 @@ namespace vpe {
 					glmvec3 massPointLocalPos = body->m_model_inv * glmvec4(pos, 1);				// Transform the mass point's position into the body's local space
 
 					if (geometry::alphaMaxPlusBetaMedPlusGammaMin(									// Check if the mass point is within the body's bounding sphere
-							massPointLocalPos.x, massPointLocalPos.y, massPointLocalPos.z)
-							< body->boundingSphereRadius())						
+						massPointLocalPos.x, massPointLocalPos.y, massPointLocalPos.z)
+						< body->boundingSphereRadius())
 						resolvePolytopeCollision(body, massPointLocalPos, dt);						// Resolve possible collision
 				}
 			}
-			
+
 			/// <summary>
 			/// Dampen the cloth's movement to simulate air resistance. Never set it to zero to
 			/// avoid losing a degree of freedom.
@@ -1713,7 +1706,7 @@ namespace vpe {
 			/// space (body->invModel * massPoint.pos). </param>
 			/// <param name="dt"> Delta time. Only affects how much friction is applied in case
 			/// of a collision. Can be 0 to apply no friction. </param>
-			void resolvePolytopeCollision(const std::shared_ptr<Body> body,							
+			void resolvePolytopeCollision(const std::shared_ptr<Body> body,
 				glmvec3 massPointLocalPos, real dt)
 			{
 				std::pair<glmvec3, real> nearestProjectionPoint{ {}, INFINITY };					// First: projection of mass point onto face, second: distance
@@ -1730,7 +1723,7 @@ namespace vpe {
 					if (t < nearestProjectionPoint.second)											// Check if the distance is smaller than the previous smallest
 						nearestProjectionPoint = { massPointLocalPos + t * face.m_normalL, t };		// Store the projection point and its distance
 				}
-																									// Possible simulation improvement: don't correct straight towards the face 
+				// Possible simulation improvement: don't correct straight towards the face 
 				prevPos = pos;																		// but a bit towards the general movement of the cloth
 				pos = body->m_model * (glmvec4(nearestProjectionPoint.first, 1));					// Set the mass point's position which was inside the polytope to the projection point
 				vel -= vel * c_friction * dt;														// Apply friction
@@ -1794,7 +1787,7 @@ namespace vpe {
 
 				if (fabs(lengthDifference) > c_threshold)											// Threshold
 				{
-					glmvec3 directionBetweenPoints = (pos1 - pos0) / lengthBetweenPoints;			
+					glmvec3 directionBetweenPoints = (pos1 - pos0) / lengthBetweenPoints;
 
 					real lambda = -lengthDifference /												// Amount of correction towards the should-be position.
 						(point0->invMass + point1->invMass + compliance / (dt * dt));				// Depends on length difference, compliance, masses and delta time 
@@ -1830,7 +1823,7 @@ namespace vpe {
 			void* m_owner;																			// Pointer to owner of this body, must be unique (owner is called if cloth moves)									
 			callback_move_cloth m_on_move;															// Called if the cloth moves
 			callback_erase_cloth m_on_erase;														// Called if the cloth is erased
-			
+
 		private:
 			VPEWorld* m_physics;																	// Pointer to the physics world to access parameters
 			std::vector<ClothMassPoint> m_massPoints{};												// All mass points of the cloth
@@ -1840,6 +1833,9 @@ namespace vpe {
 			const int c_substeps;																	// How many times per frame the constraints should be solved (higher = less stretchy)
 			const real c_movementSimulation;														// How much mass points not fixed should be moved by transformation (0 to 1)
 			std::vector<std::shared_ptr<Body>> m_bodiesNearby;										// A vector that stores all bodies nearby for collision detection
+			int_t m_gridX;																			// X Coordinate in grid for broadphase
+			int_t m_gridZ;																			// Z Coordinate in grid for broadphase
+			int_t m_bodiesNearbyCount;																// Number of nearby bodies during previous broadphase pass
 
 		public:
 			/// <summary>
@@ -1870,8 +1866,9 @@ namespace vpe {
 				std::vector<uint32_t> indices, std::vector<glmvec3> fixedPointsPositions,
 				real bendingCompliance = 1, int substeps = 4, real movementSimulation = 0.8)
 				: m_physics{ physics }, m_name{ name }, m_owner{ owner }, m_on_move{ on_move },
-				m_on_erase{ on_erase }, m_vertices { vertices }, c_substeps{ substeps },
-				c_movementSimulation{ movementSimulation }
+				m_on_erase{ on_erase }, m_vertices{ vertices }, c_substeps{ substeps },
+				c_movementSimulation{ movementSimulation }, m_gridX { -100 }, m_gridZ { -100 },
+				m_bodiesNearbyCount { 0 }
 			{
 				createMassPoints(vertices, fixedPointsPositions);
 				generateConstraints(createTriangles(indices), bendingCompliance);
@@ -1915,7 +1912,7 @@ namespace vpe {
 							massPoint.resolveGroundCollision(rDt);									// and do a collision check and resolve it if there is one
 				}
 			}
-			
+
 			/// <summary>
 			/// Create an updated vertices vector based on the new positions of the mass points
 			/// </summary>
@@ -1950,7 +1947,7 @@ namespace vpe {
 						massPoint.prevPos = massPoint.pos;
 						massPoint.pos = transformation * glmvec4(massPoint.pos, 1);
 					}
-					
+
 					else if (simulateMovement && !massPoint.isFixed)								// Elsewise interpolate the point to be dragged along
 					{
 						glmvec3 transformedPos = transformation * glmvec4(massPoint.pos, 1);
@@ -1990,7 +1987,7 @@ namespace vpe {
 					massPoint.resolvePolytopeCollisions(m_bodiesNearby, 0);							// Check for and solve collisions at the new position
 				}
 			}
-		
+
 		private:
 			/// <summary>
 			/// Checks which bodies are within the cloth's grid cell and neighbors and sufficiently
@@ -2002,19 +1999,15 @@ namespace vpe {
 				int_t gridX = static_cast<int_t>(m_massPoints[0].pos.x / m_physics->m_width);		// Cell coordinates of cloth in grid
 				int_t gridZ = static_cast<int_t>(m_massPoints[0].pos.z / m_physics->m_width);
 
-				static int_t prevGridX = gridX + 1;													// Initiate previous position with value different from current one
-				static int_t prevGridZ = gridZ + 1;
-				
-				size_t bodiesNearbyCount = 0;														
-				static int_t prevBodiesNearbyCount = 0;
+				size_t bodiesNearbyCount = 0;
 
 				for (const auto& cell : rigidBodyGrid)												// Count how many rigid bodies are currently in cell or neighbor cells
 					if (std::abs(cell.first.first - gridX) < 2
 						&& std::abs(cell.first.second - gridZ) < 2)
 						bodiesNearbyCount += cell.second.size();
 
-				if (gridX != prevGridX || gridZ != prevGridZ ||										// Only check for changes if either the cloth's cell has changed or there
-					bodiesNearbyCount != prevBodiesNearbyCount)										// are new bodies nearby.
+				if (gridX != m_gridX || gridZ != m_gridZ ||										// Only check for changes if either the cloth's cell has changed or there
+					bodiesNearbyCount != m_bodiesNearbyCount)										// are new bodies nearby.
 				{
 					m_bodiesNearby.clear();															// Reset vector of bodies nearby
 
@@ -2024,11 +2017,11 @@ namespace vpe {
 							for (auto it = cell.second.begin(); it != cell.second.end(); ++it)		// If so, add all bodies within the cell
 								m_bodiesNearby.push_back(it->second);
 				}
-				
+
 				auto it = m_bodiesNearby.begin();													// Iterate over all bodies of cloth's current cell and its neighbors to do an 
 				while (it != m_bodiesNearby.end())													// additional check if the bodies are near enough to collide; This is cheaper than
 				{																					// iterating through all mass points for a body that can't collide anyway														
-					glmvec3 clothLocalPos =															
+					glmvec3 clothLocalPos =
 						(*it)->m_model_inv * glmvec4(m_massPoints[0].pos, 1);						// Tranform position of cloth into bodies local space
 
 					if (glm::length(clothLocalPos) > ((*it)->boundingSphereRadius() +				// Remove nearby body if it cannot touch cloth
@@ -2040,10 +2033,10 @@ namespace vpe {
 					else
 						++it;
 				}
-				
-				prevGridX = gridX;																	// Save current values for next call
-				prevGridZ = gridZ;
-				prevBodiesNearbyCount = bodiesNearbyCount;
+
+				m_gridX = gridX;																	// Store current values for next call
+				m_gridZ = gridZ;
+				m_bodiesNearbyCount = bodiesNearbyCount;
 			}
 
 			/// <summary>
@@ -2057,7 +2050,7 @@ namespace vpe {
 				const std::vector<glmvec3> fixedPointsPositions)
 			{
 				std::map<std::vector<real>, int> alreadyAddedPositions{};							// Already stored positions for duplicate removal
-																									// first is the position, second the index of the corresponding mass point
+				// first is the position, second the index of the corresponding mass point
 				for (size_t i = 0; i < vertices.size(); ++i)
 				{
 					glmvec3 vertexPosGlm = vertices[i].pos;											// Convert glm::vec3 to std::vector for stl algorithms to work
@@ -2085,7 +2078,7 @@ namespace vpe {
 					}
 				}
 			}
-			
+
 			/// <summary>
 			/// Check the distance between all mass points and store the longest one for collision
 			/// checking.
@@ -2188,11 +2181,11 @@ namespace vpe {
 			{
 				std::vector<std::array<uint32_t, 3>> edges;											// Edge List: Each entry contains the indices of two mass points of an
 																									// edge in sorted order and the third mass point index of the triangle
-				for (uint32_t triangleIndex = 0; triangleIndex < triangles.size();				// Iterate over all triangles
+				for (uint32_t triangleIndex = 0; triangleIndex < triangles.size();					// Iterate over all triangles
 					++triangleIndex)
 				{
 					ClothTriangle triangle = triangles[triangleIndex];
-					
+
 					std::array<uint32_t, 3> edge0 = {
 						std::min(triangle.massPoint0Index, triangle.massPoint1Index),
 						std::max(triangle.massPoint0Index, triangle.massPoint1Index),
@@ -2217,7 +2210,7 @@ namespace vpe {
 				}
 
 				std::sort(edges.begin(), edges.end());												// Sort the edge list. Shared edges are now right after each other.
-																									
+
 				for (uint32_t edgeIndex = 0; edgeIndex < edges.size(); ++edgeIndex)					// Iterate over all edges
 					if (edgeIndex == edges.size() - 1 ||											// If it is the last edge or one of its edge mass point indices differs
 						edges[edgeIndex][0] != edges[edgeIndex + 1][0] ||							// from the next entry, the edge is unique
@@ -2225,14 +2218,14 @@ namespace vpe {
 					{
 						ClothConstraint newEdgeConstraint(&m_massPoints[edges[edgeIndex][0]],		// Create edge constraint between the points of the edge
 							&m_massPoints[edges[edgeIndex][1]], 0);
-						
+
 						m_constraints.push_back(newEdgeConstraint);
 					}
 					else																			// Elsewise the edge is shared between triangles
 					{
 						ClothConstraint newBendingConstraint(&m_massPoints[edges[edgeIndex][2]],	// Create bending constraint between the points not part of the edge
 							&m_massPoints[edges[edgeIndex + 1][2]], bendingCompliance);
-						
+
 						m_constraints.push_back(newBendingConstraint);
 					}
 			}
@@ -2241,12 +2234,14 @@ namespace vpe {
 	//---------------------------------End-Cloth-Simulation-Stuff-----------------------------------
 
 	};
+
 };
 
-//--------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------
 //Geometry functions
 
 namespace geometry {
+
 
 	//https://box2d.org/posts/2014/02/computing-a-basis/
 	inline void computeBasis(const glmvec3& a, glmvec3& b, glmvec3& c)
@@ -2265,6 +2260,7 @@ namespace geometry {
 		b = glm::normalize(b);
 		c = glm::cross(a, b);
 	}
+
 
 	//https://rosettacode.org/wiki/Sutherland-Hodgman_polygon_clipping
 	//rewritten for std::vector
@@ -2339,9 +2335,9 @@ namespace geometry {
 		}
 	}
 
-	//----------------------------------Cloth-Simulation-Stuff--------------------------------------
+	//--------------------------------Begin-Cloth-Simulation-Stuff----------------------------------
 	// by Felix Neumann
-	
+
 	/// <summary>
 	/// Alpha Max Plus Beta Min - Approximates square root of the sum of two squares (magnitude of a
 	/// 2d vector).
@@ -2377,3 +2373,5 @@ namespace geometry {
 
 	//---------------------------------End-Cloth-Simulation-Stuff-----------------------------------
 }
+
+

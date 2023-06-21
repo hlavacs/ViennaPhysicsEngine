@@ -530,7 +530,6 @@ namespace vh
 
 	void vhSetupDebugCallback(VkInstance instance, VkDebugReportCallbackEXT *callback);
 
-
 	//--------------------------------Begin-Cloth-Simulation-Stuff----------------------------------
 	// by Felix Neumann
 

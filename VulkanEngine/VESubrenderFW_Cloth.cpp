@@ -22,7 +22,7 @@ namespace ve
 
 		vh::vhPipeCreateGraphicsPipelineLayout(m_renderer.getDevice(),
 			{ perObjectLayout, perObjectLayout, m_renderer.getDescriptorSetLayoutShadow(),
-				perObjectLayout, m_descriptorSetLayoutResources }, 
+				perObjectLayout, m_descriptorSetLayoutResources },
 			{}, &m_pipelineLayout);
 
 		m_pipelines.resize(1);

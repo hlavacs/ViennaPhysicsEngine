@@ -1306,8 +1306,7 @@ namespace ve
 		}
 	}
 
-
-	//--------------------------------Begin-Cloth-Simulation-Stuff---------------------------------
+	//--------------------------------Begin-Cloth-Simulation-Stuff----------------------------------
 	// by Felix Neumann
 
 	/// <summary>
@@ -1329,17 +1328,17 @@ namespace ve
 		std::lock_guard<std::mutex> lock(m_mutex);
 
 		if (m_sceneNodes.count(entityName) > 0)														// If an entity with this name already exists return it
-			return (VEClothEntity*) m_sceneNodes[entityName];
+			return (VEClothEntity*)m_sceneNodes[entityName];
 
 		Assimp::Importer importer;
 		std::string filekey = basedir + "/" + filename;
-		
+
 		importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_NORMALS);					// Ignore normals (need to be calculated dynamically)
 
 		const aiScene* pScene = importer.ReadFile(filekey,											// Load the scene from the file
 			aiProcess_RemoveComponent | aiProcess_JoinIdenticalVertices);
 
-		VECHECKPOINTER((void*) pScene);																// Check if the loaded scene is valid
+		VECHECKPOINTER((void*)pScene);																// Check if the loaded scene is valid
 
 		auto node = pScene->mRootNode->mChildren[FIRST_MESH_INDEX];									// Get the model (first (and idealy only) child) from the scene
 
@@ -1349,10 +1348,10 @@ namespace ve
 		createMaterials(pScene, basedir, filekey, materials);
 
 		VEMaterial* pMaterial = materials[FIRST_MATERIAL_INDEX];									// Only one material is assumed, since the material at 0 ist a default material 
-																									// it is expected to be at index 1
+		// it is expected to be at index 1
 		VEClothEntity* pEntity = new VEClothEntity(entityName, pClothMesh, pMaterial);				// Create the ClothEntity
 
-		VESceneObject* pObject = (VESceneObject*) pEntity;											// Reserve an UBO
+		VESceneObject* pObject = (VESceneObject*)pEntity;											// Reserve an UBO
 		if (pObject->m_memoryHandle.owner == nullptr)
 			vh::vhMemBlockListAdd(m_memoryBlockMap[pObject->getObjectType()], pObject,
 				&pObject->m_memoryHandle);
@@ -1367,7 +1366,6 @@ namespace ve
 	}
 
 	//---------------------------------End-Cloth-Simulation-Stuff-----------------------------------
-
 
 	//---------------------------------------------------------------------------------------------
 	//deprecated

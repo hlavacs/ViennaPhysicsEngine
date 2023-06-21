@@ -1182,7 +1182,6 @@ namespace ve
 		}
 	}
 
-
 	//--------------------------------Begin-Cloth-Simulation-Stuff----------------------------------
 	// by Felix Neumann
 

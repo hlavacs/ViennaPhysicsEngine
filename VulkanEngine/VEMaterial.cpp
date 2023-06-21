@@ -121,7 +121,7 @@ namespace ve
 		}
 		m_boundingSphereRadius = sqrt(m_boundingSphereRadius);
 
-		m_indexCount = (uint32_t) indices.size();
+		m_indexCount = (uint32_t)indices.size();
 
 		//create the vertex buffer
 		VECHECKRESULT(vh::vhBufCreateVertexBuffer(getEnginePointer()->getRenderer()->getDevice(),
@@ -244,7 +244,6 @@ namespace ve
 			vmaDestroyImage(getEnginePointer()->getRenderer()->getVmaAllocator(), m_image, m_deviceAllocation);
 	}
 
-
 	//--------------------------------Begin-Cloth-Simulation-Stuff----------------------------------
 	// by Felix Neumann
 
@@ -290,7 +289,7 @@ namespace ve
 		updateNormals(vertices);																	// Calculate flat shading normals based on the new vertex															
 
 		vertices = createVerticesWithBack(vertices);												// Create a vector twice its original size with flipped triangles appended
-																									// for correct rendering of both sides of the
+		// for correct rendering of both sides of the
 		VECHECKRESULT(vh::updateClothStagingBuffer(vertices, m_bufferSize, m_ptrToStageBufMem));	// Copy the new vertex data into the staging buffer
 
 		VECHECKRESULT(vh::updateClothVertexBuffer(													// Update the main vertex buffer with the data from
@@ -310,30 +309,32 @@ namespace ve
 	/// </summary>
 	/// <returns> The vector of vertices fetched from the assimp mesh. <returns>
 	const std::vector<vh::vhVertex>& VEClothMesh::getInitialVertices() const {
-		return m_initialVertices;}
+		return m_initialVertices;
+	}
 
 	/// <summary>
 	/// Get the indices of the mesh to determine for example which vertices form a triangle.
 	/// </summary>
 	/// <returns> The vector of indices of the mesh. </returns>
 	const std::vector<uint32_t>& VEClothMesh::getIndices() const {
-		return m_indices;}
-	
+		return m_indices;
+	}
+
 	/// <summary>
 	/// Since the positions of the mesh can change, the bounding sphere can as well. The calculation
 	/// can be costly.
 	/// </summary>
 	void VEClothMesh::calculateBoundingSphere(const std::vector<vh::vhVertex>& vertices)
 	{
-		glm::vec3 centre {};																		// Get the centre by adding up all vertex positions
-																									// and dividing by the count
+		glm::vec3 centre{};																		// Get the centre by adding up all vertex positions
+		// and dividing by the count
 		for (const vh::vhVertex& vertex : vertices)
 			centre += vertex.pos;
 
-		centre = centre / (float) vertices.size();
+		centre = centre / (float)vertices.size();
 
-		float sphereRadius {};																		// Get the radius by finding the max distance between
-																									// the centre and a vertex
+		float sphereRadius{};																		// Get the radius by finding the max distance between
+		// the centre and a vertex
 		for (const vh::vhVertex& vertex : vertices)
 		{
 			float distance = glm::distance(centre, vertex.pos);
@@ -370,8 +371,8 @@ namespace ve
 				m_indices.push_back(paiMesh->mFaces[i].mIndices[j]);
 
 		m_indexCount = static_cast<uint32_t>(m_indices.size()) * 2;									// *2 Because its rendered twice, front and back for correct shadows
-		
-		updateNormals(m_initialVertices);															
+
+		updateNormals(m_initialVertices);
 	}
 
 	/// <summary>
@@ -387,7 +388,7 @@ namespace ve
 			glm::vec3 p2 = vertices[m_indices[i + 2]].pos;
 
 			glm::vec3 normal = glm::normalize(glm::cross(p0 - p1, p0 - p2)) * -1.f;					// The normal is the normalized cross product of two edges (vectors)
-																									// that form the triangle
+			// that form the triangle
 			vertices[m_indices[i]].normal = normal;
 			vertices[m_indices[i + 1]].normal = normal;
 			vertices[m_indices[i + 2]].normal = normal;
@@ -408,10 +409,10 @@ namespace ve
 
 		verticesWithBack.reserve(vertices.size() * 2);												// Append all entries of the copy to itself
 		std::copy(vertices.begin(), vertices.end(), std::back_inserter(verticesWithBack));
-			
+
 		for (size_t i = vertices.size(); i < vertices.size() * 2; ++i)								// Flip the normals of the second half for correct shading
 			verticesWithBack[i].normal *= -2;														// The increased length of the normal signals the shader program not to draw the shadow map
-																									// onto the cloth a second time (Little bit hacky but other solutions would have required
+		// onto the cloth a second time (Little bit hacky but other solutions would have required
 		return verticesWithBack;																	// significant modifications of the engines source code)
 	}
 
@@ -435,7 +436,7 @@ namespace ve
 		{																							// triangle switched.
 			indicesWithBack.push_back(highestIndex + indices[i + 1]);
 			indicesWithBack.push_back(highestIndex + indices[i]);
-			indicesWithBack.push_back(highestIndex + indices[i -1]);
+			indicesWithBack.push_back(highestIndex + indices[i - 1]);
 		}
 
 		return indicesWithBack;

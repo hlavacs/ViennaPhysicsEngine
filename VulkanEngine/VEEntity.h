@@ -211,9 +211,9 @@ namespace ve
 		///The entity type determines what kind of entity this is
 		enum veEntityType
 		{
-			VE_ENTITY_TYPE_NORMAL,				///<Normal object to be drawn
-			VE_ENTITY_TYPE_SKYPLANE,			///<A plane for sky boxes
-			VE_ENTITY_TYPE_TERRAIN_HEIGHTMAP,	///<A heightmap for terrain modelling
+			VE_ENTITY_TYPE_NORMAL, ///<Normal object to be drawn
+			VE_ENTITY_TYPE_SKYPLANE, ///<A plane for sky boxes
+			VE_ENTITY_TYPE_TERRAIN_HEIGHTMAP, ///<A heightmap for terrain modelling
 
 			//-------------------------------Cloth-Simulation-Stuff---------------------------------
 			// by Felix Neumann
@@ -251,7 +251,7 @@ namespace ve
 
 		VESubrender *m_pSubrenderer = nullptr; ///<subrenderer this entity is registered with / replace with a set
 		bool m_visible = false; ///<should it be drawn at all?
-		bool m_castsShadow = false; ///<draw in the shadow pass?
+		bool m_castsShadow = true; ///<draw in the shadow pass?
 
 		vh::vhAccelerationStructure m_AccelerationStructure;
 
@@ -732,7 +732,6 @@ namespace ve
 			return VE_LIGHT_TYPE_AMBIENT;
 		};
 	};
-
 
 	//--------------------------------Begin-Cloth-Simulation-Stuff----------------------------------
 	// by Felix Neumann
