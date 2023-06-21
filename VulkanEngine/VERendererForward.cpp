@@ -224,7 +224,6 @@ namespace ve
 		addSubrenderer(new VESubrenderFW_C1(*this));
 		addSubrenderer(new VESubrenderFW_D(*this));
 		addSubrenderer(new VESubrenderFW_DN(*this));
-		addSubrenderer(new VESubrenderFW_Cloth(*this));
 		addSubrenderer(new VESubrenderFW_Skyplane(*this));
 		addSubrenderer(new VESubrenderFW_Shadow(*this));
 		addSubrenderer(new VESubrender_Nuklear(*this));
