@@ -1669,6 +1669,13 @@ namespace vpe {
 			static constexpr real epsilon = 0.0000001_real;
 			std::shared_ptr<Body> m_body1;	// First body
 			std::shared_ptr<Body> m_body2;	// Second body
+
+			// Issue: The inverted inertia tensor for objects that have infinite mass (inverse mass is 0) isn't actually a 0-matrix
+			// It has some very small values, and thus just multiplying it onto the impulse would still result in very small velocities
+			// If you add this up thousands of times per second, it adds up and thus allows these objects to move even though they have infinite mass
+			// These values are used to solve this issue by being multiplied onto the angular velocity (either 0 or 1)
+			real m_body1_factor = !(m_body1->m_mass_inv <= Constraint::epsilon); // Use this factor whenever adding angular velocity to body1
+			real m_body2_factor = !(m_body2->m_mass_inv <= Constraint::epsilon); // Use this factor whenever adding angular velocity to body2
 		public:
 			Constraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2) : m_body1 { body1 }, m_body2{ body2 } {}
 			~Constraint() {}
@@ -1806,9 +1813,9 @@ namespace vpe {
 					glmvec3 impulse4 = -j4 * lambda;
 
 					m_body1->m_linear_velocityW += m_body1->m_mass_inv * impulse1;
-					m_body1->m_angular_velocityW += m_body1->m_inertia_invW * impulse2;
+					m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse2;
 					m_body2->m_linear_velocityW += m_body2->m_mass_inv * impulse3;
-					m_body2->m_angular_velocityW += m_body2->m_inertia_invW * impulse4;
+					m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse4;
 				}
 			}
 		};
@@ -1978,8 +1985,8 @@ namespace vpe {
 						glmvec3 impulse1 = j2 * lambda;
 						glmvec3 impulse2 = j4 * lambda;
 
-						m_body1->m_angular_velocityW += m_body1->m_inertia_invW * impulse1;
-						m_body2->m_angular_velocityW += m_body2->m_inertia_invW * impulse2;
+						m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse1;
+						m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2;
 					}
 
 					if (theta > m_limit_max) {
@@ -1995,8 +2002,8 @@ namespace vpe {
 						glmvec3 impulse1 = j2 * lambda;
 						glmvec3 impulse2 = j4 * lambda;
 
-						m_body1->m_angular_velocityW += m_body1->m_inertia_invW * impulse1;
-						m_body2->m_angular_velocityW += m_body2->m_inertia_invW * impulse2;
+						m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse1;
+						m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2;
 					}
 				}
 
@@ -2024,8 +2031,8 @@ namespace vpe {
 						glmvec3 impulse1 = j2 * lambda;
 						glmvec3 impulse2 = j4 * lambda;
 
-						m_body1->m_angular_velocityW += m_body1->m_inertia_invW * impulse1;
-						m_body2->m_angular_velocityW += m_body2->m_inertia_invW * impulse2;
+						m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse1;
+						m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2;
 					}
 				}
 
@@ -2076,8 +2083,8 @@ namespace vpe {
 					glmvec3 impulse1 = j12 * lambda.x + j22 * lambda.y;
 					glmvec3 impulse2 = j14 * lambda.x + j24 * lambda.y;
 
-					m_body1->m_angular_velocityW += m_body1->m_inertia_invW * impulse1;
-					m_body2->m_angular_velocityW += m_body2->m_inertia_invW * impulse2;
+					m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse1;
+					m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2;
 				}
 
 				
