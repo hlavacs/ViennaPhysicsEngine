@@ -247,7 +247,7 @@ namespace ve {
 
 				glmvec3 cubePos1 = positionCamera + 2.0_real * dir;
 				glmvec3 cubePos2 = cubePos1;
-				cubePos2[0] += 2.0;
+				cubePos2[0] += 2.0_real;
 			//	glmvec3 jointAnchor = 0.5_real * (cubePos1 + cubePos2) - glmvec3(0.0_real, 0.5_real, 0.0_real);
 			//	glmvec3 jointAnchor = 0.5_real * (cubePos1 + cubePos2);
 				glmvec3 jointAnchor = cubePos1;
@@ -281,7 +281,7 @@ namespace ve {
 				glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
 
 				glmvec3 pos0 = positionCamera + 2.0_real * dir;
-				pos0[1] += 5.0_real;
+				pos0[1] += 2.0_real;
 				glmvec3 pos1 = pos0; pos1[0] += 1.5_real;
 				glmvec3 pos2 = pos1; pos2[0] += 1.5_real;
 				VESceneNode* cube0;
@@ -298,19 +298,23 @@ namespace ve {
 				auto body1 = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube1, &m_physics->g_cube, glmvec3{ 1.0_real }, pos1, glmquat{ 1,0,0,0 }, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
 				body1->m_on_move = onMove;
 				body1->m_on_erase = onErase;
-				//body1->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
+				body1->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
 				m_physics->addBody(body1);
-/*
+
 				VECHECKPOINTER(cube2 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "media/models/test/crate0", "cube.obj", 0, getRoot()));
 				auto body2 = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube2, &m_physics->g_cube, glmvec3{ 1.0_real }, pos2, glmquat{ 1,0,0,0 }, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
 				body2->m_on_move = onMove;
 				body2->m_on_erase = onErase;
-				//body2->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
-				m_physics->addBody(body2);*/
+				body2->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
+				m_physics->addBody(body2);
 
-				glmvec3 jointAxis(0.0_real, 0.0_real, 1.0_real);
+				glmvec3 jointAxis(0.0_real, 1.0_real, 0.0_real);
 				auto constraint0 = std::make_shared<VPEWorld::HingeConstraint>(body0, body1, pos0, jointAxis);
 				m_physics->addConstraint(constraint0);
+			//	constraint0->enableMotor(1.0_real, 3.0_real);
+
+				auto constraint1 = std::make_shared<VPEWorld::HingeConstraint>(body1, body2, pos1, jointAxis);
+				m_physics->addConstraint(constraint1);
 
 			}
 
@@ -339,7 +343,7 @@ namespace ve {
 		std::uniform_real_distribution<> rnd_unif{ 0.0f, 1.0f };		//Random numbers
 
 		virtual void onDrawOverlay(veEvent event) {
-			return;
+		//	return;
 			VESubrender_Nuklear* pSubrender = (VESubrender_Nuklear*)getEnginePointer()->getRenderer()->getOverlay();
 			if (pSubrender == nullptr)
 				return;

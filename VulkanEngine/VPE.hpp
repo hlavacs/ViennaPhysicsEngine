@@ -138,6 +138,12 @@ namespace std {
 		return os;
 	}
 
+	//For outputting vectors/matrices to a string stream
+	ostream& operator<<(ostream& os, const glmvec2& v) {
+		os << "(" << v.x << ',' << v.y << ")";								//output 2D vector
+		return os;
+	}
+
 	ostream& operator<<(ostream& os, const glmquat& q) {
 		os << "(" << q.x << ',' << q.y << ',' << q.z << ',' << q.w << ")";	//output quaternion
 		return os;
@@ -778,7 +784,7 @@ namespace vpe {
 		int		m_use_warmstart = 1;						//If true then warm start resting contacts
 		int		m_use_warmstart_single = 0;					//If true then warm start resting contacts
 		int		m_loops = 30;								//Number of loops in each simulation step
-		int		m_constraint_iterations = 10;				//How often should all constraints be solved in each simulation step
+		int		m_constraint_iterations = 5;				//How often should all constraints be solved in each simulation step
 		bool	m_deactivate = true;						//Do not move objects that are deactivated
 		real	m_num_active{ 0 };							//Number of currently active bodies
 		real	m_damping_incr = 10.0_real;					//Damp motion of slowly moving resting objects 
@@ -1685,7 +1691,7 @@ namespace vpe {
 		/// </summary>
 		class DistanceConstraint : public Constraint {
 			real m_distance;				// The distance the constraint has to maintain
-			real m_bias_factor = 0.01_real;	// Bias factor for Baumgarte stabilization
+			real m_bias_factor = 0.05_real;	// Bias factor for Baumgarte stabilization
 		public:
 			DistanceConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, real distance) : Constraint(body1, body2), m_distance{ distance } {}
 			~DistanceConstraint() {}
@@ -1730,7 +1736,7 @@ namespace vpe {
 		/// A constraint that models a ball-socket joint. The two bodies are connected at the anchor point given in world space
 		/// </summary>
 		class BallSocketJointConstraint : public Constraint {
-			real m_bias_factor = 0.01_real; // Bias factor for Baumgarte stabilization
+			real m_bias_factor = 0.1_real; // Bias factor for Baumgarte stabilization
 
 			glmvec3 m_anchor_w; // Anchor point in world space
 			glmvec3 m_anchor_body1; // Anchor point in local space of body1
@@ -1814,10 +1820,9 @@ namespace vpe {
 		/// A hinge constraint that connects two bodies via an anchor point and only allows them to rotate around a given hinge axis in world space
 		/// </summary>
 		class HingeConstraint : public Constraint {
-
 			std::shared_ptr<BallSocketJointConstraint> m_ballsocket; // Used for the anchor point connection
-			real m_bias_rot = 0.001_real;								// Bias factor for translation constraint Baumgarte stabilization
-			real m_bias_trans = 0.06_real;								// Bias factor for rotation constraint Baumgarte stabilization
+			real m_bias_rot = 0.2_real;								// Bias factor for translation constraint Baumgarte stabilization
+			real m_bias_trans = 0.2_real;								// Bias factor for rotation constraint Baumgarte stabilization
 			real m_bias_limit = 0.04_real;								// Bias factor for limit constraint Baumgarte stabilization
 
 			glmvec3 m_rot_axis_w;										// Hinge axis in world space
@@ -1850,7 +1855,7 @@ namespace vpe {
 				// Move rotation axis to local space of each body
 				m_rot_axis_body1 = glm::normalize(m_body1->m_model_inv * glmvec4(m_rot_axis_w, 0.0_real));
 				m_rot_axis_body2 = glm::normalize(m_body2->m_model_inv * glmvec4(m_rot_axis_w, 0.0_real));
-			}
+			};
 
 			~HingeConstraint() {}
 
@@ -2022,25 +2027,24 @@ namespace vpe {
 						m_body1->m_angular_velocityW += m_body1->m_inertia_invW * impulse1;
 						m_body2->m_angular_velocityW += m_body2->m_inertia_invW * impulse2;
 					}
-
 				}
 
 				m_ballsocket->solve(dt);
 
 				// Move hinge axis back to world space for each body
 				glmvec3 axis1 = glm::normalize(m_body1->m_model * glmvec4(m_rot_axis_body1, 0.0_real));
-				glmvec3 axis2 = glm::normalize(m_body2->m_model * glmvec4(m_rot_axis_body2, 0.0_real));;
-
+				glmvec3 axis2 = glm::normalize(m_body2->m_model * glmvec4(m_rot_axis_body2, 0.0_real));
+			
 				// Compute 2 orthogonal unit vectors to axis2 to formulate the constraint function
-				glmvec3 b = geometry::orthoUnitVector(axis2);
-				glmvec3 c = glm::normalize(glm::cross(axis2, b));
+				glmvec3 b1 = geometry::orthoUnitVector(axis2);
+				glmvec3 c1 = glm::normalize(glm::cross(axis2, b1));
 
-				glmvec2 offset(glm::dot(axis1, b), glm::dot(axis2, c));
+				glmvec2 offset(glm::dot(axis1, b1), glm::dot(axis1, c1));
 				glmvec2 abs_offset = glm::abs(offset);
 		
 				if (abs_offset.x > Constraint::epsilon || abs_offset.y > Constraint::epsilon) {
-					glmvec3 bCa = glm::cross(b, axis1);
-					glmvec3 cCa = glm::cross(c, axis1);
+					glmvec3 bCa = glm::cross(b1, axis1);
+					glmvec3 cCa = glm::cross(c1, axis1);
 
 					// Compute Jacobian matrix
 					// Missing compontents are 0
@@ -2075,6 +2079,8 @@ namespace vpe {
 					m_body1->m_angular_velocityW += m_body1->m_inertia_invW * impulse1;
 					m_body2->m_angular_velocityW += m_body2->m_inertia_invW * impulse2;
 				}
+
+				
 			}
 		};
 
@@ -2189,7 +2195,8 @@ namespace geometry {
 	/// </summary>
 	inline glmvec3 orthoUnitVector(const glmvec3& vec) {
 		assert(glm::length(vec) > c_eps);
-		int min_index = vec.x < vec.y ? (vec.x < vec.z ? 0 : 2) : (vec.y < vec.z ? 1 : 2);
+		glmvec3 vec_abs = glm::abs(vec);
+		int min_index = vec_abs.x < vec_abs.y ? (vec_abs.x < vec_abs.z ? 0 : 2) : (vec_abs.y < vec_abs.z ? 1 : 2);
 
 		intpair_t indices(min_index == 0 ? intpair_t{1, 2} : (min_index == 1 ? intpair_t{0, 2} : std::pair<int, int>{0, 1}));
 		glmvec3 ortho(0.0_real);
