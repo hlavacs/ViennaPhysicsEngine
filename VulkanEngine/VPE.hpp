@@ -784,7 +784,7 @@ namespace vpe {
 		int		m_use_warmstart = 1;						//If true then warm start resting contacts
 		int		m_use_warmstart_single = 0;					//If true then warm start resting contacts
 		int		m_loops = 30;								//Number of loops in each simulation step
-		int		m_constraint_iterations = 5;				//How often should all constraints be solved in each simulation step
+		int		m_constraint_iterations = 30;				//How often should all constraints be solved in each simulation step
 		bool	m_deactivate = true;						//Do not move objects that are deactivated
 		real	m_num_active{ 0 };							//Number of currently active bodies
 		real	m_damping_incr = 10.0_real;					//Damp motion of slowly moving resting objects 
@@ -1742,7 +1742,7 @@ namespace vpe {
 		/// <summary>
 		/// A constraint that models a ball-socket joint. The two bodies are connected at the anchor point given in world space
 		/// </summary>
-		class BallSocketJointConstraint : public Constraint {
+		class BallSocketConstraint : public Constraint {
 			real m_bias_factor = 0.1_real; // Bias factor for Baumgarte stabilization
 
 			glmvec3 m_anchor_w; // Anchor point in world space
@@ -1756,12 +1756,12 @@ namespace vpe {
 			/// <param name="body1">First body</param>
 			/// <param name="body2">Second body</param>
 			/// <param name="anchor">Anchor point in world space</param>
-			BallSocketJointConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor) : Constraint(body1, body2), m_anchor_w{ anchor } {
+			BallSocketConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor) : Constraint(body1, body2), m_anchor_w{ anchor } {
 				// Include translation? Yes/no?
 				m_anchor_body1 = m_body1->m_model_inv * glmvec4(m_anchor_w, 1.0_real);
 				m_anchor_body2 = m_body2->m_model_inv * glmvec4(m_anchor_w, 1.0_real);
 			}
-			~BallSocketJointConstraint() {}
+			~BallSocketConstraint() {}
 
 			/// <summary>
 			/// Use to update the Baumgarte stabilization bias for the translation constraint
@@ -1822,15 +1822,15 @@ namespace vpe {
 
 		// TODO: Some issues arise when the limited angle is almost a full rotation. 
 		// It seems like the constraint can't fix the overshoot fast enough and then does way too much to try and compensate it
-		// Bug: Negative Gravity with y-hinge axis???
+		// Reason seems to be the angle flip part
 		/// <summary>
 		/// A hinge constraint that connects two bodies via an anchor point and only allows them to rotate around a given hinge axis in world space
 		/// </summary>
 		class HingeConstraint : public Constraint {
-			std::shared_ptr<BallSocketJointConstraint> m_ballsocket; // Used for the anchor point connection
-			real m_bias_rot = 0.2_real;								// Bias factor for translation constraint Baumgarte stabilization
-			real m_bias_trans = 0.2_real;								// Bias factor for rotation constraint Baumgarte stabilization
-			real m_bias_limit = 0.04_real;								// Bias factor for limit constraint Baumgarte stabilization
+			std::shared_ptr<BallSocketConstraint> m_ballsocket; // Used for the anchor point connection
+			real m_bias_rot = 0.15_real;								// Bias factor for translation constraint Baumgarte stabilization
+			real m_bias_trans = 0.15_real;								// Bias factor for rotation constraint Baumgarte stabilization
+			real m_bias_limit = 0.1_real;								// Bias factor for limit constraint Baumgarte stabilization
 
 			glmvec3 m_rot_axis_w;										// Hinge axis in world space
 			glmvec3 m_rot_axis_body1;									// Hinge axis in body1's local space
@@ -1856,7 +1856,7 @@ namespace vpe {
 
 		public:
 			HingeConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis) : Constraint(body1, body2) {
-				m_ballsocket = std::make_shared<VPEWorld::BallSocketJointConstraint>(m_body1, m_body2, anchor);
+				m_ballsocket = std::make_shared<VPEWorld::BallSocketConstraint>(m_body1, m_body2, anchor);
 				m_ballsocket->setTranslationBias(m_bias_trans);
 				m_rot_axis_w = glm::normalize(axis);
 				// Move rotation axis to local space of each body
@@ -2086,10 +2086,8 @@ namespace vpe {
 					m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse1;
 					m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2;
 				}
-
-				
 			}
-		};
+};
 
 	public:
 		

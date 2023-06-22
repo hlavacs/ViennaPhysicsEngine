@@ -266,12 +266,12 @@ namespace ve {
 				auto body1 = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube1, &m_physics->g_cube, glmvec3{ 1.0_real }, cubePos2, glmquat{ 1,0,0,0 }, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
 				body1->m_on_move = onMove;
 				body1->m_on_erase = onErase;
-				body1->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
+				body1->setForce(0ul, VPEWorld::Force{ {0, -m_physics->c_gravity, 0} });
 				m_physics->addBody(body1);
 
 				auto constraint = std::make_shared<VPEWorld::HingeConstraint>(body, body1, jointAnchor, jointAxis);
 				//constraint->enableMotor(3.0_real, 4.0_real);
-			//	constraint->enableLimit(-pi / 2, pi / 2);
+				//constraint->enableLimit(-pi2, 0);
 				m_physics->addConstraint(constraint);
 
 			}
@@ -280,54 +280,43 @@ namespace ve {
 				glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
 				glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
 
-				glmvec3 pos0 = positionCamera + 2.0_real * dir;
-				pos0[1] += 2.0_real;
-				glmvec3 pos1 = pos0; pos1[0] += 1.5_real;
-				glmvec3 pos2 = pos1; pos2[0] += 1.5_real;
-				glmvec3 pos3 = pos2; pos3[0] += 1.5_real;
-				VESceneNode* cube0;
-				VESceneNode* cube1;
-				VESceneNode* cube2;
-				VESceneNode* cube3;
+				glmvec3 pos = positionCamera + 2.0_real * dir;
+				pos[1] += 3.0_real;
 
-				VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "media/models/test/crate0", "cube.obj", 0, getRoot()));
-				auto body0 = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_cube, glmvec3{ 1.0_real }, pos0, glmquat{ 1,0,0,0 }, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, 0.0_real, m_physics->m_restitution, m_physics->m_friction);
-				body0->m_on_move = onMove;
-				body0->m_on_erase = onErase;
-				m_physics->addBody(body0);
+				glmvec3 prevPos = pos;
+				int num_cubes = 5;
+				std::vector<VESceneNode*> cubes;
+				std::vector<std::shared_ptr<VPEWorld::Body>> bodies;
+				cubes.reserve(num_cubes);
+		
+				bool first = true;
 
-				VECHECKPOINTER(cube1 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "media/models/test/crate0", "cube.obj", 0, getRoot()));
-				auto body1 = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube1, &m_physics->g_cube, glmvec3{ 1.0_real }, pos1, glmquat{ 1,0,0,0 }, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
-				body1->m_on_move = onMove;
-				body1->m_on_erase = onErase;
-				body1->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
-				m_physics->addBody(body1);
+				for (int i = 0; i < num_cubes; ++i) {
+					bool last = i == num_cubes - 1;
+					VESceneNode* cube = cubes[i];
+					real cube_mass = (first || last) ? 0.0_real : 1.0_real / 100.0_real;
 
-				VECHECKPOINTER(cube2 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "media/models/test/crate0", "cube.obj", 0, getRoot()));
-				auto body2 = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube2, &m_physics->g_cube, glmvec3{ 1.0_real }, pos2, glmquat{ 1,0,0,0 }, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
-				body2->m_on_move = onMove;
-				body2->m_on_erase = onErase;
-				body2->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
-				m_physics->addBody(body2);
+					VECHECKPOINTER(cube = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "media/models/test/crate0", "cube.obj", 0, getRoot()));
+					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube, &m_physics->g_cube, glmvec3{ 1.0_real }, pos, glmquat{ 1,0,0,0 }, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, cube_mass, m_physics->m_restitution, m_physics->m_friction);
+					bodies.push_back(body);
+					body->m_on_move = onMove;
+					body->m_on_erase = onErase;
+					m_physics->addBody(body);
 
-				VECHECKPOINTER(cube3 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "media/models/test/crate0", "cube.obj", 0, getRoot()));
-				auto body3 = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube3, &m_physics->g_cube, glmvec3{ 1.0_real }, pos3, glmquat{ 1,0,0,0 }, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
-				body3->m_on_move = onMove;
-				body3->m_on_erase = onErase;
-				body3->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
-				m_physics->addBody(body3);
+					if (!first) {
+						//body->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
+					}
 
-				glmvec3 jointAxis(0.0_real, 1.0_real, 0.0_real);
-				auto constraint0 = std::make_shared<VPEWorld::HingeConstraint>(body0, body1, pos0, jointAxis);
-				m_physics->addConstraint(constraint0);
-			//	constraint0->enableMotor(1.0_real, 3.0_real);
+					first = false;
+					prevPos = pos;
+					pos[0] += 1.5_real;
+				}
 
-				auto constraint1 = std::make_shared<VPEWorld::HingeConstraint>(body1, body2, pos1, jointAxis);
-				m_physics->addConstraint(constraint1);
-
-				auto constraint2 = std::make_shared<VPEWorld::HingeConstraint>(body2, body3, pos2, jointAxis);
-				m_physics->addConstraint(constraint2);
-
+				glmvec3 hinge_axis(0, 1, 0);
+				for (int i = 1; i < num_cubes; ++i) {
+					auto constraint = std::make_shared<VPEWorld::BallSocketJointConstraint>(bodies[i-1], bodies[i], bodies[i-1]->m_positionW);
+					m_physics->addConstraint(constraint);
+				}
 			}
 
 			return false;
