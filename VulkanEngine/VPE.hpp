@@ -1118,7 +1118,7 @@ namespace vpe {
 				for (auto& body : m_bodies) { body.second->stepVelocity(m_sim_delta_time); }		//Integration step for velocity
 				calculateImpulses(m_loops, m_sim_delta_time);	//Calculate and apply impulses
 
-				solveConstraints(dt); // Solve constraints
+				solveConstraints(m_sim_delta_time); // Solve constraints
 
 				for (auto& body : m_bodies) {	//integrate positions and update the matrices for the bodies
 					if (body.second->stepPosition(m_sim_delta_time, body.second->m_positionW, body.second->m_orientationLW)) ++num_active;
@@ -1661,7 +1661,6 @@ namespace vpe {
 		class Constraint {
 		protected:
 			static constexpr real epsilon = 0.0000001_real;
-
 			std::shared_ptr<Body> m_body1;	// First body
 			std::shared_ptr<Body> m_body2;	// Second body
 		public:
@@ -1685,7 +1684,6 @@ namespace vpe {
 		/// Given two bodies, the constraint makes sure there is always a given distance between their center points
 		/// </summary>
 		class DistanceConstraint : public Constraint {
-
 			real m_distance;				// The distance the constraint has to maintain
 			real m_bias_factor = 0.01_real;	// Bias factor for Baumgarte stabilization
 		public:
