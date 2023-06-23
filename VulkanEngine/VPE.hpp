@@ -784,7 +784,7 @@ namespace vpe {
 		int		m_use_warmstart = 1;						//If true then warm start resting contacts
 		int		m_use_warmstart_single = 0;					//If true then warm start resting contacts
 		int		m_loops = 30;								//Number of loops in each simulation step
-		int		m_constraint_iterations = 30;				//How often should all constraints be solved in each simulation step
+		int		m_constraint_iterations = 15;				//How often should all constraints be solved in each simulation step
 		bool	m_deactivate = true;						//Do not move objects that are deactivated
 		real	m_num_active{ 0 };							//Number of currently active bodies
 		real	m_damping_incr = 10.0_real;					//Damp motion of slowly moving resting objects 
@@ -1122,7 +1122,7 @@ namespace vpe {
 				warmStart();			//Warm start the resting contacts if possible
 
 				for (auto& body : m_bodies) { body.second->stepVelocity(m_sim_delta_time); }		//Integration step for velocity
-				calculateImpulses(m_loops, m_sim_delta_time);	//Calculate and apply impulses
+				calculateImpulses(m_loops, m_sim_delta_time);	//Calculate and apply impulses (also solve constraints here)
 
 				solveConstraints(m_sim_delta_time); // Solve constraints
 
@@ -1130,6 +1130,7 @@ namespace vpe {
 					if (body.second->stepPosition(m_sim_delta_time, body.second->m_positionW, body.second->m_orientationLW)) ++num_active;
 					body.second->updateMatrices();
 				}
+
 				m_num_active = 0.9_real * m_num_active + 0.1_real * num_active; //smooth the number of active nodies
 				if (m_num_active < c_small) m_num_active = 0;					//If near 0, set to 0
 				m_last_slot = m_next_slot;			//Remember last slot
@@ -1402,13 +1403,15 @@ namespace vpe {
 		/// </summary>
 		/// <param name="dt">Elapsed time</param>
 		void solveConstraints(double dt) {
+			for (const auto& constraint : m_constraints) {
+				constraint->setUp((real) dt);	
+			}
 			for (int i = 0; i < m_constraint_iterations; ++i) {
 				for (const auto& constraint : m_constraints) {
 					constraint->solve((real) dt);
 				}
 			}
 		}
-
 
 		//----------------------------------------------------------------------------------------------------
 
@@ -1660,6 +1663,7 @@ namespace vpe {
 			std::erase(m_constraints, constraint);
 		}
 
+		// TODO: Make sure mass matrix is actually invertible
 		/// <summary>
 		/// Base class for all constraints
 		/// All inherenting classes need to implement a solver and a method to check whether a given body is part of the constraint
@@ -1680,7 +1684,9 @@ namespace vpe {
 			Constraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2) : m_body1 { body1 }, m_body2{ body2 } {}
 			~Constraint() {}
 
-			virtual void solve(real dt) const = 0;
+			virtual void setUp(real dt) = 0;
+			virtual void solve(real dt) = 0;
+
 			/// <summary>
 			/// Should return true if the body is part of the constraint
 			/// </summary>
@@ -1711,7 +1717,10 @@ namespace vpe {
 				m_bias_factor = new_bias;
 			}
 
-			void solve(real dt) const override {
+			void setUp(real dt) {};
+			void warmStart(real dt) {};
+
+			void solve(real dt) override {
 				// Compute distance between the objects' center, their distance and the difference to the constraint distance
 				glmvec3 relative_position = m_body1->m_positionW - m_body2->m_positionW;
 				real obj_distance = glm::length(relative_position);
@@ -1737,19 +1746,25 @@ namespace vpe {
 					m_body2->m_linear_velocityW += impulse2;
 				}				
 			}
+
+			void solvePosition() const {}
 		};
 
 		/// <summary>
 		/// A constraint that models a ball-socket joint. The two bodies are connected at the anchor point given in world space
 		/// </summary>
 		class BallSocketConstraint : public Constraint {
-			real m_bias_factor = 0.1_real; // Bias factor for Baumgarte stabilization
+			real m_bias_factor = 0.8_real; // Bias factor for Baumgarte stabilization
 
 			glmvec3 m_anchor_w; // Anchor point in world space
 			glmvec3 m_anchor_body1; // Anchor point in local space of body1
 			glmvec3 m_anchor_body2; // Anchor pont in local space of body2
-		public:
 
+			glmvec3 m_prev_impulse{ 0.0_real };
+			glmvec3 m_r1{ 0.0_real };
+			glmvec3 m_r2{ 0.0_real };
+			glmvec3 m_offset{ 0.0_real };
+		public:
 			/// <summary>
 			/// Constructor
 			/// </summary>
@@ -1771,24 +1786,26 @@ namespace vpe {
 				m_bias_factor = new_bias;
 			}
 
-			void solve(real dt) const override {
+			void setUp(real dt) {
 				// Move anchor points back to world space
 				glmvec3 anchor1 = m_body1->m_model * glmvec4(m_anchor_body1, 1.0_real);
 				glmvec3 anchor2 = m_body2->m_model * glmvec4(m_anchor_body2, 1.0_real);
-		
-				// compute vector from body center to bodies' anchor in world space
-				glmvec3 r1 = anchor1 - m_body1->m_positionW;
-				glmvec3 r2 = anchor2 - m_body2->m_positionW;
 
-				glmvec3 offset = m_body2->m_positionW + r2 - m_body1->m_positionW - r1;
-				glmvec3 abs_offset = glm::abs(offset);
+				// compute vector from body center to bodies' anchor in world space
+				m_r1 = anchor1 - m_body1->m_positionW;
+				m_r2 = anchor2 - m_body2->m_positionW;
+				m_offset = anchor2 - anchor1;
+			};
+
+			void solve(real dt) override {
+				glmvec3 abs_offset = glm::abs(m_offset);
 
 				if (abs_offset.x > Constraint::epsilon || abs_offset.y > Constraint::epsilon || abs_offset.z > Constraint::epsilon) {
 					// Compute components of Jacobian matrix
 					glmmat3 j1 = glm::mat3(-1.0_real);
-					glmmat3 j2 = glm::matrixCross3(r1);
+					glmmat3 j2 = glm::matrixCross3(m_r1);
 					glmmat3 j3 = glm::mat3(1.0_real);
-					glmmat3 j4 = -glm::matrixCross3(r2);
+					glmmat3 j4 = -glm::matrixCross3(m_r2);
 
 					// Compute product of jacobian (3x12 matrix) and velocity vector (12x1 matrix) with submatrices
 					// TODO: Maybe rewrite using cross products?
@@ -1801,9 +1818,10 @@ namespace vpe {
 					// TODO: Replace transpose with negation here as well?
 					glmmat3 constraint_mass = m_body1->m_mass_inv * glmmat3(1.0_real) + j2 * m_body1->m_inertia_invW * glm::transpose(j2) + m_body2->m_mass_inv * glmmat3(1.0_real) + (-j4) * m_body2->m_inertia_invW * glm::transpose(-j4);
 
-					glmvec3 bias = (m_bias_factor / dt) * offset;
-					glmvec3 lambda = (glm::inverse(constraint_mass) * (-jv - bias));
-
+					glmvec3 bias = (m_bias_factor / dt) * m_offset;
+					glmvec3 lambda = ((glm::determinant(constraint_mass) < Constraint::epsilon ? glmmat3(0.0_real) : glm::inverse(constraint_mass)) * (-jv - bias));
+					m_prev_impulse += lambda;
+			
 					// Compute impulses via constraint_force = J^t * lambda
 					// j2 and j4 are skew symmetric, so their transpose is their negation
 					// TODO: Maybe use cross products here as well
@@ -1934,11 +1952,15 @@ namespace vpe {
 				m_motor_active = false;
 			}
 
+			void setUp(real dt) {
+				m_ballsocket->setUp(dt);
+			};
+
 			/// <summary>
 			/// Computes and applies constraint forces if necessary
 			/// </summary>
 			/// <param name="dt">Delta time since last frame</param>
-			void solve(real dt) const override {
+			void solve(real dt) override {
 				// Handle limit constraints
 				if (m_limit_active) {
 					glmquat current_orientation = m_body2->m_orientationLW * glm::inverse(m_body1->m_orientationLW);
