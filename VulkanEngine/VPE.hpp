@@ -2012,8 +2012,9 @@ namespace vpe {
 			/// If the motor is enabled, the constraint tries to maintain the given angular velocity along the hinge axis between the bodies
 			/// </summary>
 			/// <param name="motor_speed">The angular speed in radians/sec that the motor should maintain</param>
-			/// <param name="max_force">The maximum force that can be applied per iteration step. Use this to controll ramp up time</param>
+			/// <param name="max_force">The maximum force in newton meters that can be applied per iteration step. Use this to controll ramp up time</param>
 			void enableMotor(real motor_speed, real max_force) {
+				std::cout << motor_speed << "\n";
 				assert(max_force > 0.0_real);
 				m_fmotor = motor_speed;
 				m_fmotor_max = max_force;
