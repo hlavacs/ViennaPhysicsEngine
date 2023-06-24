@@ -1121,10 +1121,9 @@ namespace vpe {
 				narrowPhase();			//Run the narrow phase
 				warmStart();			//Warm start the resting contacts if possible
 
-				for (auto& body : m_bodies) { body.second->stepVelocity(m_sim_delta_time); }		//Integration step for velocity
-				calculateImpulses(m_loops, m_sim_delta_time);	//Calculate and apply impulses (also solve constraints here)
-
-				solveConstraints(m_sim_delta_time); // Solve constraints
+				for (auto& body : m_bodies) { body.second->stepVelocity(m_sim_delta_time); }	//Integration step for velocity
+				setupConstraints(m_sim_delta_time);
+				calculateImpulses(m_loops, m_sim_delta_time);									//Calculate and apply impulses (also solve constraints here)
 
 				for (auto& body : m_bodies) {	//integrate positions and update the matrices for the bodies
 					if (body.second->stepPosition(m_sim_delta_time, body.second->m_positionW, body.second->m_orientationLW)) ++num_active;
@@ -1393,6 +1392,9 @@ namespace vpe {
 					auto nres = calculateContactPointImpules(contact.second);
 					res = std::max(nres, (uint64_t)res);
 				}
+				for (const auto& constraint : m_constraints) {
+					constraint->solve();
+				}				
 				num = num + res - 1;
 				elapsed = std::chrono::high_resolution_clock::now() - start;
 			} while (num > 0 && (m_mode == SIMULATION_MODE_DEBUG || std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count() < 1.0e6 * max_time));
@@ -1402,14 +1404,9 @@ namespace vpe {
 		/// Iteratively try to solve all current constraints
 		/// </summary>
 		/// <param name="dt">Elapsed time</param>
-		void solveConstraints(double dt) {
+		void setupConstraints(double dt) {
 			for (const auto& constraint : m_constraints) {
 				constraint->setUp((real) dt);	
-			}
-			for (int i = 0; i < m_constraint_iterations; ++i) {
-				for (const auto& constraint : m_constraints) {
-					constraint->solve((real) dt);
-				}
 			}
 		}
 
@@ -1691,8 +1688,7 @@ namespace vpe {
 			/// <summary>
 			/// Computes and applies constraint forces
 			/// </summary>
-			/// <param name="dt">Simulation time step</param>
-			virtual void solve(real dt) = 0;
+			virtual void solve() = 0;
 
 			/// <summary>
 			/// Should return true if the body is part of the constraint
@@ -1733,7 +1729,7 @@ namespace vpe {
 				m_bias_factor = new_bias;
 			}
 
-			void setUp(real dt) {
+			void setUp(real dt) override {
 				// Compute distance between the objects' center, their distance and the difference to the constraint distance
 				m_rel_pos = m_body1->m_positionW - m_body2->m_positionW;
 				m_obj_distance = glm::length(m_rel_pos);
@@ -1748,7 +1744,7 @@ namespace vpe {
 				m_bias = (m_bias_factor * m_offset) / dt;
 			};
 			
-			void solve(real dt) override {
+			void solve() override {
 				if (abs(m_offset) > Constraint::epsilon) {
 					// Compute dot product of Jacobian and velocity vector; keep in mind that j2 = -j1, so the original expression can be simplified
 					real jv = glm::dot(m_body1->m_linear_velocityW - m_body2->m_linear_velocityW, m_j1);
@@ -1809,7 +1805,7 @@ namespace vpe {
 				m_bias_factor = new_bias;
 			}
 
-			void setUp(real dt) {
+			void setUp(real dt) override {
 				// Move anchor points back to world space
 				glmvec3 anchor1 = m_body1->m_model * glmvec4(m_anchor_body1, 1.0_real);
 				glmvec3 anchor2 = m_body2->m_model * glmvec4(m_anchor_body2, 1.0_real);
@@ -1832,7 +1828,7 @@ namespace vpe {
 				m_bias = (m_bias_factor / dt) * m_offset;
 			};
 
-			void solve(real dt) override {
+			void solve() override {
 				glmvec3 abs_offset = glm::abs(m_offset);
 
 				if (abs_offset.x > Constraint::epsilon || abs_offset.y > Constraint::epsilon || abs_offset.z > Constraint::epsilon) {
@@ -1891,7 +1887,9 @@ namespace vpe {
 			bool m_body1_motor_factor = true;					// Whether body1 should be affected by motor forces
 			bool m_body2_motor_factor = true;					// Whether body2 should be affected by motor forces
 
-			// These values are computed in setUp() before each loop as they don't change between iterations
+			/// <summary>
+			/// These values are computed in setUp() before each loop as they don't change between iterations
+			/// </summary>
 			glmvec3 m_axis1_world{ 0.0_real };
 			glmvec3 m_axis2_world{ 0.0_real };
 
@@ -1981,8 +1979,8 @@ namespace vpe {
 			/// The current relative orientation of the bodies is used for the initial orientation,
 			/// which then corresponds to an angle of 0.
 			/// </summary>
-			/// <param name="min_angle">Angle that the hinge should be able to rotate around in the negative direction in radians</param>
-			/// <param name="max_angle">Angle that the hinge should be able to rotate around in the positive direction in radians</param>
+			/// <param name="min_angle">Angle that the hinge should be able to rotate around in the negative direction in radians in range [-2*pi, 0]</param>
+			/// <param name="max_angle">Angle that the hinge should be able to rotate around in the positive direction in radians in range [0,  2*pi]</param>
 			void enableLimit(real min_angle, real max_angle) {
 				assert(min_angle < max_angle);
 				m_limit_min = min_angle;
@@ -2024,7 +2022,7 @@ namespace vpe {
 			/// We do this to allow the entire system to tilt, i.e. for the hinge axis to also rotate around. Using m_rot_axis_w would lead to the system always trying to keep the same orientation which can become quite unstable
 			/// </summary>
 			/// <param name="dt"></param>
-			void setUp(real dt) {
+			void setUp(real dt) override {
 				m_ballsocket->setUp(dt);
 
 				// Move hinge axis back to world space for each body
@@ -2101,7 +2099,7 @@ namespace vpe {
 			/// Computes and applies constraint forces if necessary
 			/// </summary>
 			/// <param name="dt">Delta time since last frame</param>
-			void solve(real dt) override {
+			void solve() override {
 				// Handle limit constraints
 				if (m_limit_active) {
 					if (m_theta < m_limit_min) {
@@ -2136,7 +2134,7 @@ namespace vpe {
 						m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2;
 					} 
 				}
-
+				
 				// Handle motor constraint
 				if (m_motor_active) {
 					if (std::abs(m_offset_motor) > 0.0_real) {
@@ -2161,7 +2159,7 @@ namespace vpe {
 					}
 				}
 
-				m_ballsocket->solve(dt);
+				m_ballsocket->solve();
 			
 				glmvec2 abs_offset = glm::abs(m_offset_rotation);
 		

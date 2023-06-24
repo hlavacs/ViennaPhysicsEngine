@@ -266,12 +266,12 @@ namespace ve {
 				auto body1 = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube1, &m_physics->g_cube, glmvec3{ 1.0_real }, cubePos2, glmquat{ 1,0,0,0 }, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
 				body1->m_on_move = onMove;
 				body1->m_on_erase = onErase;
-				body1->setForce(0ul, VPEWorld::Force{ {0, -m_physics->c_gravity, 0} });
+				body1->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
 				m_physics->addBody(body1);
 
 				auto constraint = std::make_shared<VPEWorld::HingeConstraint>(body, body1, jointAnchor, jointAxis);
-				//constraint->enableMotor(3.0_real, 4.0_real);
-				constraint->enableLimit(0, pi/2);
+				//constraint->enableMotor(-3.0_real, 4.0_real);
+				constraint->enableLimit(0, pi);
 				m_physics->addConstraint(constraint);
 
 			}
@@ -360,7 +360,7 @@ namespace ve {
 		std::uniform_real_distribution<> rnd_unif{ 0.0f, 1.0f };		//Random numbers
 
 		virtual void onDrawOverlay(veEvent event) {
-			return;
+			//return;
 			VESubrender_Nuklear* pSubrender = (VESubrender_Nuklear*)getEnginePointer()->getRenderer()->getOverlay();
 			if (pSubrender == nullptr)
 				return;
