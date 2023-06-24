@@ -1663,10 +1663,8 @@ namespace vpe {
 			std::erase(m_constraints, constraint);
 		}
 
-		// TODO: Make sure mass matrix is actually invertible
 		/// <summary>
 		/// Base class for all constraints
-		/// All inherenting classes need to implement a solver and a method to check whether a given body is part of the constraint
 		/// </summary>
 		class Constraint {
 		protected:
@@ -1684,7 +1682,16 @@ namespace vpe {
 			Constraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2) : m_body1 { body1 }, m_body2{ body2 } {}
 			~Constraint() {}
 
+			/// <summary>
+			/// Computes values that are needed for subsequent loop iteration
+			/// These values don't change within the loop, so computing them here gives us much better performance
+			/// </summary>
+			/// <param name="dt">Simulation time step</param>
 			virtual void setUp(real dt) = 0;
+			/// <summary>
+			/// Computes and applies constraint forces
+			/// </summary>
+			/// <param name="dt">Simulation time step</param>
 			virtual void solve(real dt) = 0;
 
 			/// <summary>
@@ -1703,8 +1710,8 @@ namespace vpe {
 		/// Given two bodies, the constraint makes sure there is always a given distance between their center points
 		/// </summary>
 		class DistanceConstraint : public Constraint {
-			real m_distance;				// The distance the constraint has to maintain
-			real m_bias_factor = 0.1_real;	// Bias factor for Baumgarte stabilization
+			real m_distance;							// The distance the constraint has to maintain
+			real m_bias_factor = 0.1_real;				// Bias factor for Baumgarte stabilization
 
 			// These values are computed once in setUp() before each constraint loop, as they don't change between iterations
 			glmvec3 m_rel_pos{ 0.0_real };				// Relative position of the bodies
@@ -1760,25 +1767,26 @@ namespace vpe {
 
 		/// <summary>
 		/// A constraint that models a ball-socket joint. The two bodies are connected at the anchor point given in world space
+		/// They can rotate around the anchor point freely, but no relative translation is allowed
 		/// </summary>
 		class BallSocketConstraint : public Constraint {
 			real m_bias_factor = 0.2_real; // Bias factor for Baumgarte stabilization
 
 			glmvec3 m_anchor_w; // Anchor point in world space
 			glmvec3 m_anchor_body1; // Anchor point in local space of body1
-			glmvec3 m_anchor_body2; // Anchor pont in local space of body2
+			glmvec3 m_anchor_body2; // Anchor point in local space of body2
 
 			// These values are computed once before each loop as they don't change between iterations
-			glmvec3 m_prev_impulse{ 0.0_real };
-			glmvec3 m_r1{ 0.0_real };
-			glmvec3 m_r2{ 0.0_real };
-			glmvec3 m_offset{ 0.0_real };
-			glmmat3 m_j1{ 0.0_real };
-			glmmat3 m_j2{ 0.0_real };;
-			glmmat3 m_j3{ 0.0_real };
-			glmmat3 m_j4{ 0.0_real };
-			glmmat3 m_inv_constraint_mass{ 0.0_real };
-			real m_bias = 0;
+			glmvec3 m_prev_impulse{ 0.0_real };				
+			glmvec3 m_r1{ 0.0_real };						// vector from body1's center to body1's anchor in world space
+			glmvec3 m_r2{ 0.0_real };						// vector from body2's center to body2's anchor in world space
+			glmvec3 m_offset{ 0.0_real };					// Constraint error
+			glmmat3 m_j1{ 0.0_real };						// First part of Jacobian
+			glmmat3 m_j2{ 0.0_real };;						// Second part of Jacobian
+			glmmat3 m_j3{ 0.0_real };						// Third part of Jacobian
+			glmmat3 m_j4{ 0.0_real };						// Fourth part of Jacobian
+			glmmat3 m_inv_constraint_mass{ 0.0_real };		// Inverse effective constraint mass
+			glmvec3 m_bias{ 0.0_real };						// Bias to be used for Baumgarte stabilization
 		public:
 			/// <summary>
 			/// Constructor
@@ -1821,7 +1829,7 @@ namespace vpe {
 				glmmat3 constraint_mass = m_body1->m_mass_inv * glmmat3(1.0_real) + m_j2 * m_body1->m_inertia_invW * glm::transpose(m_j2) + m_body2->m_mass_inv * glmmat3(1.0_real) + (-m_j4) * m_body2->m_inertia_invW * glm::transpose(-m_j4);
 				// only invert if matrix is actually invertible - can happen when to bodies with infinite mass are involved
 				m_inv_constraint_mass = glm::determinant(constraint_mass) < Constraint::epsilon ? glmmat3(0.0_real) : glm::inverse(constraint_mass);
-				m_bias = m_bias_factor / dt;
+				m_bias = (m_bias_factor / dt) * m_offset;
 			};
 
 			void solve(real dt) override {
@@ -1836,8 +1844,7 @@ namespace vpe {
 					glmvec3 j4v4 = m_j4 * m_body2->m_angular_velocityW;
 					glmvec3 jv = j1v1 + j2v2 + j3v3 + j4v4;
 
-					glmvec3 bias = m_bias * m_offset;
-					glmvec3 lambda = m_inv_constraint_mass * (-jv - bias);
+					glmvec3 lambda = m_inv_constraint_mass * (-jv - m_bias);
 					m_prev_impulse += lambda;
 			
 					// Compute impulses via constraint_force = J^t * lambda
@@ -1864,47 +1871,47 @@ namespace vpe {
 		/// </summary>
 		class HingeConstraint : public Constraint {
 			std::shared_ptr<BallSocketConstraint> m_ballsocket; // Used for the anchor point connection
-			real m_bias_factor_rot = 0.15_real;								// Bias factor for translation constraint Baumgarte stabilization
-			real m_bias_factor_trans = 0.15_real;								// Bias factor for rotation constraint Baumgarte stabilization
-			real m_bias_factor_limit = 0.1_real;								// Bias factor for limit constraint Baumgarte stabilization
+			real m_bias_factor_rot = 0.15_real;					// Bias factor for translation constraint Baumgarte stabilization
+			real m_bias_factor_trans = 0.15_real;				// Bias factor for rotation constraint Baumgarte stabilization
+			real m_bias_factor_limit = 0.1_real;				// Bias factor for limit constraint Baumgarte stabilization
 
-			glmvec3 m_rot_axis_w;										// Hinge axis in world space
-			glmvec3 m_rot_axis_body1;									// Hinge axis in body1's local space
-			glmvec3 m_rot_axis_body2;									// Hinge axis in body2's local space
+			glmvec3 m_rot_axis_w;								// Hinge axis in world space
+			glmvec3 m_rot_axis_body1;							// Hinge axis in body1's local space
+			glmvec3 m_rot_axis_body2;							// Hinge axis in body2's local space
 
-			bool m_limit_active = false;								// Flag that enables angle limits
-			real m_limit_max = -pi2;									// Maximum angle i.e. max rotation in positive direction
-			real m_limit_min = pi2;										// Minimum angle i.e. max rotation in negative direction
-			glmquat m_init_orientation_inv;								// Inverse of initial orientation between the two bodies
+			bool m_limit_active = false;						// Flag that enables angle limits
+			real m_limit_max = -pi2;							// Maximum angle i.e. max rotation in positive direction
+			real m_limit_min = pi2;								// Minimum angle i.e. max rotation in negative direction
+			glmquat m_init_orientation_inv;						// Inverse of initial orientation between the two bodies
 
-			bool m_motor_active = false;								// Flag that enables the motor (if active, the constraint tries to maintain a certain angular velocity along the hinge axis)
-			real m_fmotor = 0.0_real;									// The speed of the motor in radians/s, i.e. the angular speed that should be maintained
-			real m_fmotor_max = 0.0_real;								// The maximum force the motor is allowed to apply per iteration step, can be used to controll ramp up time to motor speed
+			bool m_motor_active = false;						// Flag that enables the motor (if active, the constraint tries to maintain a certain angular velocity along the hinge axis)
+			real m_fmotor = 0.0_real;							// The speed of the motor in radians/s, i.e. the angular speed that should be maintained
+			real m_fmotor_max = 0.0_real;						// The maximum force the motor is allowed to apply per iteration step, can be used to controll ramp up time to motor speed
 
-			bool m_body1_motor_factor = true;
-			bool m_body2_motor_factor = true;
+			bool m_body1_motor_factor = true;					// Whether body1 should be affected by motor forces
+			bool m_body2_motor_factor = true;					// Whether body2 should be affected by motor forces
 
-			///
+			// These values are computed in setUp() before each loop as they don't change between iterations
 			glmvec3 m_axis1_world{ 0.0_real };
 			glmvec3 m_axis2_world{ 0.0_real };
 
 
 			// Angle limit 
-			real m_bias_limit_min = 0.0_real;
-			real m_bias_limit_max = 0.0_real;
-			real m_theta = 0.0_real;
-			real m_inv_constraint_mass_limit = 0.0_real;
+			real m_bias_limit_min = 0.0_real;					// Baumgarte bias to be used for lower angle limit
+			real m_bias_limit_max = 0.0_real;					// Baumgarte bias to be used for upper angle limit
+			real m_theta = 0.0_real;							// Angle between the bodies along the hinge axis
+			real m_inv_constraint_mass_limit = 0.0_real;		// Inverted effective constraint mass for angle limit
 
 			// Motor
-			real m_offset_motor = 0.0_real;
-			real m_inv_constraint_mass_motor = 0.0_real;
+			real m_offset_motor = 0.0_real;						// Constraint error for motor
+			real m_inv_constraint_mass_motor = 0.0_real;		// Inverted effective constraint mass for motor
 
 			// Rotation
-			glmvec2 m_offset_rotation{ 0.0_real };
-			glmvec3 m_bCa{ 0.0_real };
-			glmvec3 m_cCa{ 0.0_real };
-			glmmat2 m_inv_constraint_mass_rot{ 0.0_real };
-			glmvec2 m_bias_rotation{ 0.0_real };
+			glmvec2 m_offset_rotation{ 0.0_real };				// Constraint error for rotation constraint
+			glmvec3 m_bCa{ 0.0_real };							// Cross product needed for Jacobian and mass
+			glmvec3 m_cCa{ 0.0_real };							// Cross product needed for Jacobian and mass
+			glmmat2 m_inv_constraint_mass_rot{ 0.0_real };		// Inverted effective constraint mass for rotation constraint
+			glmvec2 m_bias_rotation{ 0.0_real };				// Baumgarte bias to be used for rotation constraint
 
 			/// <summary>
 			/// Returns the inverse mass matrix for the motor and limit constraints
