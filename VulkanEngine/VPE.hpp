@@ -2204,6 +2204,10 @@ namespace vpe {
 			}
 		};
 
+		/// <summary>
+		/// A fixed joint removes all degrees of freedom by allowing no relative motion between the involved bodies.
+		/// The bodies essentially become one system, i.e. their movement depends completely on each other
+		/// </summary>
 		class FixedJoint : public Constraint {
 			std::shared_ptr<BallSocketJoint> m_ballsocket;		// Used for the translation constraint
 			real m_bias_factor_trans = 0.2_real;				// Bias factor for translation constraint Baumgarte stabilization
@@ -2214,7 +2218,6 @@ namespace vpe {
 
 			// This is computed before each loop in setUp()
 			glmmat3 m_inv_constraint_mass_rot{ 0.0_real };		// Inverse effective constraint mass
-			glmvec3 m_offset_rot{ 0.0_real };					// Constraint error for the rotation constraint
 			glmvec3 m_bias_rot{ 0.0_real };						// Baumgarte bias to be used for the rotation constraint
 		public:
 			/// <summary>
@@ -2275,6 +2278,167 @@ namespace vpe {
 
 				m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse1;
 				m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2;
+			}
+		};
+
+		class SliderJoint : public Constraint {
+			real m_bias_factor_trans = 0.2_real;				// Bias factor for translation constraint Baumgarte stabilization
+			real m_bias_factor_rot = 0.1_real;					// Bias factor for rotation constraint Baumgarte stabilization
+
+			// This is computed when the Joint is created
+			glmvec3 m_anchor_world{ 0.0_real };
+			glmvec3 m_anchor_body1;								// Anchor point in local space of body1
+			glmvec3 m_anchor_body2;								// Anchor point in local space of body2
+			glmvec3 m_axis_world{ 0.0_real };					// Translation axis in world space
+			glmvec3 m_axis_body1{ 0.0_real };					// Axis in local space of body 1
+			glmquat m_init_orientation_inv;						// Initial orientation of the two bodies
+
+			// This is computed before each loop in setUp()
+			// Translation constraint
+			glmmat2 m_inv_constraint_mass_trans{ 0.0_real };	// Inverse effective constraint mass
+			glmvec2 m_bias_trans{ 0.0_real };					// Baumgarte bias to be used for the translation constraint
+			glmvec3 m_r1{ 0.0_real };							// vector from body1's center to body1's anchor in world space
+			glmvec3 m_r2{ 0.0_real };							// vector from body2's center to body2's anchor in world space
+			glmvec3 m_axis_body1_w{ 0.0_real };					// Translation axis of body1 moved to world space
+			glmvec3 m_anchor_diff{ 0.0_real };					// Relative position difference of the two bodies' anchor points
+
+			// Entries for the translation constraint Jacobian
+			glmvec3 m_j11{ 0.0_real };
+			glmvec3 m_j12{ 0.0_real };
+			glmvec3 m_j13{ 0.0_real };
+			glmvec3 m_j14{ 0.0_real };
+			glmvec3 m_j21{ 0.0_real };
+			glmvec3 m_j22{ 0.0_real };
+			glmvec3 m_j23{ 0.0_real };
+			glmvec3 m_j24{ 0.0_real };
+
+			// Rotation stuff
+			glmmat3 m_inv_constraint_mass_rot{ 0.0_real };
+			glmvec3 m_bias_rot{ 0.0_real };
+
+
+			// Rotation constraint
+		public:
+			/// <summary>
+			/// Constructor
+			/// </summary>
+			/// <param name="body1">First body</param>
+			/// <param name="body2">Second body</param>
+			/// <param name="anchor">Anchor point in world space</param>
+			SliderJoint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis) : Constraint(body1, body2), m_anchor_world{ anchor }, m_axis_world{ axis } {
+				m_anchor_body1 = m_body1->m_model_inv * glmvec4(m_anchor_world, 1.0_real);
+				m_anchor_body2 = m_body2->m_model_inv * glmvec4(m_anchor_world, 1.0_real);
+				m_axis_body1 = glm::normalize(m_body1->m_model_inv * glmvec4(m_axis_world, 0.0_real));
+				m_init_orientation_inv = glm::inverse(m_body2->m_orientationLW) * m_body1->m_orientationLW;
+			}
+			~SliderJoint() {}
+
+			/// <summary>
+			/// Use to change the Baumgarte stabilization bias factor for the translation constraint
+			/// </summary>
+			/// <param name="new_bias"></param>
+			void setTranslationBias(real new_bias) {
+				m_bias_factor_trans = new_bias;
+			}
+
+			/// <summary>
+			/// Use to change the Baumgarte stabilization bias factor for the rotation constraint
+			/// </summary>
+			/// <param name="new_bias"></param>
+			void setRotationBias(real new_bias) {
+				m_bias_factor_rot = new_bias;
+			}
+
+			/// <summary>
+			/// Computes values that remain static within one loop/timestep
+			/// </summary>
+			/// <param name="dt">Simulation timestep</param>
+			void setUp(real dt) {
+				// Translation Constraint
+				m_axis_body1_w = glm::normalize(m_body1->m_model * glmvec4(m_axis_body1, 0.0_real));
+				glmvec3 n1 = geometry::orthoUnitVector(m_axis_body1_w);
+				glmvec3 n2 = glm::normalize(glm::cross(m_axis_body1_w, n1));
+
+				// Move anchor points back to world space for each body
+				glmvec3 anchor1 = m_body1->m_model * glmvec4(m_anchor_body1, 1.0_real);
+				glmvec3 anchor2 = m_body2->m_model * glmvec4(m_anchor_body2, 1.0_real);
+
+				// compute vector from body center to bodies' anchor in world space
+				m_r1 = anchor1 - m_body1->m_positionW;
+				m_r2 = anchor2 - m_body2->m_positionW;
+
+				m_anchor_diff = anchor2 - anchor1;
+				glmvec2 offset_trans{ glm::dot(m_anchor_diff, n1), glm::dot(m_anchor_diff, n2) };
+				m_bias_trans = (m_bias_factor_trans / dt) * offset_trans;
+
+				glmvec3 r1_anchor_diff = m_r1 + m_anchor_diff;
+				glmvec3 r1_anchor_n1 = glm::cross(r1_anchor_diff, n1);
+				glmvec3 r1_anchor_n2 = glm::cross(r1_anchor_diff, n2);
+				glmvec3 r2_n1 = glm::cross(m_r2, n1);
+				glmvec3 r2_n2 = glm::cross(m_r2, n2);
+				m_j11 = -n1;
+				m_j12 = -r1_anchor_n1;
+				m_j13 = n1;
+				m_j14 = r2_n1;
+				m_j21 = -n2;
+				m_j22 = -r1_anchor_n2;
+				m_j23 = n2;
+				m_j24 = r2_n2;
+
+				real a = m_body1->m_mass_inv + m_body2->m_mass_inv + glm::dot(r1_anchor_n1, m_body1->m_inertia_invW * r1_anchor_n1) + glm::dot(r2_n1, m_body2->m_inertia_invW * r2_n1);
+				real b = glm::dot(r1_anchor_n1, m_body1->m_inertia_invW * r1_anchor_n2) + glm::dot(r2_n1, m_body2->m_inertia_invW * r2_n2);
+				real c = glm::dot(r1_anchor_n2, m_body1->m_inertia_invW * r1_anchor_n1) + glm::dot(r2_n2, m_body2->m_inertia_invW * r2_n1);
+				real d = m_body1->m_mass_inv + m_body2->m_mass_inv + glm::dot(r1_anchor_n2, m_body1->m_inertia_invW * r1_anchor_n2) + glm::dot(r2_n2, m_body2->m_inertia_invW * r2_n2);
+
+				// Column major!
+				glmmat2 constraint_mass_trans(a, c, b, d);
+				// Only invert if matrix is actually invertible
+				m_inv_constraint_mass_trans = glm::determinant(constraint_mass_trans) < Constraint::epsilon ? glmmat2(0.0_real) : glm::inverse(constraint_mass_trans);
+
+				// Rotation Constraint
+				// Compute constraint mass and invert it if possible
+				glmmat3 constraint_mass_rot = m_body1->m_inertia_invW + m_body2->m_inertia_invW;
+				m_inv_constraint_mass_rot = glm::determinant(constraint_mass_rot) < Constraint::epsilon ? glmmat3(0.0_real) : glm::inverse(constraint_mass_rot);
+
+				// Compute constraint error (relative rotation) and Baumgarte bias
+				glmquat offset = m_body2->m_orientationLW * m_init_orientation_inv * glm::inverse(m_body1->m_orientationLW);
+				m_bias_rot = (m_bias_factor_rot / dt) * 2.0_real * glmvec3(offset.x, offset.y, offset.z);
+			}
+
+			void solve() {
+				// Solve rotation constraint
+				// Compute product of 3x12 Jacobian and 12x1 velocity vector
+				// Since the Jacobian is (0 -I 0 I) (I being the 3x3 identity matrix), this is pretty simple here
+				glmvec3 jv_rot = m_body2->m_angular_velocityW - m_body1->m_angular_velocityW;
+				glmvec3 lambda_rot = m_inv_constraint_mass_rot * (-jv_rot - m_bias_rot);
+
+				glmvec3 impulse1_rot = -lambda_rot;
+				glmvec3 impulse2_rot = lambda_rot;
+
+				m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse1_rot;
+				m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2_rot;
+
+				// Solve translation constraint
+				// Calculate product of 2x12 Jacobian matrix and 12x1 velocity vector
+				glmvec2 jv_trans(
+					glm::dot(m_j11, m_body1->m_linear_velocityW) + glm::dot(m_j12, m_body1->m_angular_velocityW) + glm::dot(m_j13, m_body2->m_linear_velocityW) + glm::dot(m_j14, m_body2->m_angular_velocityW),
+					glm::dot(m_j21, m_body1->m_linear_velocityW) + glm::dot(m_j22, m_body1->m_angular_velocityW) + glm::dot(m_j23, m_body2->m_linear_velocityW) + glm::dot(m_j24, m_body2->m_angular_velocityW)
+				);
+
+				glmvec2 lambda_trans = m_inv_constraint_mass_trans * (-jv_trans - m_bias_trans);
+
+				// Compute constraint forces via J^t*lambda. Since J has 0-compontents, we don't have any linear impulses here
+				// Since we can only easily access the columns of J^t, we do the multiplication column-wise instead of using rows
+				// see https://math.stackexchange.com/questions/1422045/matrix-multiplication-of-columns-times-rows-instead-of-rows-times-columns
+				glmvec3 impulse1 = m_j11 * lambda_trans.x + m_j21 * lambda_trans.y;
+				glmvec3 impulse2 = m_j12 * lambda_trans.x + m_j22 * lambda_trans.y;
+				glmvec3 impulse3 = m_j13 * lambda_trans.x + m_j23 * lambda_trans.y;
+				glmvec3 impulse4 = m_j14 * lambda_trans.x + m_j24 * lambda_trans.y;
+
+				m_body1->m_linear_velocityW += m_body1->m_mass_inv * impulse1;
+				m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse2;
+				m_body2->m_linear_velocityW += m_body2->m_mass_inv * impulse3;
+				m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse4;
 			}
 		};
 
