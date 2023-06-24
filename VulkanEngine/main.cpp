@@ -280,21 +280,34 @@ namespace ve {
 				glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
 				glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
 
-				glmvec3 pos = positionCamera + 2.0_real * dir;
-				pos[1] += 1.0_real;
+				glmvec3 centerPos = positionCamera + 2.0_real * dir;
+				centerPos[1] += 7.0_real;
 
-				glmvec3 prevPos = pos;
-				int num_cubes = 4;
+				real cube_mass = 1.0_real / 100.0_real;
+				real center_mass = 0.0_real;
+				center_mass = cube_mass;
+				VESceneNode* centerCube;
+				VECHECKPOINTER(centerCube = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "media/models/test/crate0", "cube.obj", 0, getRoot()));
+				auto centerBody = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), centerCube, &m_physics->g_cube, glmvec3{ 1.0_real }, centerPos, glmquat{ 1,0,0,0 }, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, center_mass, m_physics->m_restitution, m_physics->m_friction);
+				centerBody->m_on_move = onMove;
+				centerBody->m_on_erase = onErase;
+				m_physics->addBody(centerBody);
+
+				glmvec3 pos = centerPos;
+				pos[1] += 4.0_real;
+
+				int num_cubes = 12;
 				std::vector<VESceneNode*> cubes;
 				std::vector<std::shared_ptr<VPEWorld::Body>> bodies;
-		
+
 				bool first = true;
+				glmmat4 rot(1.0_real);
+				real rot_amount = pi2 / (num_cubes);
 
 				for (int i = 0; i < num_cubes; ++i) {
 					bool last = i == num_cubes - 1;
-					VESceneNode* cube;
-					real cube_mass = (first || last) ? 0.0_real : 1.0_real / 100.0_real;
 
+					VESceneNode* cube;
 					VECHECKPOINTER(cube = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "media/models/test/crate0", "cube.obj", 0, getRoot()));
 					cubes.push_back(cube);
 					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube, &m_physics->g_cube, glmvec3{ 1.0_real }, pos, glmquat{ 1,0,0,0 }, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, cube_mass, m_physics->m_restitution, m_physics->m_friction);
@@ -303,24 +316,22 @@ namespace ve {
 					body->m_on_erase = onErase;
 					m_physics->addBody(body);
 
-					if (!first && !last) {
-						body->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
-					}
+					body->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
 
-					first = false;
-					prevPos = pos;
-					pos[0] += 2.0_real;
+					rot = glm::rotate((i + 1) * rot_amount, glmvec3(0, 0, 1));
+				
+					glmvec3 temp = pos;
+					pos -= centerPos;
+					pos = rot * glmvec4(pos, 1.0_real);
+					pos += centerPos;
 				}
 
-				glmvec3 hinge_axis(0, 1, 0);
-				for (int i = 0; i < num_cubes-1; ++i) {
-					auto body1 = bodies[i];
-					auto body2 = bodies[i+1];
-					glmvec3 pos = body1->m_positionW;
-					//if (i == 1) pos = body2->m_positionW;
-					auto constraint = std::make_shared<VPEWorld::BallSocketConstraint>(body1, body2, pos);
+				glmvec3 hinge_axis(0, 0, 1);
+				for (int i = 0; i < num_cubes; ++i) {
+					auto constraint = std::make_shared<VPEWorld::HingeConstraint>(centerBody, bodies[i], centerPos, hinge_axis);
+					constraint->enableMotor(4.0_real, 12.0_real);
+					constraint->setBody1Motor(false);
 					m_physics->addConstraint(constraint);
-					if (i == 2) constraint->m_log = true;
 				}
 			}
 
@@ -349,7 +360,6 @@ namespace ve {
 		std::uniform_real_distribution<> rnd_unif{ 0.0f, 1.0f };		//Random numbers
 
 		virtual void onDrawOverlay(veEvent event) {
-			return;
 			VESubrender_Nuklear* pSubrender = (VESubrender_Nuklear*)getEnginePointer()->getRenderer()->getOverlay();
 			if (pSubrender == nullptr)
 				return;

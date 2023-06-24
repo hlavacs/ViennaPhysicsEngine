@@ -784,7 +784,7 @@ namespace vpe {
 		int		m_use_warmstart = 1;						//If true then warm start resting contacts
 		int		m_use_warmstart_single = 0;					//If true then warm start resting contacts
 		int		m_loops = 30;								//Number of loops in each simulation step
-		int		m_constraint_iterations = 15;				//How often should all constraints be solved in each simulation step
+		int		m_constraint_iterations = 30;				//How often should all constraints be solved in each simulation step
 		bool	m_deactivate = true;						//Do not move objects that are deactivated
 		real	m_num_active{ 0 };							//Number of currently active bodies
 		real	m_damping_incr = 10.0_real;					//Damp motion of slowly moving resting objects 
@@ -1704,7 +1704,16 @@ namespace vpe {
 		/// </summary>
 		class DistanceConstraint : public Constraint {
 			real m_distance;				// The distance the constraint has to maintain
-			real m_bias_factor = 0.05_real;	// Bias factor for Baumgarte stabilization
+			real m_bias_factor = 0.1_real;	// Bias factor for Baumgarte stabilization
+
+			// These values are computed once in setUp() before each constraint loop, as they don't change between iterations
+			glmvec3 m_rel_pos{ 0.0_real };				// Relative position of the bodies
+			real m_obj_distance = 0.0_real;				// Distance between bodies
+			real m_offset = 0.0_real;					// The constraint error
+			glmvec3 m_j1{ 0.0_real };					// First entry of jacobian matrix
+			glmvec3 m_j2{ 0.0_real };					// Second entry of jacobian matrix
+			real m_inv_constraint_mass = 0.0_real;		// Inverse effective constraint mass
+			real m_bias = 0.0_real;						// Bias for Baumgarte stabilization
 		public:
 			DistanceConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, real distance) : Constraint(body1, body2), m_distance{ distance } {}
 			~DistanceConstraint() {}
@@ -1717,30 +1726,29 @@ namespace vpe {
 				m_bias_factor = new_bias;
 			}
 
-			void setUp(real dt) {};
-			void warmStart(real dt) {};
-
-			void solve(real dt) override {
+			void setUp(real dt) {
 				// Compute distance between the objects' center, their distance and the difference to the constraint distance
-				glmvec3 relative_position = m_body1->m_positionW - m_body2->m_positionW;
-				real obj_distance = glm::length(relative_position);
-				real offset = m_distance - obj_distance;
-				
-				if (abs(offset) > Constraint::epsilon) {
-					// Compute parts of the jacobian matrix; in this case the relative positions
-					glmvec3 j1 = glm::normalize(relative_position);
-					glmvec3 j2 = -j1;
+				m_rel_pos = m_body1->m_positionW - m_body2->m_positionW;
+				m_obj_distance = glm::length(m_rel_pos);
+				m_offset = m_distance - m_obj_distance;
 
-					real total_mass = m_body1->m_mass_inv + m_body2->m_mass_inv;
-					real inv_mass = total_mass < Constraint::epsilon ? 0.0_real : 1.0_real / total_mass;
+				// Compute parts of the jacobian matrix; in this case the relative positions
+				m_j1 = glm::normalize(m_rel_pos);
+				m_j2 = -m_j1;
+
+				real total_mass = m_body1->m_mass_inv + m_body2->m_mass_inv;
+				m_inv_constraint_mass = total_mass < Constraint::epsilon ? 0.0_real : 1.0_real / total_mass;
+				m_bias = (m_bias_factor * m_offset) / dt;
+			};
+			
+			void solve(real dt) override {
+				if (abs(m_offset) > Constraint::epsilon) {
 					// Compute dot product of Jacobian and velocity vector; keep in mind that j2 = -j1, so the original expression can be simplified
-					real jv = glm::dot(m_body1->m_linear_velocityW - m_body2->m_linear_velocityW, j1);
+					real jv = glm::dot(m_body1->m_linear_velocityW - m_body2->m_linear_velocityW, m_j1);
+					real lambda = m_inv_constraint_mass * -(jv - m_bias);
 
-					real bias = (m_bias_factor * offset) / dt;
-					real lambda = inv_mass * -(jv - bias);
-
-					glmvec3 impulse1 = j1 * lambda * m_body1->m_mass_inv;
-					glmvec3 impulse2 = j2 * lambda * m_body2->m_mass_inv;
+					glmvec3 impulse1 = m_j1 * lambda * m_body1->m_mass_inv;
+					glmvec3 impulse2 = m_j2 * lambda * m_body2->m_mass_inv;
 
 					m_body1->m_linear_velocityW += impulse1;
 					m_body2->m_linear_velocityW += impulse2;
@@ -1754,16 +1762,23 @@ namespace vpe {
 		/// A constraint that models a ball-socket joint. The two bodies are connected at the anchor point given in world space
 		/// </summary>
 		class BallSocketConstraint : public Constraint {
-			real m_bias_factor = 0.8_real; // Bias factor for Baumgarte stabilization
+			real m_bias_factor = 0.2_real; // Bias factor for Baumgarte stabilization
 
 			glmvec3 m_anchor_w; // Anchor point in world space
 			glmvec3 m_anchor_body1; // Anchor point in local space of body1
 			glmvec3 m_anchor_body2; // Anchor pont in local space of body2
 
+			// These values are computed once before each loop as they don't change between iterations
 			glmvec3 m_prev_impulse{ 0.0_real };
 			glmvec3 m_r1{ 0.0_real };
 			glmvec3 m_r2{ 0.0_real };
 			glmvec3 m_offset{ 0.0_real };
+			glmmat3 m_j1{ 0.0_real };
+			glmmat3 m_j2{ 0.0_real };;
+			glmmat3 m_j3{ 0.0_real };
+			glmmat3 m_j4{ 0.0_real };
+			glmmat3 m_inv_constraint_mass{ 0.0_real };
+			real m_bias = 0;
 		public:
 			/// <summary>
 			/// Constructor
@@ -1795,40 +1810,43 @@ namespace vpe {
 				m_r1 = anchor1 - m_body1->m_positionW;
 				m_r2 = anchor2 - m_body2->m_positionW;
 				m_offset = anchor2 - anchor1;
+
+				// Compute components of Jacobian matrix
+				m_j1 = glm::mat3(-1.0_real);
+				m_j2 = glm::matrixCross3(m_r1);
+				m_j3 = glm::mat3(1.0_real);
+				m_j4 = -glm::matrixCross3(m_r2);
+
+				// TODO: Replace transpose with negation here as well?
+				glmmat3 constraint_mass = m_body1->m_mass_inv * glmmat3(1.0_real) + m_j2 * m_body1->m_inertia_invW * glm::transpose(m_j2) + m_body2->m_mass_inv * glmmat3(1.0_real) + (-m_j4) * m_body2->m_inertia_invW * glm::transpose(-m_j4);
+				// only invert if matrix is actually invertible - can happen when to bodies with infinite mass are involved
+				m_inv_constraint_mass = glm::determinant(constraint_mass) < Constraint::epsilon ? glmmat3(0.0_real) : glm::inverse(constraint_mass);
+				m_bias = m_bias_factor / dt;
 			};
 
 			void solve(real dt) override {
 				glmvec3 abs_offset = glm::abs(m_offset);
 
 				if (abs_offset.x > Constraint::epsilon || abs_offset.y > Constraint::epsilon || abs_offset.z > Constraint::epsilon) {
-					// Compute components of Jacobian matrix
-					glmmat3 j1 = glm::mat3(-1.0_real);
-					glmmat3 j2 = glm::matrixCross3(m_r1);
-					glmmat3 j3 = glm::mat3(1.0_real);
-					glmmat3 j4 = -glm::matrixCross3(m_r2);
-
 					// Compute product of jacobian (3x12 matrix) and velocity vector (12x1 matrix) with submatrices
 					// TODO: Maybe rewrite using cross products?
 					glmvec3 j1v1 = -m_body1->m_linear_velocityW; // j1 is negated identity matrix
-					glmvec3 j2v2 = j2 * m_body1->m_angular_velocityW;
+					glmvec3 j2v2 = m_j2 * m_body1->m_angular_velocityW;
 					glmvec3 j3v3 = m_body2->m_linear_velocityW; // j3 is identity matrix
-					glmvec3 j4v4 = j4 * m_body2->m_angular_velocityW;
+					glmvec3 j4v4 = m_j4 * m_body2->m_angular_velocityW;
 					glmvec3 jv = j1v1 + j2v2 + j3v3 + j4v4;
 
-					// TODO: Replace transpose with negation here as well?
-					glmmat3 constraint_mass = m_body1->m_mass_inv * glmmat3(1.0_real) + j2 * m_body1->m_inertia_invW * glm::transpose(j2) + m_body2->m_mass_inv * glmmat3(1.0_real) + (-j4) * m_body2->m_inertia_invW * glm::transpose(-j4);
-
-					glmvec3 bias = (m_bias_factor / dt) * m_offset;
-					glmvec3 lambda = ((glm::determinant(constraint_mass) < Constraint::epsilon ? glmmat3(0.0_real) : glm::inverse(constraint_mass)) * (-jv - bias));
+					glmvec3 bias = m_bias * m_offset;
+					glmvec3 lambda = m_inv_constraint_mass * (-jv - bias);
 					m_prev_impulse += lambda;
 			
 					// Compute impulses via constraint_force = J^t * lambda
 					// j2 and j4 are skew symmetric, so their transpose is their negation
 					// TODO: Maybe use cross products here as well
 					glmvec3 impulse1 = -lambda; // j1 is negated identity matrix
-					glmvec3 impulse2 = -j2 * lambda;
+					glmvec3 impulse2 = -m_j2 * lambda;
 					glmvec3 impulse3 = lambda; // j3 is identity matrix
-					glmvec3 impulse4 = -j4 * lambda;
+					glmvec3 impulse4 = -m_j4 * lambda;
 
 					m_body1->m_linear_velocityW += m_body1->m_mass_inv * impulse1;
 					m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse2;
@@ -1846,9 +1864,9 @@ namespace vpe {
 		/// </summary>
 		class HingeConstraint : public Constraint {
 			std::shared_ptr<BallSocketConstraint> m_ballsocket; // Used for the anchor point connection
-			real m_bias_rot = 0.15_real;								// Bias factor for translation constraint Baumgarte stabilization
-			real m_bias_trans = 0.15_real;								// Bias factor for rotation constraint Baumgarte stabilization
-			real m_bias_limit = 0.1_real;								// Bias factor for limit constraint Baumgarte stabilization
+			real m_bias_factor_rot = 0.15_real;								// Bias factor for translation constraint Baumgarte stabilization
+			real m_bias_factor_trans = 0.15_real;								// Bias factor for rotation constraint Baumgarte stabilization
+			real m_bias_factor_limit = 0.1_real;								// Bias factor for limit constraint Baumgarte stabilization
 
 			glmvec3 m_rot_axis_w;										// Hinge axis in world space
 			glmvec3 m_rot_axis_body1;									// Hinge axis in body1's local space
@@ -1863,19 +1881,45 @@ namespace vpe {
 			real m_fmotor = 0.0_real;									// The speed of the motor in radians/s, i.e. the angular speed that should be maintained
 			real m_fmotor_max = 0.0_real;								// The maximum force the motor is allowed to apply per iteration step, can be used to controll ramp up time to motor speed
 
+			bool m_body1_motor_factor = true;
+			bool m_body2_motor_factor = true;
+
+			///
+			glmvec3 m_axis1_world{ 0.0_real };
+			glmvec3 m_axis2_world{ 0.0_real };
+
+
+			// Angle limit 
+			real m_bias_limit_min = 0.0_real;
+			real m_bias_limit_max = 0.0_real;
+			real m_theta = 0.0_real;
+			real m_inv_constraint_mass_limit = 0.0_real;
+
+			// Motor
+			real m_offset_motor = 0.0_real;
+			real m_inv_constraint_mass_motor = 0.0_real;
+
+			// Rotation
+			glmvec2 m_offset_rotation{ 0.0_real };
+			glmvec3 m_bCa{ 0.0_real };
+			glmvec3 m_cCa{ 0.0_real };
+			glmmat2 m_inv_constraint_mass_rot{ 0.0_real };
+			glmvec2 m_bias_rotation{ 0.0_real };
+
 			/// <summary>
 			/// Returns the inverse mass matrix for the motor and limit constraints
+			/// Requires m_axis1_world to have been computed already
 			/// </summary>
 			/// <returns></returns>
 			real getMotorAndLimitMass() const {
-				real mass = glm::dot(m_rot_axis_w * m_body1->m_inertia_invW, m_rot_axis_w) + glm::dot(m_rot_axis_w * m_body2->m_inertia_invW, m_rot_axis_w);
+				real mass = glm::dot(m_axis1_world * m_body1->m_inertia_invW, m_axis1_world) + glm::dot(m_axis1_world * m_body2->m_inertia_invW, m_axis1_world);
 				return mass < Constraint::epsilon ? 0.0_real : 1.0_real / mass;
 			}
 
 		public:
 			HingeConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis) : Constraint(body1, body2) {
 				m_ballsocket = std::make_shared<VPEWorld::BallSocketConstraint>(m_body1, m_body2, anchor);
-				m_ballsocket->setTranslationBias(m_bias_trans);
+				m_ballsocket->setTranslationBias(m_bias_factor_trans);
 				m_rot_axis_w = glm::normalize(axis);
 				// Move rotation axis to local space of each body
 				m_rot_axis_body1 = glm::normalize(m_body1->m_model_inv * glmvec4(m_rot_axis_w, 0.0_real));
@@ -1885,12 +1929,28 @@ namespace vpe {
 			~HingeConstraint() {}
 
 			/// <summary>
+			/// Use this to specify whether body1 should be affected by the motor force or not
+			/// </summary>
+			/// <param name="moved_by_motor">Should this body be moved by the motor?</param>
+			void setBody1Motor(bool moved_by_motor) {
+				m_body1_motor_factor = moved_by_motor;
+			}
+
+			/// <summary>
+			/// Use this to specify whether body2 should be affected by the motor force or not
+			/// </summary>
+			/// <param name="moved_by_motor">Should this body be moved by the motor?</param>
+			void setBody2Motor(bool moved_by_motor) {
+				m_body2_motor_factor = moved_by_motor;
+			}
+
+			/// <summary>
 			/// Use to change the Baumgarte stabilization bias factor for the translation constraint
 			/// </summary>
 			/// <param name="new_bias"></param>
 			void setTranslationBias(real new_bias) {
-				m_bias_trans = new_bias;
-				m_ballsocket->setTranslationBias(m_bias_trans);
+				m_bias_factor_trans = new_bias;
+				m_ballsocket->setTranslationBias(m_bias_factor_trans);
 			}
 
 			/// <summary>
@@ -1898,7 +1958,7 @@ namespace vpe {
 			/// </summary>
 			/// <param name="new_bias"></param>
 			void setRotationBias(real new_bias) {
-				m_bias_rot = new_bias;
+				m_bias_factor_rot = new_bias;
 			}
 
 			/// <summary>
@@ -1906,7 +1966,7 @@ namespace vpe {
 			/// </summary>
 			/// <param name="new_bias"></param>
 			void setLimitBias(real new_bias) {
-				m_bias_limit = new_bias;
+				m_bias_factor_limit = new_bias;
 			}
 
 			/// <summary>
@@ -1952,16 +2012,18 @@ namespace vpe {
 				m_motor_active = false;
 			}
 
+			/// <summary>
+			/// Note: We often use m_axis1_world even though the math would require m_rot_axis_w;
+			/// We do this to allow the entire system to tilt, i.e. for the hinge axis to also rotate around. Using m_rot_axis_w would lead to the system always trying to keep the same orientation which can become quite unstable
+			/// </summary>
+			/// <param name="dt"></param>
 			void setUp(real dt) {
 				m_ballsocket->setUp(dt);
-			};
 
-			/// <summary>
-			/// Computes and applies constraint forces if necessary
-			/// </summary>
-			/// <param name="dt">Delta time since last frame</param>
-			void solve(real dt) override {
-				// Handle limit constraints
+				// Move hinge axis back to world space for each body
+				m_axis1_world = glm::normalize(m_body1->m_model * glmvec4(m_rot_axis_body1, 0.0_real));
+				m_axis2_world = glm::normalize(m_body2->m_model * glmvec4(m_rot_axis_body2, 0.0_real));
+
 				if (m_limit_active) {
 					glmquat current_orientation = m_body2->m_orientationLW * glm::inverse(m_body1->m_orientationLW);
 					// Difference between original orientation and current one
@@ -1992,17 +2054,57 @@ namespace vpe {
 						}
 					}
 
-					real inv_constraint_mass = getMotorAndLimitMass();
-	
-					if (theta < m_limit_min) {
+					m_bias_limit_min = (m_bias_factor_limit / dt) * (theta - m_limit_min);
+					m_bias_limit_min = (m_bias_factor_limit / dt) * (m_limit_max - theta);
+					m_theta = theta;
+					m_inv_constraint_mass_limit = getMotorAndLimitMass();
+				}
+
+				if (m_motor_active) {
+					// Get current angular speed along the hinge axis (using m_axis1_world here, see note above class)
+					real speed_projection = glm::dot(m_body2->m_angular_velocityW - m_body1->m_angular_velocityW, m_axis1_world);
+					m_offset_motor = speed_projection + m_fmotor;
+					m_inv_constraint_mass_motor = getMotorAndLimitMass();
+				}
+
+				// Compute 2 orthogonal unit vectors to axis2 to formulate the constraint function
+				glmvec3 b1 = geometry::orthoUnitVector(m_axis2_world);
+				glmvec3 c1 = glm::normalize(glm::cross(m_axis2_world, b1));
+
+				m_offset_rotation = glmvec2(glm::dot(m_axis1_world, b1), glm::dot(m_axis1_world, c1));
+				m_bias_rotation = (m_bias_factor_rot / dt) * m_offset_rotation;
+
+				glmvec3 bCa = glm::cross(b1, m_axis1_world);
+				glmvec3 cCa = glm::cross(c1, m_axis1_world);
+				m_bCa = bCa;
+				m_cCa = cCa;
+
+				// Compute constraint mass matrix with J*M^-1*J^T
+				real a = glm::dot(bCa * m_body1->m_inertia_invW, bCa) + glm::dot(bCa * m_body2->m_inertia_invW, bCa);
+				real b = glm::dot(bCa * m_body1->m_inertia_invW, cCa) + glm::dot(bCa * m_body2->m_inertia_invW, cCa);
+				real c = glm::dot(cCa * m_body1->m_inertia_invW, bCa) + glm::dot(cCa * m_body2->m_inertia_invW, bCa);
+				real d = glm::dot(cCa * m_body1->m_inertia_invW, cCa) + glm::dot(cCa * m_body2->m_inertia_invW, cCa);
+				// Column major!
+				glmmat2 constraint_mass(a, c, b, d);
+				// Only invert if matrix is actually invertible
+				m_inv_constraint_mass_rot = glm::determinant(constraint_mass) < Constraint::epsilon ? glmmat2(0.0_real) : glm::inverse(constraint_mass);
+			};
+
+			/// <summary>
+			/// Computes and applies constraint forces if necessary
+			/// </summary>
+			/// <param name="dt">Delta time since last frame</param>
+			void solve(real dt) override {
+				// Handle limit constraints
+				if (m_limit_active) {
+					if (m_theta < m_limit_min) {
 						// Missing compontents of Jacobian matrix are 0
 						glmvec3 j2 = -m_rot_axis_w;
 						glmvec3 j4 = m_rot_axis_w;
 
 						// compute dot product of 1x12 Jacobian matrix and 12x1 velocity vector
-						real jv = glm::dot(m_rot_axis_w, -m_body1->m_angular_velocityW + m_body2->m_angular_velocityW);
-						real bias = (m_bias_limit / dt) * (theta - m_limit_min);
-						real lambda = inv_constraint_mass * (-jv - bias);
+						real jv = glm::dot(m_axis1_world, -m_body1->m_angular_velocityW + m_body2->m_angular_velocityW);
+						real lambda = m_inv_constraint_mass_limit * (-jv - m_bias_limit_min);
 
 						glmvec3 impulse1 = j2 * lambda;
 						glmvec3 impulse2 = j4 * lambda;
@@ -2011,15 +2113,14 @@ namespace vpe {
 						m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2;
 					}
 
-					if (theta > m_limit_max) {
+					if (m_theta > m_limit_max) {
 						// Missing compontents of Jacobian matrix are 0
 						glmvec3 j2 = m_rot_axis_w;
 						glmvec3 j4 = -m_rot_axis_w;
 
 						// compute dot product of 1x12 Jacobian matrix and 12x1 velocity vector
 						real jv = glm::dot(m_rot_axis_w, m_body1->m_angular_velocityW - m_body2->m_angular_velocityW);
-						real bias = (m_bias_limit / dt) * (m_limit_max - theta);
-						real lambda = inv_constraint_mass * (-jv - bias);
+						real lambda = m_inv_constraint_mass_limit * (-jv - m_bias_limit_max);
 
 						glmvec3 impulse1 = j2 * lambda;
 						glmvec3 impulse2 = j4 * lambda;
@@ -2031,21 +2132,16 @@ namespace vpe {
 
 				// Handle motor constraint
 				if (m_motor_active) {
-					// Get current angular speed along the hinge axis
-					real speed_projection = glm::dot(m_body2->m_angular_velocityW - m_body1->m_angular_velocityW, m_rot_axis_w);
-					real offset = speed_projection + m_fmotor;
-
-					if (std::abs(offset) > 0.0_real) {
+					if (std::abs(m_offset_motor) > 0.0_real) {
 						// Missing compontents of Jacobian matrix are 0
-						glmvec3 j2 = -m_rot_axis_w;
-						glmvec3 j4 = m_rot_axis_w;
+						glmvec3 j2 = -m_axis1_world;
+						glmvec3 j4 = m_axis1_world;
 
 						// compute dot product of 1x12 Jacobian matrix and 12x1 velocity vector
-						real jv = glm::dot(m_rot_axis_w, m_body2->m_angular_velocityW - m_body1->m_angular_velocityW);
+						real jv = glm::dot(m_axis1_world, m_body2->m_angular_velocityW - m_body1->m_angular_velocityW);
 
-						real inv_constraint_mass = getMotorAndLimitMass();
 						real bias = m_fmotor; // Our bias is the motor speed. We introduce extra energy into the system here
-						real lambda = inv_constraint_mass * (-jv - bias);
+						real lambda = m_inv_constraint_mass_motor * (-jv - bias);
 
 						// Clamp lambda so it doesn't exceed the maximum allowed force
 						lambda = std::clamp(lambda, -m_fmotor_max, m_fmotor_max);
@@ -2053,34 +2149,22 @@ namespace vpe {
 						glmvec3 impulse1 = j2 * lambda;
 						glmvec3 impulse2 = j4 * lambda;
 
-						m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse1;
-						m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2;
+						m_body1->m_angular_velocityW += m_body1_motor_factor * m_body1_factor * m_body1->m_inertia_invW * impulse1;
+						m_body2->m_angular_velocityW += m_body2_motor_factor * m_body2_factor * m_body2->m_inertia_invW * impulse2;
 					}
 				}
 
 				m_ballsocket->solve(dt);
-
-				// Move hinge axis back to world space for each body
-				glmvec3 axis1 = glm::normalize(m_body1->m_model * glmvec4(m_rot_axis_body1, 0.0_real));
-				glmvec3 axis2 = glm::normalize(m_body2->m_model * glmvec4(m_rot_axis_body2, 0.0_real));
 			
-				// Compute 2 orthogonal unit vectors to axis2 to formulate the constraint function
-				glmvec3 b1 = geometry::orthoUnitVector(axis2);
-				glmvec3 c1 = glm::normalize(glm::cross(axis2, b1));
-
-				glmvec2 offset(glm::dot(axis1, b1), glm::dot(axis1, c1));
-				glmvec2 abs_offset = glm::abs(offset);
+				glmvec2 abs_offset = glm::abs(m_offset_rotation);
 		
 				if (abs_offset.x > Constraint::epsilon || abs_offset.y > Constraint::epsilon) {
-					glmvec3 bCa = glm::cross(b1, axis1);
-					glmvec3 cCa = glm::cross(c1, axis1);
-
 					// Compute Jacobian matrix
 					// Missing compontents are 0
-					glmvec3 j12 = -bCa;
-					glmvec3 j22 = -cCa;
-					glmvec3 j14 = bCa;
-					glmvec3 j24 = cCa;
+					glmvec3 j12 = -m_bCa;
+					glmvec3 j22 = -m_cCa;
+					glmvec3 j14 = m_bCa;
+					glmvec3 j24 = m_cCa;
 
 					// Calculate product of 2x12 Jacobian matrix and 12x1 velocity vector
 					glmvec2 jv(
@@ -2088,16 +2172,7 @@ namespace vpe {
 						glm::dot(j22, m_body1->m_angular_velocityW) + glm::dot(j24, m_body2->m_angular_velocityW)
 					);
 
-					// Compute constraint mass matrix with J*M^-1*J^T
-					real a = glm::dot(bCa * m_body1->m_inertia_invW, bCa) + glm::dot(bCa * m_body2->m_inertia_invW, bCa);
-					real b = glm::dot(bCa * m_body1->m_inertia_invW, cCa) + glm::dot(bCa * m_body2->m_inertia_invW, cCa);
-					real c = glm::dot(cCa * m_body1->m_inertia_invW, bCa) + glm::dot(cCa * m_body2->m_inertia_invW, bCa);
-					real d = glm::dot(cCa * m_body1->m_inertia_invW, cCa) + glm::dot(cCa * m_body2->m_inertia_invW, cCa);
-					// Column major!
-					glmmat2 constraint_mass(a, c, b, d);
-
-					glmvec2 bias = (m_bias_rot / dt) * offset;
-					glmvec2 lambda = (glm::inverse(constraint_mass) * (-jv - bias));
+					glmvec2 lambda = m_inv_constraint_mass_rot * (-jv - m_bias_rotation);
 
 					// Compute constraint forces via J^t*lambda. Since J has 0-compontents, we don't have any linear impulses here
 					// Since we can only easily access the columns of J^t, we do the multiplication column-wise instead of using rows
@@ -2109,7 +2184,7 @@ namespace vpe {
 					m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2;
 				}
 			}
-};
+		};
 
 	public:
 		
