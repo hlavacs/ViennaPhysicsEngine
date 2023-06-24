@@ -2507,20 +2507,20 @@ namespace vpe {
 				m_bias_rot = (m_bias_factor_rot / dt) * 2.0_real * glmvec3(offset.x, offset.y, offset.z);
 
 				if (m_limit_active) {
-					m_r1_anchor_axis = glm::cross(r1_anchor_diff, m_axis_world);
-					m_r2_axis = glm::cross(m_r2, m_axis_world);
+					m_r1_anchor_axis = glm::cross(r1_anchor_diff, m_axis_body1_w);
+					m_r2_axis = glm::cross(m_r2, m_axis_body1_w);
 
 					real limit_mass = m_body1->m_mass_inv + m_body2->m_mass_inv + glm::dot(m_r1_anchor_axis, m_body1->m_inertia_invW * m_r1_anchor_axis) + glm::dot(m_r2_axis, m_body2->m_inertia_invW * m_r2_axis);
 					m_inv_constraint_mass_limit = limit_mass < Constraint::epsilon ? 0.0_real : 1.0_real / limit_mass;
 
-					m_current_distance = glm::dot(m_anchor_diff, m_axis_world);
+					m_current_distance = glm::dot(m_anchor_diff, m_axis_body1_w);
 					m_bias_limit_min = (m_bias_factor_limit / dt) * (m_current_distance - m_limit_min);
 					m_bias_limit_max = (m_bias_factor_limit / dt) * (m_limit_max - m_current_distance);
 				}
 
 				if (m_motor_active) {
 					m_inv_constraint_mass_motor = m_body1->m_mass_inv + m_body2->m_mass_inv;
-					m_offset_motor = glm::dot(m_axis_world, m_body1->m_linear_velocityW - m_body2->m_linear_velocityW) + m_fmotor;
+					m_offset_motor = glm::dot(m_axis_body1_w, m_body1->m_linear_velocityW - m_body2->m_linear_velocityW) + m_fmotor;
 				}
 			}
 
@@ -2528,9 +2528,9 @@ namespace vpe {
 				// Solve limit constraint
 				if (m_limit_active) {
 					if (m_current_distance < m_limit_min) {
-						glmvec3 j1 = -m_axis_world;
+						glmvec3 j1 = -m_axis_body1_w;
 						glmvec3 j2 = -m_r1_anchor_axis;
-						glmvec3 j3 = m_axis_world;
+						glmvec3 j3 = m_axis_body1_w;
 						glmvec3 j4 = m_r2_axis;
 
 						// compute dot product of 1x12 Jacobian matrix and 12x1 velocity vector
@@ -2549,9 +2549,9 @@ namespace vpe {
 					}
 
 					if (m_current_distance > m_limit_max) {
-						glmvec3 j1 = m_axis_world;
+						glmvec3 j1 = m_axis_body1_w;
 						glmvec3 j2 = m_r1_anchor_axis;
-						glmvec3 j3 = -m_axis_world;
+						glmvec3 j3 = -m_axis_body1_w;
 						glmvec3 j4 = -m_r2_axis;
 
 						// compute dot product of 1x12 Jacobian matrix and 12x1 velocity vector
@@ -2574,11 +2574,11 @@ namespace vpe {
 				if (m_motor_active) {
 					if (std::abs(m_offset_motor) > 0.0_real) {
 						// Missing compontents of Jacobian matrix are 0
-						glmvec3 j1 = m_axis_world;
-						glmvec3 j3 = -m_axis_world;
+						glmvec3 j1 = m_axis_body1_w;
+						glmvec3 j3 = -m_axis_body1_w;
 
 						// compute dot product of 1x12 Jacobian matrix and 12x1 velocity vector
-						real jv = glm::dot(m_axis_world, m_body1->m_linear_velocityW - m_body2->m_linear_velocityW);
+						real jv = glm::dot(m_axis_body1_w, m_body1->m_linear_velocityW - m_body2->m_linear_velocityW);
 
 						real bias = m_fmotor; // Our bias is the motor speed. We introduce extra energy into the system here
 						real lambda = m_inv_constraint_mass_motor * (-jv - bias);
