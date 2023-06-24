@@ -1992,6 +1992,9 @@ namespace vpe {
 			/// <param name="max_angle">Angle that the hinge should be able to rotate around in the positive direction in radians in range [0,  2*pi]</param>
 			void enableLimit(real min_angle, real max_angle) {
 				assert(min_angle < max_angle);
+				assert(min_angle <= 0.0_real);
+				assert(max_angle >= 0.0_real);
+
 				m_limit_min = min_angle;
 				m_limit_max = max_angle;
 				// Compute current orientation between the bodies
@@ -2014,7 +2017,6 @@ namespace vpe {
 			/// <param name="motor_speed">The angular speed in radians/sec that the motor should maintain</param>
 			/// <param name="max_force">The maximum force in newton meters that can be applied per iteration step. Use this to controll ramp up time</param>
 			void enableMotor(real motor_speed, real max_force) {
-				std::cout << motor_speed << "\n";
 				assert(max_force > 0.0_real);
 				m_fmotor = motor_speed;
 				m_fmotor_max = max_force;
@@ -2281,9 +2283,20 @@ namespace vpe {
 			}
 		};
 
+		/// <summary>
+		/// A slider joint only allows one degree of freedom, namely translation along the slide / joint axis.
+		/// The joint is given by an anchor point and translation axis in world space.
+		/// The bodies can then only do relative translations along the translation axis
+		/// </summary>
 		class SliderJoint : public Constraint {
 			real m_bias_factor_trans = 0.2_real;				// Bias factor for translation constraint Baumgarte stabilization
 			real m_bias_factor_rot = 0.1_real;					// Bias factor for rotation constraint Baumgarte stabilization
+			real m_bias_factor_limit = 0.1_real;
+
+			bool m_limit_active = false;
+			real m_limit_min = -std::numeric_limits<real>::max();
+			real m_limit_max = std::numeric_limits<real>::max();
+
 
 			// This is computed when the Joint is created
 			glmvec3 m_anchor_world{ 0.0_real };
@@ -2293,7 +2306,7 @@ namespace vpe {
 			glmvec3 m_axis_body1{ 0.0_real };					// Axis in local space of body 1
 			glmquat m_init_orientation_inv;						// Initial orientation of the two bodies
 
-			// This is computed before each loop in setUp()
+			// The following values are computed before each loop in setUp()
 			// Translation constraint
 			glmmat2 m_inv_constraint_mass_trans{ 0.0_real };	// Inverse effective constraint mass
 			glmvec2 m_bias_trans{ 0.0_real };					// Baumgarte bias to be used for the translation constraint
@@ -2312,12 +2325,19 @@ namespace vpe {
 			glmvec3 m_j23{ 0.0_real };
 			glmvec3 m_j24{ 0.0_real };
 
-			// Rotation stuff
-			glmmat3 m_inv_constraint_mass_rot{ 0.0_real };
-			glmvec3 m_bias_rot{ 0.0_real };
+			// Rotation Constraint
+			glmmat3 m_inv_constraint_mass_rot{ 0.0_real };		// Inverse effective constraint mass
+			glmvec3 m_bias_rot{ 0.0_real };						// Baumgarte bias to be used for the rotation constraint
 
+			// Limit Constraint
+			real m_inv_constraint_mass_limit = 0.0_real;
+			real m_bias_limit_min = 0.0_real;
+			real m_bias_limit_max = 0.0_real;
+			real m_current_distance = 0.0_real;
+			// Used for jacobian entries for limit constraint
+			glmvec3 m_r1_anchor_axis{ 0.0_real };
+			glmvec3 m_r2_axis{ 0.0_real };
 
-			// Rotation constraint
 		public:
 			/// <summary>
 			/// Constructor
@@ -2325,7 +2345,8 @@ namespace vpe {
 			/// <param name="body1">First body</param>
 			/// <param name="body2">Second body</param>
 			/// <param name="anchor">Anchor point in world space</param>
-			SliderJoint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis) : Constraint(body1, body2), m_anchor_world{ anchor }, m_axis_world{ axis } {
+			/// <param name="anchor">Translation axis in world space</param>
+			SliderJoint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis) : Constraint(body1, body2), m_anchor_world{ anchor }, m_axis_world{ glm::normalize(axis) } {
 				m_anchor_body1 = m_body1->m_model_inv * glmvec4(m_anchor_world, 1.0_real);
 				m_anchor_body2 = m_body2->m_model_inv * glmvec4(m_anchor_world, 1.0_real);
 				m_axis_body1 = glm::normalize(m_body1->m_model_inv * glmvec4(m_axis_world, 0.0_real));
@@ -2350,12 +2371,39 @@ namespace vpe {
 			}
 
 			/// <summary>
+			/// Use to change the Baumgarte stabilization bias factor for the translation distance limit constraint
+			/// </summary>
+			/// <param name="new_bias"></param>
+			void setLimitBias(real new_bias) {
+				m_bias_factor_limit = new_bias;
+			}
+
+			/// <summary>
+			/// Enables distance limits for the slider joint
+			/// The current relative distance of the bodies is used for the initial orientation,
+			/// which then corresponds to a distance of 0.
+			/// </summary>
+			/// <param name="min_distance">Minimum relative distance between the bodies, i.e. how far can they translate in the negative direction; in range [-inf; 0]</param>
+			/// <param name="max_distance">Maximum relative distance between the bodies, i.e. how far can they translate in the positive direction; in range [0; inf]</param>
+			void enableLimit(real min_distance, real max_distance) {
+				assert(min_distance < max_distance);
+				assert(min_distance <= 0.0_real);
+				assert(max_distance >= 0.0_real);
+
+				m_limit_min = min_distance;
+				m_limit_max = max_distance;
+				m_limit_active = true;
+			}
+
+			/// <summary>
 			/// Computes values that remain static within one loop/timestep
 			/// </summary>
 			/// <param name="dt">Simulation timestep</param>
 			void setUp(real dt) {
 				// Translation Constraint
+				// Move body1's axis back to world space
 				m_axis_body1_w = glm::normalize(m_body1->m_model * glmvec4(m_axis_body1, 0.0_real));
+				// Compute two orthogonal unit vectors to the axis to use for the Jacobian and mass matrices
 				glmvec3 n1 = geometry::orthoUnitVector(m_axis_body1_w);
 				glmvec3 n2 = glm::normalize(glm::cross(m_axis_body1_w, n1));
 
@@ -2368,9 +2416,12 @@ namespace vpe {
 				m_r2 = anchor2 - m_body2->m_positionW;
 
 				m_anchor_diff = anchor2 - anchor1;
+
+				// Compute constraint error for translation constraint
 				glmvec2 offset_trans{ glm::dot(m_anchor_diff, n1), glm::dot(m_anchor_diff, n2) };
 				m_bias_trans = (m_bias_factor_trans / dt) * offset_trans;
 
+				// Compute Jacobian and mass matrix
 				glmvec3 r1_anchor_diff = m_r1 + m_anchor_diff;
 				glmvec3 r1_anchor_n1 = glm::cross(r1_anchor_diff, n1);
 				glmvec3 r1_anchor_n2 = glm::cross(r1_anchor_diff, n2);
@@ -2403,20 +2454,67 @@ namespace vpe {
 				// Compute constraint error (relative rotation) and Baumgarte bias
 				glmquat offset = m_body2->m_orientationLW * m_init_orientation_inv * glm::inverse(m_body1->m_orientationLW);
 				m_bias_rot = (m_bias_factor_rot / dt) * 2.0_real * glmvec3(offset.x, offset.y, offset.z);
+
+				// Limit constraint
+				if (m_limit_active) {
+					m_r1_anchor_axis = glm::cross(r1_anchor_diff, m_axis_world);
+					m_r2_axis = glm::cross(m_r2, m_axis_world);
+
+					real limit_mass = m_body1->m_mass_inv + m_body2->m_mass_inv + glm::dot(m_r1_anchor_axis, m_body1->m_inertia_invW * m_r1_anchor_axis) + glm::dot(m_r2_axis, m_body2->m_inertia_invW * m_r2_axis);
+					m_inv_constraint_mass_limit = limit_mass < Constraint::epsilon ? 0.0_real : 1.0_real / limit_mass;
+
+					m_current_distance = glm::dot(m_anchor_diff, m_axis_world);
+
+					m_bias_limit_min = (m_bias_factor_limit / dt) * (m_current_distance - m_limit_min);
+					m_bias_limit_max = (m_bias_factor_limit / dt) * (m_limit_max - m_current_distance);
+				}
 			}
 
 			void solve() {
-				// Solve rotation constraint
-				// Compute product of 3x12 Jacobian and 12x1 velocity vector
-				// Since the Jacobian is (0 -I 0 I) (I being the 3x3 identity matrix), this is pretty simple here
-				glmvec3 jv_rot = m_body2->m_angular_velocityW - m_body1->m_angular_velocityW;
-				glmvec3 lambda_rot = m_inv_constraint_mass_rot * (-jv_rot - m_bias_rot);
+				// Solve limit constraint
+				if (m_limit_active) {
+					if (m_current_distance < m_limit_min) {
+						glmvec3 j1 = -m_axis_world;
+						glmvec3 j2 = -m_r1_anchor_axis;
+						glmvec3 j3 = m_axis_world;
+						glmvec3 j4 = m_r2_axis;
 
-				glmvec3 impulse1_rot = -lambda_rot;
-				glmvec3 impulse2_rot = lambda_rot;
+						// compute dot product of 1x12 Jacobian matrix and 12x1 velocity vector
+						real jv = glm::dot(j1, m_body1->m_linear_velocityW) + glm::dot(j2, m_body1->m_angular_velocityW) + glm::dot(j3, m_body2->m_linear_velocityW) + glm::dot(j4, m_body2->m_angular_velocityW);
+						real lambda = m_inv_constraint_mass_limit * (-jv - m_bias_limit_min);
 
-				m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse1_rot;
-				m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2_rot;
+						glmvec3 impulse1 = j1 * lambda;
+						glmvec3 impulse2 = j2 * lambda;
+						glmvec3 impulse3 = j3 * lambda;
+						glmvec3 impulse4 = j4 * lambda;
+
+						m_body1->m_linear_velocityW += m_body1->m_mass_inv * impulse1;
+						m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse2;
+						m_body2->m_linear_velocityW += m_body2->m_mass_inv * impulse3;
+						m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse4;
+					}
+
+					if (m_current_distance > m_limit_max) {
+						glmvec3 j1 = m_axis_world;
+						glmvec3 j2 = m_r1_anchor_axis;
+						glmvec3 j3 = -m_axis_world;
+						glmvec3 j4 = -m_r2_axis;
+
+						// compute dot product of 1x12 Jacobian matrix and 12x1 velocity vector
+						real jv = glm::dot(j1, m_body1->m_linear_velocityW) + glm::dot(j2, m_body1->m_angular_velocityW) + glm::dot(j3, m_body2->m_linear_velocityW) + glm::dot(j4, m_body2->m_angular_velocityW);
+						real lambda = m_inv_constraint_mass_limit * (-jv - m_bias_limit_max);
+
+						glmvec3 impulse1 = j1 * lambda;
+						glmvec3 impulse2 = j2 * lambda;
+						glmvec3 impulse3 = j3 * lambda;
+						glmvec3 impulse4 = j4 * lambda;
+
+						m_body1->m_linear_velocityW += m_body1->m_mass_inv * impulse1;
+						m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse2;
+						m_body2->m_linear_velocityW += m_body2->m_mass_inv * impulse3;
+						m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse4;
+					}
+				}
 
 				// Solve translation constraint
 				// Calculate product of 2x12 Jacobian matrix and 12x1 velocity vector
@@ -2439,6 +2537,18 @@ namespace vpe {
 				m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse2;
 				m_body2->m_linear_velocityW += m_body2->m_mass_inv * impulse3;
 				m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse4;
+
+				// Solve rotation constraint
+				// Compute product of 3x12 Jacobian and 12x1 velocity vector
+				// Since the Jacobian is (0 -I 0 I) (I being the 3x3 identity matrix), this is pretty simple here
+				glmvec3 jv_rot = m_body2->m_angular_velocityW - m_body1->m_angular_velocityW;
+				glmvec3 lambda_rot = m_inv_constraint_mass_rot * (-jv_rot - m_bias_rot);
+
+				glmvec3 impulse1_rot = -lambda_rot;
+				glmvec3 impulse2_rot = lambda_rot;
+
+				m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse1_rot;
+				m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2_rot;
 			}
 		};
 
