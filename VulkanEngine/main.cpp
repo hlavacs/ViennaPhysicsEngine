@@ -235,7 +235,7 @@ namespace ve {
 				body1->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
 				m_physics->addBody(body1);
 
-				auto constraint = std::make_shared<VPEWorld::BallSocketConstraint>(body, body1, jointAnchor);
+				auto constraint = std::make_shared<VPEWorld::BallSocketJoint>(body, body1, jointAnchor);
 				m_physics->addConstraint(constraint);
 				
 			}
@@ -269,7 +269,7 @@ namespace ve {
 				body1->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
 				m_physics->addBody(body1);
 
-				auto constraint = std::make_shared<VPEWorld::HingeConstraint>(body, body1, jointAnchor, jointAxis);
+				auto constraint = std::make_shared<VPEWorld::HingeJoint>(body, body1, jointAnchor, jointAxis);
 				//constraint->enableMotor(-3.0_real, 4.0_real);
 				constraint->enableLimit(0, pi);
 				m_physics->addConstraint(constraint);
@@ -296,7 +296,7 @@ namespace ve {
 				glmvec3 pos = centerPos;
 				pos[1] += 4.0_real;
 
-				int num_cubes = 12;
+				int num_cubes = 18;
 				std::vector<VESceneNode*> cubes;
 				std::vector<std::shared_ptr<VPEWorld::Body>> bodies;
 
@@ -328,11 +328,44 @@ namespace ve {
 
 				glmvec3 hinge_axis(0, 0, 1);
 				for (int i = 0; i < num_cubes; ++i) {
-					auto constraint = std::make_shared<VPEWorld::HingeConstraint>(centerBody, bodies[i], centerPos, hinge_axis);
+					auto constraint = std::make_shared<VPEWorld::HingeJoint>(centerBody, bodies[i], centerPos, hinge_axis);
 					constraint->enableMotor(-4.0_real, 12.0_real);
-					constraint->setBody1Motor(false);
+					constraint->setBody1MotorEnabled(false);
 					m_physics->addConstraint(constraint);
 				}
+			}
+
+			if (event.idata1 == GLFW_KEY_F && event.idata3 == GLFW_PRESS) {
+				glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
+				glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
+				positionCamera[1] += 3.0_real;
+
+				glmvec3 cubePos1 = positionCamera + 2.0_real * dir;
+				glmvec3 cubePos2 = cubePos1;
+				cubePos2[0] += 2.0;
+				cubePos2[1] += 2.0;
+				//glmvec3 jointAnchor = 0.5_real * (cubePos1 + cubePos2) - glmvec3(0.0_real, 0.5_real, 0.0_real);
+				glmvec3 jointAnchor = cubePos1;
+
+				VESceneNode* cube0;
+				VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "media/models/test/crate0", "cube.obj", 0, getRoot()));
+				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_cube, glmvec3{ 1.0_real }, cubePos1, glmquat{ 1,0,0,0 }, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
+					body->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
+				body->m_on_move = onMove;
+				body->m_on_erase = onErase;
+				m_physics->addBody(body);
+
+				VESceneNode* cube1;
+				VECHECKPOINTER(cube1 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "media/models/test/crate0", "cube.obj", 0, getRoot()));
+				auto body1 = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube1, &m_physics->g_cube, glmvec3{ 1.0_real }, cubePos2, glmquat{ 1,0,0,0 }, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
+				body1->m_on_move = onMove;
+				body1->m_on_erase = onErase;
+				body1->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
+				m_physics->addBody(body1);
+
+				auto constraint = std::make_shared<VPEWorld::FixedJoint>(body, body1, jointAnchor);
+				m_physics->addConstraint(constraint);
+
 			}
 
 			return false;
@@ -422,13 +455,6 @@ namespace ve {
 				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
 				if (nk_button_label(ctx, "-5")) { m_physics->m_loops = std::max(5, m_physics->m_loops - 5); }
 				if (nk_button_label(ctx, "+5")) { m_physics->m_loops += 5; }
-
-				str.str("");
-				str << "Constraint Loops " << m_physics->m_constraint_iterations;
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "-5")) { m_physics->m_constraint_iterations = std::max(5, m_physics->m_constraint_iterations - 5); }
-				if (nk_button_label(ctx, "+5")) { m_physics->m_constraint_iterations += 5; }
 
 				str.str("");
 				str << "Resting Fac " << m_physics->m_resting_factor;

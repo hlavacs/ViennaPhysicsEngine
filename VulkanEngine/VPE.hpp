@@ -784,7 +784,6 @@ namespace vpe {
 		int		m_use_warmstart = 1;						//If true then warm start resting contacts
 		int		m_use_warmstart_single = 0;					//If true then warm start resting contacts
 		int		m_loops = 30;								//Number of loops in each simulation step
-		int		m_constraint_iterations = 30;				//How often should all constraints be solved in each simulation step
 		bool	m_deactivate = true;						//Do not move objects that are deactivated
 		real	m_num_active{ 0 };							//Number of currently active bodies
 		real	m_damping_incr = 10.0_real;					//Damp motion of slowly moving resting objects 
@@ -1711,7 +1710,7 @@ namespace vpe {
 
 			// These values are computed once in setUp() before each constraint loop, as they don't change between iterations
 			glmvec3 m_rel_pos{ 0.0_real };				// Relative position of the bodies
-			real m_obj_distance = 0.0_real;				// Distance between bodies
+			real m_body_distance = 0.0_real;				// Distance between bodies
 			real m_offset = 0.0_real;					// The constraint error
 			glmvec3 m_j1{ 0.0_real };					// First entry of jacobian matrix
 			glmvec3 m_j2{ 0.0_real };					// Second entry of jacobian matrix
@@ -1732,18 +1731,23 @@ namespace vpe {
 			void setUp(real dt) override {
 				// Compute distance between the objects' center, their distance and the difference to the constraint distance
 				m_rel_pos = m_body1->m_positionW - m_body2->m_positionW;
-				m_obj_distance = glm::length(m_rel_pos);
-				m_offset = m_distance - m_obj_distance;
+				m_body_distance = glm::length(m_rel_pos);
+				m_offset = m_distance - m_body_distance;
 
 				// Compute parts of the jacobian matrix; in this case the relative positions
 				m_j1 = glm::normalize(m_rel_pos);
 				m_j2 = -m_j1;
 
+				// Compute total constraint mass and invert it if possible
 				real total_mass = m_body1->m_mass_inv + m_body2->m_mass_inv;
 				m_inv_constraint_mass = total_mass < Constraint::epsilon ? 0.0_real : 1.0_real / total_mass;
+
 				m_bias = (m_bias_factor * m_offset) / dt;
 			};
 			
+			/// <summary>
+			/// Compute and apply constraint impulses
+			/// </summary>
 			void solve() override {
 				if (abs(m_offset) > Constraint::epsilon) {
 					// Compute dot product of Jacobian and velocity vector; keep in mind that j2 = -j1, so the original expression can be simplified
@@ -1757,20 +1761,19 @@ namespace vpe {
 					m_body2->m_linear_velocityW += impulse2;
 				}				
 			}
-
-			void solvePosition() const {}
 		};
 
 		/// <summary>
 		/// A constraint that models a ball-socket joint. The two bodies are connected at the anchor point given in world space
 		/// They can rotate around the anchor point freely, but no relative translation is allowed
 		/// </summary>
-		class BallSocketConstraint : public Constraint {
-			real m_bias_factor = 0.2_real; // Bias factor for Baumgarte stabilization
+		class BallSocketJoint : public Constraint {
+			real m_bias_factor = 0.2_real;					// Bias factor for Baumgarte stabilization
 
-			glmvec3 m_anchor_w; // Anchor point in world space
-			glmvec3 m_anchor_body1; // Anchor point in local space of body1
-			glmvec3 m_anchor_body2; // Anchor point in local space of body2
+			// These values are set when the Joint is created
+			glmvec3 m_anchor_w;								// Anchor point in world space
+			glmvec3 m_anchor_body1;							// Anchor point in local space of body1
+			glmvec3 m_anchor_body2;							// Anchor point in local space of body2
 
 			// These values are computed once before each loop as they don't change between iterations
 			glmvec3 m_prev_impulse{ 0.0_real };				
@@ -1790,12 +1793,12 @@ namespace vpe {
 			/// <param name="body1">First body</param>
 			/// <param name="body2">Second body</param>
 			/// <param name="anchor">Anchor point in world space</param>
-			BallSocketConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor) : Constraint(body1, body2), m_anchor_w{ anchor } {
+			BallSocketJoint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor) : Constraint(body1, body2), m_anchor_w{ anchor } {
 				// Include translation? Yes/no?
 				m_anchor_body1 = m_body1->m_model_inv * glmvec4(m_anchor_w, 1.0_real);
 				m_anchor_body2 = m_body2->m_model_inv * glmvec4(m_anchor_w, 1.0_real);
 			}
-			~BallSocketConstraint() {}
+			~BallSocketJoint() {}
 
 			/// <summary>
 			/// Use to update the Baumgarte stabilization bias for the translation constraint
@@ -1805,6 +1808,10 @@ namespace vpe {
 				m_bias_factor = new_bias;
 			}
 
+			/// <summary>
+			/// Computes values that remain static within one loop/timestep
+			/// </summary>
+			/// <param name="dt">Simulation timestep</param>
 			void setUp(real dt) override {
 				// Move anchor points back to world space
 				glmvec3 anchor1 = m_body1->m_model * glmvec4(m_anchor_body1, 1.0_real);
@@ -1821,16 +1828,20 @@ namespace vpe {
 				m_j3 = glm::mat3(1.0_real);
 				m_j4 = -glm::matrixCross3(m_r2);
 
+				// Compute total constraint mass
 				// TODO: Replace transpose with negation here as well?
 				glmmat3 constraint_mass = m_body1->m_mass_inv * glmmat3(1.0_real) + m_j2 * m_body1->m_inertia_invW * glm::transpose(m_j2) + m_body2->m_mass_inv * glmmat3(1.0_real) + (-m_j4) * m_body2->m_inertia_invW * glm::transpose(-m_j4);
 				// only invert if matrix is actually invertible - can happen when to bodies with infinite mass are involved
 				m_inv_constraint_mass = glm::determinant(constraint_mass) < Constraint::epsilon ? glmmat3(0.0_real) : glm::inverse(constraint_mass);
+
 				m_bias = (m_bias_factor / dt) * m_offset;
 			};
 
+			/// <summary>
+			/// Computes and applies constraint impulses
+			/// </summary>
 			void solve() override {
 				glmvec3 abs_offset = glm::abs(m_offset);
-
 				if (abs_offset.x > Constraint::epsilon || abs_offset.y > Constraint::epsilon || abs_offset.z > Constraint::epsilon) {
 					// Compute product of jacobian (3x12 matrix) and velocity vector (12x1 matrix) with submatrices
 					// TODO: Maybe rewrite using cross products?
@@ -1864,13 +1875,15 @@ namespace vpe {
 		// Reason seems to be the angle flip part
 		/// <summary>
 		/// A hinge constraint that connects two bodies via an anchor point and only allows them to rotate around a given hinge axis in world space
+		/// Supports angle limits and a motor
 		/// </summary>
-		class HingeConstraint : public Constraint {
-			std::shared_ptr<BallSocketConstraint> m_ballsocket; // Used for the anchor point connection
+		class HingeJoint : public Constraint {
+			std::shared_ptr<BallSocketJoint> m_ballsocket;		// Used for the translation constraint
 			real m_bias_factor_rot = 0.15_real;					// Bias factor for translation constraint Baumgarte stabilization
 			real m_bias_factor_trans = 0.15_real;				// Bias factor for rotation constraint Baumgarte stabilization
 			real m_bias_factor_limit = 0.1_real;				// Bias factor for limit constraint Baumgarte stabilization
 
+			// These values are set once when the Joint is created
 			glmvec3 m_rot_axis_w;								// Hinge axis in world space
 			glmvec3 m_rot_axis_body1;							// Hinge axis in body1's local space
 			glmvec3 m_rot_axis_body2;							// Hinge axis in body2's local space
@@ -1883,16 +1896,12 @@ namespace vpe {
 			bool m_motor_active = false;						// Flag that enables the motor (if active, the constraint tries to maintain a certain angular velocity along the hinge axis)
 			real m_fmotor = 0.0_real;							// The speed of the motor in radians/s, i.e. the angular speed that should be maintained
 			real m_fmotor_max = 0.0_real;						// The maximum force the motor is allowed to apply per iteration step, can be used to controll ramp up time to motor speed
-
 			bool m_body1_motor_factor = true;					// Whether body1 should be affected by motor forces
 			bool m_body2_motor_factor = true;					// Whether body2 should be affected by motor forces
 
-			/// <summary>
-			/// These values are computed in setUp() before each loop as they don't change between iterations
-			/// </summary>
+			// These values are computed in setUp() before each loop as they don't change between iterations
 			glmvec3 m_axis1_world{ 0.0_real };
 			glmvec3 m_axis2_world{ 0.0_real };
-
 
 			// Angle limit 
 			real m_bias_limit_min = 0.0_real;					// Baumgarte bias to be used for lower angle limit
@@ -1922,8 +1931,8 @@ namespace vpe {
 			}
 
 		public:
-			HingeConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis) : Constraint(body1, body2) {
-				m_ballsocket = std::make_shared<VPEWorld::BallSocketConstraint>(m_body1, m_body2, anchor);
+			HingeJoint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis) : Constraint(body1, body2) {
+				m_ballsocket = std::make_shared<VPEWorld::BallSocketJoint>(m_body1, m_body2, anchor);
 				m_ballsocket->setTranslationBias(m_bias_factor_trans);
 				m_rot_axis_w = glm::normalize(axis);
 				// Move rotation axis to local space of each body
@@ -1931,13 +1940,13 @@ namespace vpe {
 				m_rot_axis_body2 = glm::normalize(m_body2->m_model_inv * glmvec4(m_rot_axis_w, 0.0_real));
 			};
 
-			~HingeConstraint() {}
+			~HingeJoint() {}
 
 			/// <summary>
 			/// Use this to specify whether body1 should be affected by the motor force or not
 			/// </summary>
 			/// <param name="moved_by_motor">Should this body be moved by the motor?</param>
-			void setBody1Motor(bool moved_by_motor) {
+			void setBody1MotorEnabled(bool moved_by_motor) {
 				m_body1_motor_factor = moved_by_motor;
 			}
 
@@ -1945,7 +1954,7 @@ namespace vpe {
 			/// Use this to specify whether body2 should be affected by the motor force or not
 			/// </summary>
 			/// <param name="moved_by_motor">Should this body be moved by the motor?</param>
-			void setBody2Motor(bool moved_by_motor) {
+			void setBody2MotorEnabled(bool moved_by_motor) {
 				m_body2_motor_factor = moved_by_motor;
 			}
 
@@ -1985,6 +1994,7 @@ namespace vpe {
 				assert(min_angle < max_angle);
 				m_limit_min = min_angle;
 				m_limit_max = max_angle;
+				// Compute current orientation between the bodies
 				m_init_orientation_inv = glm::normalize(m_body2->m_orientationLW * glm::inverse(m_body1->m_orientationLW));
 				glm::inverse(m_init_orientation_inv);
 				m_limit_active = true;
@@ -2018,10 +2028,11 @@ namespace vpe {
 			}
 
 			/// <summary>
+			/// Computes values that remain static within one loop/timestep
 			/// Note: We often use m_axis1_world even though the math would require m_rot_axis_w;
-			/// We do this to allow the entire system to tilt, i.e. for the hinge axis to also rotate around. Using m_rot_axis_w would lead to the system always trying to keep the same orientation which can become quite unstable
+			/// We do this to allow the entire system to tilt, i.e. for the hinge axis to also be able to rotate. Using m_rot_axis_w would lead to the system always trying to keep the same orientation which can become quite unstable
 			/// </summary>
-			/// <param name="dt"></param>
+			/// <param name="dt">Simulation timestep</param>
 			void setUp(real dt) override {
 				m_ballsocket->setUp(dt);
 
@@ -2076,6 +2087,7 @@ namespace vpe {
 				glmvec3 b1 = geometry::orthoUnitVector(m_axis2_world);
 				glmvec3 c1 = glm::normalize(glm::cross(m_axis2_world, b1));
 
+				// Constraint error and bias
 				m_offset_rotation = glmvec2(glm::dot(m_axis1_world, b1), glm::dot(m_axis1_world, c1));
 				m_bias_rotation = (m_bias_factor_rot / dt) * m_offset_rotation;
 
@@ -2188,6 +2200,80 @@ namespace vpe {
 					m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse1;
 					m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2;
 				}
+			}
+		};
+
+		class FixedJoint : public Constraint {
+			std::shared_ptr<BallSocketJoint> m_ballsocket;		// Used for the translation constraint
+			real m_bias_factor_trans = 0.2_real;				// Bias factor for translation constraint Baumgarte stabilization
+			real m_bias_factor_rot = 0.1_real;					// Bias factor for rotation constraint Baumgarte stabilization
+
+			// This is computed when the Joint is created
+			glmquat m_init_orientation_inv;						// Initial orientation of the two bodies
+
+			// This is computed before each loop in setUp()
+			glmmat3 m_inv_constraint_mass_rot{ 0.0_real };		// Inverse effective constraint mass
+			glmvec3 m_offset_rot{ 0.0_real };					// Constraint error for the rotation constraint
+			glmvec3 m_bias_rot{ 0.0_real };						// Baumgarte bias to be used for the rotation constraint
+		public:
+			/// <summary>
+			/// Constructor
+			/// </summary>
+			/// <param name="body1">First body</param>
+			/// <param name="body2">Second body</param>
+			/// <param name="anchor">Anchor point in world space</param>
+			FixedJoint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor) : Constraint(body1, body2) {
+				m_ballsocket = std::make_shared<VPEWorld::BallSocketJoint>(m_body1, m_body2, anchor);
+				m_init_orientation_inv = glm::inverse(m_body2->m_orientationLW) * m_body1->m_orientationLW;
+			}
+			~FixedJoint() {}
+
+			/// <summary>
+			/// Use to change the Baumgarte stabilization bias factor for the translation constraint
+			/// </summary>
+			/// <param name="new_bias"></param>
+			void setTranslationBias(real new_bias) {
+				m_bias_factor_trans = new_bias;
+				m_ballsocket->setTranslationBias(m_bias_factor_trans);
+			}
+
+			/// <summary>
+			/// Use to change the Baumgarte stabilization bias factor for the rotation constraint
+			/// </summary>
+			/// <param name="new_bias"></param>
+			void setRotationBias(real new_bias) {
+				m_bias_factor_rot = new_bias;
+			}
+
+			/// <summary>
+			/// Computes values that remain static within one loop/timestep
+			/// </summary>
+			/// <param name="dt">Simulation timestep</param>
+			void setUp(real dt) {
+				m_ballsocket->setUp(dt);
+
+				// Compute constraint mass and invert it if possible
+				glmmat3 constraint_mass = m_body1->m_inertia_invW + m_body2->m_inertia_invW;
+				m_inv_constraint_mass_rot = glm::determinant(constraint_mass) < Constraint::epsilon ? glmmat3(0.0_real) : glm::inverse(constraint_mass);
+
+				// Compute constraint error (relative rotation) and Baumgarte bias
+				glmquat offset = m_body2->m_orientationLW * m_init_orientation_inv * glm::inverse(m_body1->m_orientationLW);
+				m_bias_rot = (m_bias_factor_rot / dt) * 2.0_real * glmvec3(offset.x, offset.y, offset.z);
+			}
+
+			void solve() {
+				m_ballsocket->solve();
+
+				// Compute product of 3x12 Jacobian and 12x1 velocity vector
+				// Since the Jacobian is (0 -I 0 I) (I being the 3x3 identity matrix), this is pretty simple here
+				glmvec3 jv = m_body2->m_angular_velocityW - m_body1->m_angular_velocityW;
+				glmvec3 lambda = m_inv_constraint_mass_rot * (-jv - m_bias_rot);
+
+				glmvec3 impulse1 = -lambda;
+				glmvec3 impulse2 = lambda;
+
+				m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse1;
+				m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2;
 			}
 		};
 
