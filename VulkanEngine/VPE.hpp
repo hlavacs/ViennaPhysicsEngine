@@ -1941,7 +1941,7 @@ namespace vpe {
 			};
 
 			~HingeJoint() {}
-
+			
 			/// <summary>
 			/// Use this to specify whether body1 should be affected by the motor force or not
 			/// </summary>
@@ -2290,13 +2290,18 @@ namespace vpe {
 		/// </summary>
 		class SliderJoint : public Constraint {
 			real m_bias_factor_trans = 0.2_real;				// Bias factor for translation constraint Baumgarte stabilization
-			real m_bias_factor_rot = 0.1_real;					// Bias factor for rotation constraint Baumgarte stabilization
+			real m_bias_factor_rot = 0.2_real;					// Bias factor for rotation constraint Baumgarte stabilization
 			real m_bias_factor_limit = 0.1_real;
 
-			bool m_limit_active = false;
-			real m_limit_min = -std::numeric_limits<real>::max();
-			real m_limit_max = std::numeric_limits<real>::max();
+			bool m_limit_active = false;						// Whether the constraint should limit the min and max relative distance between the bodies
+			real m_limit_min = -std::numeric_limits<real>::max(); // The lower limit for relative distance, i.e. distance limit in negative direction
+			real m_limit_max = std::numeric_limits<real>::max();  // The upper limit for relative distance, i.e. distance limit in positive direction
 
+			bool m_motor_active = false;						// Whether the motor should be active
+			real m_fmotor = 0.0_real;							// Linear motor speed in m/s
+			real m_fmotor_max = 0.0_real;						// Max motor force applied per timestep in Newton
+			bool m_body1_motor_factor = true;					// Whether body1 should be affected by motor forces
+			bool m_body2_motor_factor = true;					// Whether body2 should be affected by motor forces
 
 			// This is computed when the Joint is created
 			glmvec3 m_anchor_world{ 0.0_real };
@@ -2337,6 +2342,10 @@ namespace vpe {
 			// Used for jacobian entries for limit constraint
 			glmvec3 m_r1_anchor_axis{ 0.0_real };
 			glmvec3 m_r2_axis{ 0.0_real };
+
+			// Motor constraint
+			real m_inv_constraint_mass_motor = 0.0_real;
+			real m_offset_motor = 0.0_real;
 
 		public:
 			/// <summary>
@@ -2393,6 +2402,48 @@ namespace vpe {
 				m_limit_min = min_distance;
 				m_limit_max = max_distance;
 				m_limit_active = true;
+			}
+
+			/// <summary>
+			/// Disables the distance limits for the hinge joint
+			/// </summary>
+			void disableLimit() {
+				m_limit_active = false;
+			}
+
+			/// Use this to specify whether body1 should be affected by the motor force or not
+			/// </summary>
+			/// <param name="moved_by_motor">Should this body be moved by the motor?</param>
+			void setBody1MotorEnabled(bool moved_by_motor) {
+				m_body1_motor_factor = moved_by_motor;
+			}
+
+			/// <summary>
+			/// Use this to specify whether body2 should be affected by the motor force or not
+			/// </summary>
+			/// <param name="moved_by_motor">Should this body be moved by the motor?</param>
+			void setBody2MotorEnabled(bool moved_by_motor) {
+				m_body2_motor_factor = moved_by_motor;
+			}
+
+			/// <summary>
+			/// Enables the motor for the slider joint.
+			/// If the motor is enabled, the constraint tries to maintain the given linear velocity along the slider axis between the bodies
+			/// </summary>
+			/// <param name="motor_speed">The linear motor speed in m/s</param>
+			/// <param name="max_force">The maximum force in Newton that can be applied per iteration step. Use this to controll ramp up time</param>
+			void enableMotor(real motor_speed, real max_force) {
+				assert(max_force > 0.0_real);
+				m_fmotor = motor_speed;
+				m_fmotor_max = max_force;
+				m_motor_active = true;
+			}
+
+			/// <summary>
+			/// Disables the motor for the hinge joint
+			/// </summary>
+			void disableMotor() {
+				m_motor_active = false;
 			}
 
 			/// <summary>
@@ -2455,7 +2506,6 @@ namespace vpe {
 				glmquat offset = m_body2->m_orientationLW * m_init_orientation_inv * glm::inverse(m_body1->m_orientationLW);
 				m_bias_rot = (m_bias_factor_rot / dt) * 2.0_real * glmvec3(offset.x, offset.y, offset.z);
 
-				// Limit constraint
 				if (m_limit_active) {
 					m_r1_anchor_axis = glm::cross(r1_anchor_diff, m_axis_world);
 					m_r2_axis = glm::cross(m_r2, m_axis_world);
@@ -2464,9 +2514,13 @@ namespace vpe {
 					m_inv_constraint_mass_limit = limit_mass < Constraint::epsilon ? 0.0_real : 1.0_real / limit_mass;
 
 					m_current_distance = glm::dot(m_anchor_diff, m_axis_world);
-
 					m_bias_limit_min = (m_bias_factor_limit / dt) * (m_current_distance - m_limit_min);
 					m_bias_limit_max = (m_bias_factor_limit / dt) * (m_limit_max - m_current_distance);
+				}
+
+				if (m_motor_active) {
+					m_inv_constraint_mass_motor = m_body1->m_mass_inv + m_body2->m_mass_inv;
+					m_offset_motor = glm::dot(m_axis_world, m_body1->m_linear_velocityW - m_body2->m_linear_velocityW) + m_fmotor;
 				}
 			}
 
@@ -2516,27 +2570,54 @@ namespace vpe {
 					}
 				}
 
+				// Handle motor constraint
+				if (m_motor_active) {
+					if (std::abs(m_offset_motor) > 0.0_real) {
+						// Missing compontents of Jacobian matrix are 0
+						glmvec3 j1 = m_axis_world;
+						glmvec3 j3 = -m_axis_world;
+
+						// compute dot product of 1x12 Jacobian matrix and 12x1 velocity vector
+						real jv = glm::dot(m_axis_world, m_body1->m_linear_velocityW - m_body2->m_linear_velocityW);
+
+						real bias = m_fmotor; // Our bias is the motor speed. We introduce extra energy into the system here
+						real lambda = m_inv_constraint_mass_motor * (-jv - bias);
+
+						// Clamp lambda so it doesn't exceed the maximum allowed force
+						lambda = std::clamp(lambda, -m_fmotor_max, m_fmotor_max);
+
+						glmvec3 impulse1 = j1 * lambda;
+						glmvec3 impulse2 = j3 * lambda;
+
+						m_body1->m_linear_velocityW += m_body1_motor_factor * m_body1_factor * m_body1->m_inertia_invW * impulse1;
+						m_body2->m_linear_velocityW += m_body2_motor_factor * m_body2_factor * m_body2->m_inertia_invW * impulse2;
+					}
+				}
+
 				// Solve translation constraint
-				// Calculate product of 2x12 Jacobian matrix and 12x1 velocity vector
-				glmvec2 jv_trans(
-					glm::dot(m_j11, m_body1->m_linear_velocityW) + glm::dot(m_j12, m_body1->m_angular_velocityW) + glm::dot(m_j13, m_body2->m_linear_velocityW) + glm::dot(m_j14, m_body2->m_angular_velocityW),
-					glm::dot(m_j21, m_body1->m_linear_velocityW) + glm::dot(m_j22, m_body1->m_angular_velocityW) + glm::dot(m_j23, m_body2->m_linear_velocityW) + glm::dot(m_j24, m_body2->m_angular_velocityW)
-				);
+				glmvec3 abs_offset = glm::abs(m_anchor_diff);
+				if (abs_offset.x > Constraint::epsilon || abs_offset.y > Constraint::epsilon || abs_offset.z > Constraint::epsilon) {
+					// Calculate product of 2x12 Jacobian matrix and 12x1 velocity vector
+					glmvec2 jv_trans(
+						glm::dot(m_j11, m_body1->m_linear_velocityW) + glm::dot(m_j12, m_body1->m_angular_velocityW) + glm::dot(m_j13, m_body2->m_linear_velocityW) + glm::dot(m_j14, m_body2->m_angular_velocityW),
+						glm::dot(m_j21, m_body1->m_linear_velocityW) + glm::dot(m_j22, m_body1->m_angular_velocityW) + glm::dot(m_j23, m_body2->m_linear_velocityW) + glm::dot(m_j24, m_body2->m_angular_velocityW)
+					);
 
-				glmvec2 lambda_trans = m_inv_constraint_mass_trans * (-jv_trans - m_bias_trans);
+					glmvec2 lambda_trans = m_inv_constraint_mass_trans * (-jv_trans - m_bias_trans);
 
-				// Compute constraint forces via J^t*lambda. Since J has 0-compontents, we don't have any linear impulses here
-				// Since we can only easily access the columns of J^t, we do the multiplication column-wise instead of using rows
-				// see https://math.stackexchange.com/questions/1422045/matrix-multiplication-of-columns-times-rows-instead-of-rows-times-columns
-				glmvec3 impulse1 = m_j11 * lambda_trans.x + m_j21 * lambda_trans.y;
-				glmvec3 impulse2 = m_j12 * lambda_trans.x + m_j22 * lambda_trans.y;
-				glmvec3 impulse3 = m_j13 * lambda_trans.x + m_j23 * lambda_trans.y;
-				glmvec3 impulse4 = m_j14 * lambda_trans.x + m_j24 * lambda_trans.y;
+					// Compute constraint forces via J^t*lambda
+					// Since we can only easily access the columns of J^t, we do the multiplication column-wise instead of using rows
+					// see https://math.stackexchange.com/questions/1422045/matrix-multiplication-of-columns-times-rows-instead-of-rows-times-columns
+					glmvec3 impulse1 = m_j11 * lambda_trans.x + m_j21 * lambda_trans.y;
+					glmvec3 impulse2 = m_j12 * lambda_trans.x + m_j22 * lambda_trans.y;
+					glmvec3 impulse3 = m_j13 * lambda_trans.x + m_j23 * lambda_trans.y;
+					glmvec3 impulse4 = m_j14 * lambda_trans.x + m_j24 * lambda_trans.y;
 
-				m_body1->m_linear_velocityW += m_body1->m_mass_inv * impulse1;
-				m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse2;
-				m_body2->m_linear_velocityW += m_body2->m_mass_inv * impulse3;
-				m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse4;
+					m_body1->m_linear_velocityW += m_body1->m_mass_inv * impulse1;
+					m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse2;
+					m_body2->m_linear_velocityW += m_body2->m_mass_inv * impulse3;
+					m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse4;
+				}
 
 				// Solve rotation constraint
 				// Compute product of 3x12 Jacobian and 12x1 velocity vector
