@@ -271,7 +271,7 @@ namespace ve {
 
 				auto constraint = std::make_shared<VPEWorld::HingeConstraint>(body, body1, jointAnchor, jointAxis);
 				//constraint->enableMotor(3.0_real, 4.0_real);
-				//constraint->enableLimit(-pi2, 0);
+				constraint->enableLimit(0, pi/2);
 				m_physics->addConstraint(constraint);
 
 			}
@@ -329,7 +329,7 @@ namespace ve {
 				glmvec3 hinge_axis(0, 0, 1);
 				for (int i = 0; i < num_cubes; ++i) {
 					auto constraint = std::make_shared<VPEWorld::HingeConstraint>(centerBody, bodies[i], centerPos, hinge_axis);
-					constraint->enableMotor(4.0_real, 12.0_real);
+					constraint->enableMotor(-4.0_real, 12.0_real);
 					constraint->setBody1Motor(false);
 					m_physics->addConstraint(constraint);
 				}
@@ -360,6 +360,7 @@ namespace ve {
 		std::uniform_real_distribution<> rnd_unif{ 0.0f, 1.0f };		//Random numbers
 
 		virtual void onDrawOverlay(veEvent event) {
+			return;
 			VESubrender_Nuklear* pSubrender = (VESubrender_Nuklear*)getEnginePointer()->getRenderer()->getOverlay();
 			if (pSubrender == nullptr)
 				return;

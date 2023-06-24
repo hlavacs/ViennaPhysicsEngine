@@ -2041,7 +2041,7 @@ namespace vpe {
 					glmvec3 rel_rot_axis(diff_orientation.x, diff_orientation.y, diff_orientation.z);
 					// Two quaternions q and -q encode the same rotation; take whichever one points in the same direction as the hinge axis
 					real w = diff_orientation.w;
-					if (glm::dot(rel_rot_axis, m_rot_axis_w) < 0.0_real) w = -w; // axes point in different directions
+					if (glm::dot(rel_rot_axis, m_axis1_world) < 0.0_real) w = -w; // axes point in different directions
 
 					// This calculates the angle in [0; 2pi] and converts it to [-pi, pi]
 					real theta = std::remainder(2.0_real * std::atan2(glm::length(rel_rot_axis), w), pi2);
@@ -2062,7 +2062,7 @@ namespace vpe {
 					}
 
 					m_bias_limit_min = (m_bias_factor_limit / dt) * (theta - m_limit_min);
-					m_bias_limit_min = (m_bias_factor_limit / dt) * (m_limit_max - theta);
+					m_bias_limit_max = (m_bias_factor_limit / dt) * (m_limit_max - theta);
 					m_theta = theta;
 					m_inv_constraint_mass_limit = getMotorAndLimitMass();
 				}
@@ -2106,8 +2106,8 @@ namespace vpe {
 				if (m_limit_active) {
 					if (m_theta < m_limit_min) {
 						// Missing compontents of Jacobian matrix are 0
-						glmvec3 j2 = -m_rot_axis_w;
-						glmvec3 j4 = m_rot_axis_w;
+						glmvec3 j2 = -m_axis1_world;
+						glmvec3 j4 = m_axis1_world;
 
 						// compute dot product of 1x12 Jacobian matrix and 12x1 velocity vector
 						real jv = glm::dot(m_axis1_world, -m_body1->m_angular_velocityW + m_body2->m_angular_velocityW);
@@ -2120,13 +2120,13 @@ namespace vpe {
 						m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2;
 					}
 
-					if (m_theta > m_limit_max) {
+					if (m_theta > m_limit_max) { 
 						// Missing compontents of Jacobian matrix are 0
-						glmvec3 j2 = m_rot_axis_w;
-						glmvec3 j4 = -m_rot_axis_w;
+						glmvec3 j2 = m_axis1_world;
+						glmvec3 j4 = -m_axis1_world;
 
 						// compute dot product of 1x12 Jacobian matrix and 12x1 velocity vector
-						real jv = glm::dot(m_rot_axis_w, m_body1->m_angular_velocityW - m_body2->m_angular_velocityW);
+						real jv = glm::dot(m_axis1_world, m_body1->m_angular_velocityW - m_body2->m_angular_velocityW);
 						real lambda = m_inv_constraint_mass_limit * (-jv - m_bias_limit_max);
 
 						glmvec3 impulse1 = j2 * lambda;
@@ -2134,7 +2134,7 @@ namespace vpe {
 
 						m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse1;
 						m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2;
-					}
+					} 
 				}
 
 				// Handle motor constraint
