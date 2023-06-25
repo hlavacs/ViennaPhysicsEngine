@@ -1121,7 +1121,7 @@ namespace vpe {
 				warmStart();			//Warm start the resting contacts if possible
 
 				for (auto& body : m_bodies) { body.second->stepVelocity(m_sim_delta_time); }	//Integration step for velocity
-				setupConstraints(m_sim_delta_time);
+				setupConstraints(m_sim_delta_time);												// Pre-calculate values the constraints need during iteration 
 				calculateImpulses(m_loops, m_sim_delta_time);									//Calculate and apply impulses (also solve constraints here)
 
 				for (auto& body : m_bodies) {	//integrate positions and update the matrices for the bodies
@@ -1400,7 +1400,7 @@ namespace vpe {
 		}
 
 		/// <summary>
-		/// Iteratively try to solve all current constraints
+		/// Pre-compute constraint values that are needed for loop iterations
 		/// </summary>
 		/// <param name="dt">Elapsed time</param>
 		void setupConstraints(double dt) {
@@ -1768,15 +1768,14 @@ namespace vpe {
 		/// They can rotate around the anchor point freely, but no relative translation is allowed
 		/// </summary>
 		class BallSocketJoint : public Constraint {
-			real m_bias_factor = 0.2_real;					// Bias factor for Baumgarte stabilization
+			real m_bias_factor = 0.15_real;					// Bias factor for Baumgarte stabilization
 
 			// These values are set when the Joint is created
 			glmvec3 m_anchor_w;								// Anchor point in world space
 			glmvec3 m_anchor_body1;							// Anchor point in local space of body1
 			glmvec3 m_anchor_body2;							// Anchor point in local space of body2
 
-			// These values are computed once before each loop as they don't change between iterations
-			glmvec3 m_prev_impulse{ 0.0_real };				
+			// These values are computed once before each loop as they don't change between iterations		
 			glmvec3 m_r1{ 0.0_real };						// vector from body1's center to body1's anchor in world space
 			glmvec3 m_r2{ 0.0_real };						// vector from body2's center to body2's anchor in world space
 			glmvec3 m_offset{ 0.0_real };					// Constraint error
@@ -1794,7 +1793,6 @@ namespace vpe {
 			/// <param name="body2">Second body</param>
 			/// <param name="anchor">Anchor point in world space</param>
 			BallSocketJoint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor) : Constraint(body1, body2), m_anchor_w{ anchor } {
-				// Include translation? Yes/no?
 				m_anchor_body1 = m_body1->m_model_inv * glmvec4(m_anchor_w, 1.0_real);
 				m_anchor_body2 = m_body2->m_model_inv * glmvec4(m_anchor_w, 1.0_real);
 			}
@@ -1829,11 +1827,9 @@ namespace vpe {
 				m_j4 = -glm::matrixCross3(m_r2);
 
 				// Compute total constraint mass
-				// TODO: Replace transpose with negation here as well?
 				glmmat3 constraint_mass = m_body1->m_mass_inv * glmmat3(1.0_real) + m_j2 * m_body1->m_inertia_invW * glm::transpose(m_j2) + m_body2->m_mass_inv * glmmat3(1.0_real) + (-m_j4) * m_body2->m_inertia_invW * glm::transpose(-m_j4);
 				// only invert if matrix is actually invertible - can happen when to bodies with infinite mass are involved
 				m_inv_constraint_mass = glm::determinant(constraint_mass) < Constraint::epsilon ? glmmat3(0.0_real) : glm::inverse(constraint_mass);
-
 				m_bias = (m_bias_factor / dt) * m_offset;
 			};
 
@@ -1852,7 +1848,6 @@ namespace vpe {
 					glmvec3 jv = j1v1 + j2v2 + j3v3 + j4v4;
 
 					glmvec3 lambda = m_inv_constraint_mass * (-jv - m_bias);
-					m_prev_impulse += lambda;
 			
 					// Compute impulses via constraint_force = J^t * lambda
 					// j2 and j4 are skew symmetric, so their transpose is their negation
@@ -2028,6 +2023,8 @@ namespace vpe {
 			/// </summary>
 			void disableMotor() {
 				m_motor_active = false;
+				m_fmotor = 0.0_real;
+				m_fmotor_max = 0.0_real;
 			}
 
 			/// <summary>
@@ -2444,10 +2441,13 @@ namespace vpe {
 			/// </summary>
 			void disableMotor() {
 				m_motor_active = false;
+				m_fmotor = 0.0_real;
+				m_fmotor_max = 0.0_real;
 			}
 
 			/// <summary>
 			/// Computes values that remain static within one loop/timestep
+			/// Note: Just like with the HingeJoint, we often use m_axis_body1_w even though the math would require m_axis_world; for the same reasons as with the HingeJoint
 			/// </summary>
 			/// <param name="dt">Simulation timestep</param>
 			void setUp(real dt) {
@@ -2465,7 +2465,6 @@ namespace vpe {
 				// compute vector from body center to bodies' anchor in world space
 				m_r1 = anchor1 - m_body1->m_positionW;
 				m_r2 = anchor2 - m_body2->m_positionW;
-
 				m_anchor_diff = anchor2 - anchor1;
 
 				// Compute constraint error for translation constraint
@@ -2589,8 +2588,8 @@ namespace vpe {
 						glmvec3 impulse1 = j1 * lambda;
 						glmvec3 impulse2 = j3 * lambda;
 
-						m_body1->m_linear_velocityW += m_body1_motor_factor * m_body1_factor * m_body1->m_inertia_invW * impulse1;
-						m_body2->m_linear_velocityW += m_body2_motor_factor * m_body2_factor * m_body2->m_inertia_invW * impulse2;
+						m_body1->m_linear_velocityW += m_body1_motor_factor * m_body1->m_mass_inv * impulse1;
+						m_body2->m_linear_velocityW += m_body2_motor_factor * m_body2->m_mass_inv * impulse2;
 					}
 				}
 
