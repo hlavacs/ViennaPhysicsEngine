@@ -149,9 +149,6 @@ namespace ve {
 		return centerBody;
 	}
 
-
-
-
 	//---------------------------------------------------------------------------------------------------------
 	//Listener for creating bodies with keyboard
 
@@ -302,8 +299,8 @@ namespace ve {
 				auto body2 = createAndAddCube(m_physics, glmvec3{ 1.0_real }, cubePos2, glmquat{ 1, 0, 0, 0 }, 1.0_real / 100.0_real, true);
 
 				auto constraint = std::make_shared<VPEWorld::HingeJoint>(body1, body2, jointAnchor, jointAxis);
-				constraint->enableMotor(-3.0_real, 1.0_real);
-				constraint->enableLimit(0, pi);
+				//constraint->enableMotor(-3.0_real, 1.0_real);
+				constraint->enableLimit(-pi, 0);
 				m_physics->addConstraint(constraint);
 
 			}
@@ -386,10 +383,13 @@ namespace ve {
 				//  glmquat{ 0.9238796_real, 0.3826834_real, 0, 0 } // 45 degrees around x
 				auto body1 = createAndAddCube(m_physics, glmvec3{ 1.0_real }, cubePos1, glmquat{ 0.9238796_real, 0.3826834_real, 0, 0 }, 0.0_real / 100.0_real, false);
 				auto body2 = createAndAddCube(m_physics, glmvec3{ 1.0_real }, cubePos2, glmquat{ 0.9238796_real, 0.3826834_real, 0, 0 }, 1.0_real / 100.0_real, true);
-
+				
+				
 				glmvec3 stackPos = cubePos2;
-				stackPos[1] = 0.9_real;
+		
+				stackPos[1] = 0.9_real + positionCamera[1] - 1.0_real;
 				stackPos[2] += 1.9_real;
+				std::cout << stackPos << "\n";
 				auto stack1 = createAndAddCube(m_physics, glmvec3{ 1.0_real }, stackPos, glmquat{ 1, 0, 0, 0 }, 0.0_real / 100.0_real, false);
 				stackPos[1] += 1.0_real;
 				auto stack2 = createAndAddCube(m_physics, glmvec3{ 1.0_real }, stackPos, glmquat{ 1, 0, 0, 0 }, 0.0_real / 100.0_real, false);
@@ -433,6 +433,86 @@ namespace ve {
 				motorThread.detach();
 			}
 
+			if (event.idata1 == GLFW_KEY_K && event.idata3 == GLFW_PRESS) {
+				glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
+				glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
+
+				glmvec3 pos = positionCamera + 2.0_real * dir;
+				pos[1] += 14.0_real;
+
+				glmvec3 prevPos = pos;
+				int num_cubes = 8;
+				std::vector<VESceneNode*> cubes;
+				std::vector<std::shared_ptr<VPEWorld::Body>> bodies;
+
+				bool first = true;
+
+				for (int i = 0; i < num_cubes; ++i) {
+
+					bool last = i == num_cubes - 1;
+					real cube_mass = (first /* || last*/) ? 0.0_real : 1.0_real / 100.0_real;
+
+					VESceneNode* cube;
+					VECHECKPOINTER(cube = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "media/models/test/crate0", "cube.obj", 0, getRoot()));
+					cubes.push_back(cube);
+					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube, &m_physics->g_cube, glmvec3{ 1.0_real }, pos, glmquat{ 1,0,0,0 }, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, cube_mass, m_physics->m_restitution, m_physics->m_friction);
+					bodies.push_back(body);
+					body->m_on_move = onMove;
+					body->m_on_erase = onErase;
+					m_physics->addBody(body);
+
+					if (!first) {
+						body->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
+					}
+
+					first = false;
+					prevPos = pos;
+					pos[2] += 1.5_real;
+				}
+				
+				std::shared_ptr<VPEWorld::HingeJoint> main;
+				glmvec3 hinge_axis(1, 0, 0);
+				for (int i = 1; i < num_cubes; ++i) {
+					auto body1 = bodies[i - 1];
+					auto body2 = bodies[i];
+					glmvec3 position = body1->m_positionW;
+					auto constraint = std::make_shared<VPEWorld::HingeJoint>(body1, body2, position, hinge_axis);
+					if (i == 1) main = constraint;
+					m_physics->addConstraint(constraint);
+				}
+
+				std::thread enableMotorThread([main]() {
+					// Create this here as well, otherwise it will be undefined when it goes out of scope
+					auto m_constraint = main;
+
+					while (true) {
+						std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+						m_constraint->enableMotor(7.0_real, 25.0_real);
+					}
+					});
+
+				enableMotorThread.detach();
+			}
+
+			if (event.idata1 == GLFW_KEY_X && event.idata3 == GLFW_PRESS) {
+				glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
+				glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
+
+				glmvec3 cubePos1 = positionCamera + 2.0_real * dir;
+				glmvec3 cubePos2 = cubePos1;
+				cubePos2[2] += 1.5_real;
+
+				glmvec3 jointAnchor = cubePos2;
+
+				//  glmquat{ 0.9238796_real, 0.3826834_real, 0, 0 } // 45 degrees around x
+				auto body1 = createAndAddCube(m_physics, glmvec3{ 1.0_real }, cubePos1, glmquat{ 1, 0, 0, 0 }, 0.0_real / 100.0_real, false);
+				auto body2 = createAndAddCube(m_physics, glmvec3{ 1.0_real }, cubePos2, glmquat{ 1, 0, 0, 0 }, 1.0_real / 100.0_real, true);
+
+				glmvec3 jointAxis{ 0.0_real, 0.0_real, 1.0_real };
+				auto constraint = std::make_shared<VPEWorld::SliderJoint>(body1, body2, jointAnchor, jointAxis);
+				m_physics->addConstraint(constraint);
+			}
+
 			if (event.idata1 == GLFW_KEY_R && event.idata3 == GLFW_PRESS) {
 				glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
 				glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
@@ -443,16 +523,16 @@ namespace ve {
 
 				// glmquat { 0.9238796_real, 0, 0, 0.3826834_real}
 				glmvec3 cubePos = centerPos;
-				cubePos[0] -= 0.75;
-				cubePos[1] += 0.85;
+				cubePos[0] -= 0.75_real;
+				cubePos[1] += 0.85_real;
 				auto arm1 = createAndAddCube(m_physics, glmvec3{ 0.2_real, 0.7_real, 0.2_real }, cubePos, glmquat{ 0.9238796_real, 0, 0, 0.3826834_real }, 4.0_real / 100.0_real, true, 0.2_real);
-				cubePos[0] += 1.5;
+				cubePos[0] += 1.5_real;
 				auto arm2 = createAndAddCube(m_physics, glmvec3{ 0.2_real, 0.7_real, 0.2_real }, cubePos, glmquat{ 0.9238796_real, 0, 0, -0.3826834_real }, 4.0_real / 100.0_real, true, 0.2_real);
 				cubePos = centerPos;
-				cubePos[0] -= 0.8;
-				cubePos[1] -= 0.9;
+				cubePos[0] -= 0.8_real;
+				cubePos[1] -= 0.9_real;
 				auto leg1 = createAndAddCube(m_physics, glmvec3{ 0.2_real, 1.0_real, 0.2_real }, cubePos, glmquat{ 0.9238796_real, 0, 0, -0.3826834_real }, 4.0_real / 100.0_real, true, 0.2_real);
-				cubePos[0] += 1.6;
+				cubePos[0] += 1.6_real;
 				auto leg2 = createAndAddCube(m_physics, glmvec3{ 0.2_real, 1.0_real, 0.2_real }, cubePos, glmquat{ 0.9238796_real, 0, 0, 0.3826834_real }, 4.0_real / 100.0_real, true, 0.2_real);
 				
 				cubePos = centerPos; cubePos[1] += 0.9_real;
@@ -462,16 +542,16 @@ namespace ve {
 				m_physics->addConstraint(torsoHead);
 
 				auto torsoArm1 = std::make_shared<VPEWorld::BallSocketJoint>(torso, arm1, centerPos + glmvec3(-0.4_real, 0.5_real, 0.0_real));
-				//torsoArm1->setTranslationBias(0.07_real);
+	
 				m_physics->addConstraint(torsoArm1);
 				auto torsoArm2 = std::make_shared<VPEWorld::BallSocketJoint>(torso, arm2, centerPos + glmvec3(0.4_real, 0.5_real, 0.0_real));
-				//torsoArm2->setTranslationBias(0.07_real);
+			
 				m_physics->addConstraint(torsoArm2);
 
-				auto torsoLeg1 = std::make_shared<VPEWorld::BallSocketJoint>(torso, leg1, centerPos + glmvec3(-0.2_real, -0.4_real, 0.0_real));
+				auto torsoLeg1 = std::make_shared<VPEWorld::BallSocketJoint>(torso, leg1, centerPos + glmvec3(-0.2_real, -0.45_real, 0.0_real));
 				//torsoLeg1->setTranslationBias(0.07_real);
 				m_physics->addConstraint(torsoLeg1);
-				auto torsoLeg2 = std::make_shared<VPEWorld::BallSocketJoint>(torso, leg2, centerPos + glmvec3(0.2_real, -0.4_real, 0.0_real));
+				auto torsoLeg2 = std::make_shared<VPEWorld::BallSocketJoint>(torso, leg2, centerPos + glmvec3(0.2_real, -0.45_real, 0.0_real));
 				//torsoLeg2->setTranslationBias(0.07_real);
 				m_physics->addConstraint(torsoLeg2);
 

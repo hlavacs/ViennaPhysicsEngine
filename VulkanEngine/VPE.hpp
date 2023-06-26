@@ -2227,6 +2227,7 @@ namespace vpe {
 			/// <param name="anchor">Anchor point in world space</param>
 			FixedJoint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor) : Constraint(body1, body2) {
 				m_ballsocket = std::make_shared<VPEWorld::BallSocketJoint>(m_body1, m_body2, anchor);
+				m_ballsocket->setTranslationBias(m_bias_factor_trans);
 				m_init_orientation_inv = glm::inverse(m_body2->m_orientationLW) * m_body1->m_orientationLW;
 			}
 			~FixedJoint() {}
