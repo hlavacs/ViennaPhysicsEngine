@@ -178,6 +178,7 @@
     <ClInclude Include="BottomLevelASGenerator.h" />
     <ClInclude Include="CLInclude.h" />
     <ClInclude Include="CLShape.h" />
+    <ClInclude Include="VPEConstraintDemos.hpp" />
     <ClInclude Include="DescriptorSetGenerator.h" />
     <ClInclude Include="VEEnums.h" />
     <ClInclude Include="RaytracingPipelineGenerator.h" />
@@ -228,6 +229,7 @@
   <ItemGroup>
     <ClCompile Include="..\external\threadpool\ThreadPool.cpp" />
     <ClCompile Include="BottomLevelASGenerator.cpp" />
+    <ClCompile Include="VPEConstraintDemos.cpp" />
     <ClCompile Include="DescriptorSetGenerator.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="CLIntersect.cpp" />

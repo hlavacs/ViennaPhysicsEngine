@@ -133,30 +133,30 @@ namespace std {
 	};
 
 	//For outputting vectors/matrices to a string stream
-	ostream& operator<<(ostream& os, const glmvec3& v) {
+	inline ostream& operator<<(ostream& os, const glmvec3& v) {
 		os << "(" << v.x << ',' << v.y << ',' << v.z << ")";				//output 3D vector
 		return os;
 	}
 
 	//For outputting vectors/matrices to a string stream
-	ostream& operator<<(ostream& os, const glmvec2& v) {
+	inline ostream& operator<<(ostream& os, const glmvec2& v) {
 		os << "(" << v.x << ',' << v.y << ")";								//output 2D vector
 		return os;
 	}
 
-	ostream& operator<<(ostream& os, const glmquat& q) {
+	inline ostream& operator<<(ostream& os, const glmquat& q) {
 		os << "(" << q.x << ',' << q.y << ',' << q.z << ',' << q.w << ")";	//output quaternion
 		return os;
 	}
 
-	ostream& operator<<(ostream& os, const glmmat3& m) {
+	inline ostream& operator<<(ostream& os, const glmmat3& m) {
 		os << "(" << m[0][0] << ',' << m[0][1] << ',' << m[0][2] << ")\n";	//Output a 3x3 matrix
 		os << "(" << m[1][0] << ',' << m[1][1] << ',' << m[1][2] << ")\n";
 		os << "(" << m[2][0] << ',' << m[2][1] << ',' << m[2][2] << ")\n";
 		return os;
 	}
 
-	ostream& operator<<(ostream& os, const glmmat4& m) {
+	inline ostream& operator<<(ostream& os, const glmmat4& m) {
 		os << "(" << m[0][0] << ',' << m[0][1] << ',' << m[0][2] << ',' << m[0][3] << ")\n";	//Output a 4x4 matrix
 		os << "(" << m[1][0] << ',' << m[1][1] << ',' << m[1][2] << ',' << m[1][3] << ")\n";
 		os << "(" << m[2][0] << ',' << m[2][1] << ',' << m[2][2] << ',' << m[2][3] << ")\n";
@@ -164,7 +164,7 @@ namespace std {
 		return os;
 	}
 
-	std::string to_string(const glmvec3 v) {
+	inline std::string to_string(const glmvec3 v) {
 		return std::to_string(v.x) + ", " + std::to_string(v.y) + ", " + std::to_string(v.z);	//Turn vector into a string
 	}
 }
@@ -1676,7 +1676,7 @@ namespace vpe {
 			real m_body2_factor = !(m_body2->m_mass_inv <= Constraint::epsilon); // Use this factor whenever adding angular velocity to body2
 		public:
 			Constraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2) : m_body1 { body1 }, m_body2{ body2 } {}
-			~Constraint() {}
+			virtual ~Constraint() {}
 
 			/// <summary>
 			/// Computes values that are needed for subsequent loop iteration

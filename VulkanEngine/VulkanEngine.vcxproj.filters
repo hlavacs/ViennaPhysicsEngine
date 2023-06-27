@@ -191,6 +191,9 @@
     <ClInclude Include="VPE.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="VPEConstraintDemos.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="VEEngine.cpp">
@@ -357,6 +360,9 @@
     </ClCompile>
     <ClCompile Include="VHRayTracing.cpp">
       <Filter>Source Files\VHelper</Filter>
+    </ClCompile>
+    <ClCompile Include="VPEConstraintDemos.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
