@@ -1,6 +1,5 @@
 #include "VPEConstraintDemos.hpp"
 
-
 using namespace vpe;
 
 namespace ve {
@@ -160,6 +159,7 @@ namespace ve {
 		glmvec3 cubePos2 = cubePos1;
 		cubePos2 += glmvec3(1.0_real);
 		glmvec3 jointAnchor = 0.5_real * (cubePos1 + cubePos2);
+		jointAnchor = cubePos1;
 
 		auto body1 = createAndAddCube(glmvec3{ 1.0_real }, cubePos1, glmquat{ 1, 0, 0, 0 }, 1.0_real / 100.0_real, true);
 		auto body2 = createAndAddCube(glmvec3{ 1.0_real }, cubePos2, glmquat{ 1, 0, 0, 0 }, 1.0_real / 100.0_real, true);
@@ -168,10 +168,6 @@ namespace ve {
 		m_physics->addConstraint(constraint);
 	}
 
-	/// <summary>
-	/// Note: This will eventually crash the program because of iterator invalidation
-	/// // I didn't want so slow down the engine 
-	/// </summary>
 	void ConstraintDemos::sliderCannon() {
 		glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
 		glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
@@ -335,4 +331,3 @@ namespace ve {
 		m_physics->addConstraint(torsoLeg2);
 	}
 }
-

@@ -39,14 +39,43 @@ namespace ve {
 		/// <returns>Returns a pointer to the center cube's body</returns>
 		std::shared_ptr<VPEWorld::Body> createWheel(glmvec3 init_pos, int num_cubes);
 
+		/// <summary>
+		/// Spawns a bridge using distance constraints
+		/// </summary>
 		void bridge();
+		/// <summary>
+		/// Spawns a simple hinge joint
+		/// </summary>
 		void hingeJoint();
+		/// <summary>
+		/// Spawns a simple ball-and-socket joint
+		/// </summary>
 		void ballSocketJoint();
+		/// <summary>
+		/// Spawns a automatically moving wheel using hinge and fixed joints
+		/// The motor will revert every 10 seconds
+		/// </summary>
 		void wheel();
+		/// <summary>
+		/// Spawns a simple fixed joint
+		/// </summary>
 		void fixedJoint();
+		/// <summary>
+		/// Spawns a slider cannon. Un-comment the not-thread safe code here if you want to spawn things to shoot away as well
+		/// </summary>
 		void sliderCannon();
+		/// <summary>
+		/// Spawns a hinge chain. After some time, a motor will kick in
+		/// </summary>
 		void hingeChain();
+		/// <summary>
+		/// Spawns a simple slider joint
+		/// </summary>
 		void sliderJoint();
+		/// <summary>
+		/// Spawns a (rather sad) attempt at ragdoll physics
+		/// </summary>
 		void ragdoll();
 	};
 }
+
