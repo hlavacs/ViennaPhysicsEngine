@@ -846,17 +846,10 @@ namespace vpe {
 				m_vector.push_back(pair);
 			}
 
-			// Todo: Use std::erase() here
 			size_t erase(const key_type& key) {
-				auto element_to_delete = this->find(key);
-				if (element_to_delete == m_vector.end()) {
-					return 0;
-				}
-
-				std::iter_swap(element_to_delete, m_vector.rbegin());
-				m_vector.pop_back();
-
-				return 1;
+				return std::erase_if(m_vector, [&key](pair_t element) {
+					return element.first == key;
+				});
 			}
 
 			typename std::vector<pair_t>::iterator find(const key_type& key) {
@@ -908,7 +901,6 @@ namespace vpe {
 			void reserve(size_t size) {
 				m_vector.reserve(size);
 			}
-
 		};
 
 		/// <summary>
@@ -1121,7 +1113,7 @@ namespace vpe {
 				warmStart();			//Warm start the resting contacts if possible
 
 				for (auto& body : m_bodies) { body.second->stepVelocity(m_sim_delta_time); }	//Integration step for velocity
-				setupConstraints(m_sim_delta_time);												// Pre-calculate values the constraints need during iteration 
+				setupConstraints(m_sim_delta_time);												//Pre-calculate values the constraints need during iteration 
 				calculateImpulses(m_loops, m_sim_delta_time);									//Calculate and apply impulses (also solve constraints here)
 
 				for (auto& body : m_bodies) {	//integrate positions and update the matrices for the bodies
@@ -1392,7 +1384,7 @@ namespace vpe {
 					auto nres = calculateContactPointImpules(contact.second);
 					res = std::max(nres, (uint64_t)res);
 				}
-				for (const auto& constraint : m_constraints) {
+				for (const auto& constraint : m_constraints) { //loop over all constraints
 					constraint->solveVelocity();
 				}				
 				num = num + res - 1;
@@ -1642,7 +1634,7 @@ namespace vpe {
 		}
 
 
-		/*
+		/* *
 		* Beginning of constraint implementation
 		* */
 
@@ -1753,6 +1745,7 @@ namespace vpe {
 				real total_mass = m_body1->m_mass_inv + m_body2->m_mass_inv;
 				m_inv_constraint_mass = total_mass < Constraint::epsilon ? 0.0_real : 1.0_real / total_mass;
 
+				// Compute bias for Baumgarte stabilization
 				m_bias = (m_bias_factor * m_offset) / dt;
 			};
 			
@@ -1878,7 +1871,6 @@ namespace vpe {
 		// TODO: Some issues arise when the limited angle is almost a full rotation. 
 		// It seems like the constraint can't fix the overshoot fast enough and then does way too much to try and compensate it
 		// Reason seems to be the angle flip part
-		// Todo: Motor and angle limit signs don't match
 		/// <summary>
 		/// A hinge constraint that connects two bodies via an anchor point and only allows them to rotate around a given hinge axis in world space
 		/// Supports angle limits and a motor
@@ -1937,12 +1929,19 @@ namespace vpe {
 			}
 
 		public:
+			/// <summary>
+			/// Constructor
+			/// </summary>
+			/// <param name="body1">First body</param>
+			/// <param name="body2">Second body</param>
+			/// <param name="anchor">Anchor point in world space</param>
+			/// <param name="axis">Hinge axis in world space</param>
 			HingeJoint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis) : Constraint(body1, body2) {
 				// Initialize ballsocket joint for translation constraint
 				m_ballsocket = std::make_shared<VPEWorld::BallSocketJoint>(m_body1, m_body2, anchor);
 				m_ballsocket->setTranslationBias(m_bias_factor_trans);
-				m_rot_axis_w = glm::normalize(axis);
 				// Move rotation axis to local space of each body
+				m_rot_axis_w = glm::normalize(axis);
 				m_rot_axis_body1 = glm::normalize(m_body1->m_model_inv * glmvec4(m_rot_axis_w, 0.0_real));
 				m_rot_axis_body2 = glm::normalize(m_body2->m_model_inv * glmvec4(m_rot_axis_w, 0.0_real));
 			};
@@ -2095,7 +2094,7 @@ namespace vpe {
 					m_inv_constraint_mass_motor = getMotorAndLimitMass();
 				}
 
-				// Compute 2 orthogonal unit vectors to axis2 to formulate the constraint function
+				// Compute 2 orthogonal unit vectors to axis2 to formulate the rotation constraint function
 				glmvec3 b1 = geometry::orthoUnitVector(m_axis2_world);
 				glmvec3 c1 = glm::normalize(glm::cross(m_axis2_world, b1));
 
@@ -2161,26 +2160,24 @@ namespace vpe {
 				
 				// Handle motor constraint
 				if (m_motor_active) {
-					if (std::abs(m_offset_motor) > 0.0_real) {
-						// Missing compontents of Jacobian matrix are 0
-						glmvec3 j2 = -m_axis1_world;
-						glmvec3 j4 = m_axis1_world;
+					// Missing compontents of Jacobian matrix are 0
+					glmvec3 j2 = m_axis1_world;
+					glmvec3 j4 = -m_axis1_world;
 
-						// compute dot product of 1x12 Jacobian matrix and 12x1 velocity vector
-						real jv = glm::dot(m_axis1_world, m_body2->m_angular_velocityW - m_body1->m_angular_velocityW);
+					// compute dot product of 1x12 Jacobian matrix and 12x1 velocity vector
+					real jv = glm::dot(m_axis1_world, -m_body2->m_angular_velocityW + m_body1->m_angular_velocityW);
 
-						real bias = m_fmotor; // Our bias is the motor speed. We introduce extra energy into the system here
-						real lambda = m_inv_constraint_mass_motor * (-jv - bias);
+					real bias = m_fmotor; // Our bias is the motor speed. We introduce extra energy into the system here
+					real lambda = m_inv_constraint_mass_motor * (-jv - bias);
 
-						// Clamp lambda so it doesn't exceed the maximum allowed force
-						lambda = std::clamp(lambda, -m_fmotor_max, m_fmotor_max);
+					// Clamp lambda so it doesn't exceed the maximum allowed force
+					lambda = std::clamp(lambda, -m_fmotor_max, m_fmotor_max);
 
-						glmvec3 impulse1 = j2 * lambda;
-						glmvec3 impulse2 = j4 * lambda;
+					glmvec3 impulse1 = j2 * lambda;
+					glmvec3 impulse2 = j4 * lambda;
 
-						m_body1->m_angular_velocityW += m_body1_motor_factor * m_body1_factor * m_body1->m_inertia_invW * impulse1;
-						m_body2->m_angular_velocityW += m_body2_motor_factor * m_body2_factor * m_body2->m_inertia_invW * impulse2;
-					}
+					m_body1->m_angular_velocityW += m_body1_motor_factor * m_body1_factor * m_body1->m_inertia_invW * impulse1;
+					m_body2->m_angular_velocityW += m_body2_motor_factor * m_body2_factor * m_body2->m_inertia_invW * impulse2;
 				}
 
 				m_ballsocket->solveVelocity();
