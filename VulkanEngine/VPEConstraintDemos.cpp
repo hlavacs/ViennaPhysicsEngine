@@ -85,7 +85,6 @@ namespace ve {
 		auto body2 = createAndAddCube(glmvec3{ 1.0_real }, cubePos2, glmquat{ 1, 0, 0, 0 }, 1.0_real / 100.0_real, true);
 
 		auto constraint = std::make_shared<VPEWorld::HingeJoint>(body1, body2, jointAnchor, jointAxis);
-		constraint->enableMotor(-3.0_real, 1.0_real);
 		constraint->enableLimit(-pi2/3.0_real, pi2/3.0_real);
 		m_physics->addConstraint(constraint);
 	}

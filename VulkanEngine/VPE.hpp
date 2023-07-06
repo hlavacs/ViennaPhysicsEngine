@@ -1868,9 +1868,6 @@ namespace vpe {
 			}
 		};
 
-		// TODO: Some issues arise when the limited angle is almost a full rotation. 
-		// It seems like the constraint can't fix the overshoot fast enough and then does way too much to try and compensate it
-		// Reason seems to be the angle flip part
 		/// <summary>
 		/// A hinge constraint that connects two bodies via an anchor point and only allows them to rotate around a given hinge axis in world space
 		/// Supports angle limits and a motor
