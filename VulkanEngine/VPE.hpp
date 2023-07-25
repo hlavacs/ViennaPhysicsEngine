@@ -43,6 +43,7 @@ using int_t = int64_t;
 using uint_t = uint64_t;
 #define glmvec2 glm::dvec2
 #define glmvec3 glm::dvec3
+#define glmmat2 glm::dmat2
 #define glmmat3 glm::dmat3
 #define glmvec4 glm::dvec4
 #define glmmat4 glm::dmat4
@@ -56,10 +57,13 @@ using uint_t = uint32_t;
 #define glmvec2 glm::vec2
 #define glmvec3 glm::vec3
 #define glmvec4 glm::vec4
+#define glmmat2 glm::mat2
 #define glmmat3 glm::mat3
 #define glmmat4 glm::mat4
 #define glmquat glm::quat
 const real c_eps = 1.0e-8f;
+const real pi = glm::pi<real>();
+const real pi2 = 2.0f * pi;
 #else
 #error Must choose accuracy!
 #endif
@@ -76,6 +80,13 @@ using voidppair_t = std::pair<void*, void*>;	//Pair of void pointers
 namespace geometry {
 	void computeBasis(const glmvec3& a, glmvec3& b, glmvec3& c);
 	void SutherlandHodgman(auto& subjectPolygon, auto& clipPolygon, auto& newPolygon);
+	glmvec3 orthoUnitVector(const glmvec3& vec);
+
+	//----------------------------------Cloth-Simulation-Stuff--------------------------------------
+	// by Felix Neumann
+	// Defintion and source below this file
+	real alphaMaxPlusBetaMin(real a, real b);
+	real alphaMaxPlusBetaMedPlusGammaMin(real a, real b, real c);
 }
 
 
@@ -128,24 +139,38 @@ namespace std {
 	};
 
 	//For outputting vectors/matrices to a string stream
-	ostream& operator<<(ostream& os, const glmvec3& v) {
+	inline ostream& operator<<(ostream& os, const glmvec3& v) {
 		os << "(" << v.x << ',' << v.y << ',' << v.z << ")";				//output 3D vector
 		return os;
 	}
 
-	ostream& operator<<(ostream& os, const glmquat& q) {
+	//For outputting vectors/matrices to a string stream
+	inline ostream& operator<<(ostream& os, const glmvec2& v) {
+		os << "(" << v.x << ',' << v.y << ")";								//output 2D vector
+		return os;
+	}
+
+	inline ostream& operator<<(ostream& os, const glmquat& q) {
 		os << "(" << q.x << ',' << q.y << ',' << q.z << ',' << q.w << ")";	//output quaternion
 		return os;
 	}
 
-	ostream& operator<<(ostream& os, const glmmat3& m) {
+	inline ostream& operator<<(ostream& os, const glmmat3& m) {
 		os << "(" << m[0][0] << ',' << m[0][1] << ',' << m[0][2] << ")\n";	//Output a 3x3 matrix
 		os << "(" << m[1][0] << ',' << m[1][1] << ',' << m[1][2] << ")\n";
 		os << "(" << m[2][0] << ',' << m[2][1] << ',' << m[2][2] << ")\n";
 		return os;
 	}
 
-	std::string to_string(const glmvec3 v) {
+	inline ostream& operator<<(ostream& os, const glmmat4& m) {
+		os << "(" << m[0][0] << ',' << m[0][1] << ',' << m[0][2] << ',' << m[0][3] << ")\n";	//Output a 4x4 matrix
+		os << "(" << m[1][0] << ',' << m[1][1] << ',' << m[1][2] << ',' << m[1][3] << ")\n";
+		os << "(" << m[2][0] << ',' << m[2][1] << ',' << m[2][2] << ',' << m[2][3] << ")\n";
+		os << "(" << m[3][0] << ',' << m[3][1] << ',' << m[3][2] << ',' << m[3][3] << ")\n";
+		return os;
+	}
+
+	inline std::string to_string(const glmvec3 v) {
 		return std::to_string(v.x) + ", " + std::to_string(v.y) + ", " + std::to_string(v.z);	//Turn vector into a string
 	}
 }
@@ -188,7 +213,6 @@ namespace std {
 
 
 namespace vpe {
-
 
 	/// <summary>
 	/// This class  implements a simple rigid body physics engine.
@@ -794,11 +818,102 @@ namespace vpe {
 		double			m_next_slot{ m_sim_delta_time };//Next time for simulation
 
 		/// <summary>
+		/// Wrapper class that provides parts of a std::unordered_map like interface while using a std::vector as the underlying data structure.
+		/// As inserting, erasing and targeted lookup for bodies are barely used and the main use case of this data structure is linear iteration
+		/// std::vector gives much better perfomance when compared to std::unordered:map. However, the map interface is much more convenient to use, thus this wrapper class.
+		/// Note: Unlike maps, this does not guarantee that only one entry per owner is present. Lookup returns the first element for a given owner
+		/// </summary>
+		template<typename key_type, typename mapped_type>
+		class MapWrapper {
+			using pair_t = std::pair<key_type, mapped_type>;
+			std::vector<pair_t> m_vector;
+		public:
+			MapWrapper() {}
+			MapWrapper(std::initializer_list<pair_t> elements) {
+				for (const auto& entry : elements) {
+					this->insert(entry);
+				}
+			}
+
+			typename std::vector<pair_t>::iterator insert(const pair_t& pair) {
+				return m_vector.insert(m_vector.end(), pair);
+			}
+
+			typename std::vector<pair_t>::iterator insert(pair_t&& pair) {
+				return m_vector.insert(m_vector.end(), pair);
+			}
+
+			void push_back(const pair_t& pair) {
+				m_vector.push_back(pair);
+			}
+
+			void push_back(pair_t&& pair) {
+				m_vector.push_back(pair);
+			}
+
+			size_t erase(const key_type& key) {
+				return std::erase_if(m_vector, [&key](pair_t element) {
+					return element.first == key;
+				});
+			}
+
+			typename std::vector<pair_t>::iterator find(const key_type& key) const {
+				return std::find_if(m_vector.begin(), m_vector.end(), [&key](auto pair) { return pair.first == key; });
+			}
+
+			pair_t& operator [] (const key_type& key) const {
+				auto element = this->find(key);
+				if (element != m_vector.end()) {
+					return *element;
+				}
+				else {
+					throw std::out_of_range("Attempted element lookup failed, key is not in vector.");
+				}
+			}
+
+			pair_t& at(const key_type& key) const {
+				return (*this)[key];
+			}
+
+			void clear() {
+				m_vector.clear();
+			}
+
+			typename std::vector<pair_t>& get_vector() const {
+				return m_vector;
+			}
+
+			typename std::vector<pair_t>::iterator begin() {
+				return m_vector.begin();
+			}
+
+			typename std::vector<pair_t>::iterator end() {
+				return m_vector.end();
+			}
+
+			typename std::vector<pair_t>::const_iterator begin() const {
+				return m_vector.begin();
+			}
+
+			typename std::vector<pair_t>::const_iterator end() const {
+				return m_vector.end();
+			}
+
+			size_t size() const {
+				return m_vector.size();
+			}
+
+			void reserve(size_t size) {
+				m_vector.reserve(size);
+			}
+		};
+
+		/// <summary>
 		/// All bodies are stored in the map m_bodies. The key is a void*, which can be used 
 		/// to call back an owner if the body moves. With this key, the body can also be found.
 		/// So best if there is a 1:1 correspondence. E.g., the owner can be a specific VESceneNode.
 		/// </summary>
-		using body_map = std::unordered_map<void*, std::shared_ptr<Body>>;
+		using body_map = MapWrapper<void*, std::shared_ptr<Body>>;
 		body_map	m_bodies;			//main container of all bodies
 		uint64_t	m_body_id{ 0 };		//Unique id for body if needed
 
@@ -820,6 +935,12 @@ namespace vpe {
 		std::unordered_map<voidppair_t, Contact> m_contacts;	//possible contacts resulting from broadphase
 
 		std::unordered_map<void*, callback_collide> m_collider;	//Call these callbacks if there is a collision for a specific body
+
+		/// <summary>
+		///  Holds all constraints 
+		/// </summary>
+		class Constraint;
+		std::vector<std::shared_ptr<Constraint>> m_constraints;
 
 		//-----------------------------------------------------------------------------------------------------
 
@@ -875,6 +996,7 @@ namespace vpe {
 					b->m_on_erase(b);	//call it first
 				}
 			}
+			m_constraints.clear();
 			m_collider.clear();
 			m_bodies.clear();
 			m_grid.clear();
@@ -889,6 +1011,13 @@ namespace vpe {
 			m_collider.erase(body->m_owner);
 			m_bodies.erase(body->m_owner);
 			m_grid[intpair_t{ body->m_grid_x, body->m_grid_z }].erase(body->m_owner);
+			for (auto it = m_constraints.begin(); it != m_constraints.end();) {
+				if ((*it)->containsBody(body)) {
+					it = m_constraints.erase(it);
+				}
+				else ++it;
+			}
+
 		}
 
 		/// <summary>
@@ -988,15 +1117,26 @@ namespace vpe {
 				narrowPhase();			//Run the narrow phase
 				warmStart();			//Warm start the resting contacts if possible
 
-				for (auto& body : m_bodies) { body.second->stepVelocity(m_sim_delta_time); }		//Integration step for velocity
-				calculateImpulses(m_loops, m_sim_delta_time);	//Calculate and apply impulses
+				for (auto& body : m_bodies) { body.second->stepVelocity(m_sim_delta_time); }	//Integration step for velocity
+				setupConstraints(m_sim_delta_time);												//Pre-calculate values the constraints need during iteration 
+				calculateImpulses(m_loops, m_sim_delta_time);									//Calculate and apply impulses (also solve constraints here)
 
 				for (auto& body : m_bodies) {	//integrate positions and update the matrices for the bodies
 					if (body.second->stepPosition(m_sim_delta_time, body.second->m_positionW, body.second->m_orientationLW)) ++num_active;
 					body.second->updateMatrices();
 				}
+
 				m_num_active = 0.9_real * m_num_active + 0.1_real * num_active; //smooth the number of active nodies
 				if (m_num_active < c_small) m_num_active = 0;					//If near 0, set to 0
+
+				//--------------------------Begin-Cloth-Simulation-Stuff----------------------------
+				// by Felix Neumann
+
+				for (auto& cloth : m_cloths)														// Integrate all cloths which means solve their constraints
+					cloth.second->integrate(m_grid, (real) m_sim_delta_time);						// and resolve their collisions
+
+				//---------------------------End-Cloth-Simulation-Stuff-----------------------------
+
 				m_last_slot = m_next_slot;			//Remember last slot
 				m_next_slot += m_sim_delta_time;	//Move to next time slot as slong as we do not surpass current time
 			}
@@ -1008,6 +1148,16 @@ namespace vpe {
 					body.second->m_on_move(m_current_time - m_last_slot, body.second); //predict new pos/orient
 				}
 			}
+
+			//----------------------------Begin-Cloth-Simulation-Stuff------------------------------
+			// by Felix Neumann
+
+			for (auto& cloth : m_cloths)															// Notify the owner of the cloth that the cloth has moved
+				if (cloth.second->m_on_move)
+					cloth.second->m_on_move(m_current_time - m_last_slot, cloth.second);
+
+			//-----------------------------End-Cloth-Simulation-Stuff-------------------------------
+
 			m_last_time = m_current_time;	//save last time
 		};
 
@@ -1244,6 +1394,7 @@ namespace vpe {
 		/// <summary>
 		/// Go through all contacts and calculate and apply impulses. Do this until number of loops or time 
 		/// run out.
+		/// Also solve all constraints once per iteration
 		/// </summary>
 		/// <param name="loops">Max number of loops through the contacts.</param>
 		/// <param name="max_time">Max time you have.</param>
@@ -1257,11 +1408,13 @@ namespace vpe {
 					auto nres = calculateContactPointImpules(contact.second);
 					res = std::max(nres, (uint64_t)res);
 				}
+				for (const auto& constraint : m_constraints) { //loop over all constraints
+					constraint->solveVelocity();
+				}				
 				num = num + res - 1;
 				elapsed = std::chrono::high_resolution_clock::now() - start;
 			} while (num > 0 && (m_mode == SIMULATION_MODE_DEBUG || std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count() < 1.0e6 * max_time));
 		}
-
 
 		//----------------------------------------------------------------------------------------------------
 
@@ -1494,10 +1647,1747 @@ namespace vpe {
 			positionBias(eq.m_separation, sep, eq.m_normalL, contact);	//Add possibe position bias
 		}
 
+
+		// -----------------Begin Constraints Implementation -------------------------
+		// by Julian Schneebaur
+
+		// The following implementation of constraints via sequential impulses closely follow the methods shown in talks and papers by Erin Catto:
+		// https://box2d.org/files/ErinCatto_IterativeDynamics_GDC2005.pdf and https://ubm-twvideo01.s3.amazonaws.com/o1/vault/gdc09/slides/04-GDC09_Catto_Erin_Solver.pdf
+		// For the concrete math, see: https://danielchappuis.ch/download/ConstraintsDerivationRigidBody3D.pdf
+
+		/// <summary>
+		/// Pre-compute constraint values that are needed for loop iterations
+		/// This should be called once in tick() before the constraints are iterated over
+		/// </summary>
+		/// <param name="dt">Elapsed time</param>
+		void setupConstraints(double dt) {
+			for (const auto& constraint : m_constraints) {
+				constraint->setUp((real)dt);
+			}
+		}
+
+		/// <summary>
+		/// Adds a constraint to the physics simulation
+		/// </summary>
+		/// <param name="constraint">Pointer to the constraint to be added</param>
+		void addConstraint(std::shared_ptr<Constraint> constraint) {
+			m_constraints.push_back(constraint);
+		}
+
+		/// <summary>
+		/// Removes a constraint from the physics simulation
+		/// </summary>
+		/// <param name="constraint">Pointer to the constraint to be removed</param>
+		void removeConstraint(std::shared_ptr<Constraint> constraint) {
+			std::erase(m_constraints, constraint);
+		}
+
+		/// <summary>
+		/// Base class for all constraints. 
+		/// A constraint enforces a condition between two bodies' relative movement.
+		/// It does this by computing and applying impulses that make sure the bodies only move in a way that doesn't violate the constraint
+		/// </summary>
+		class Constraint {
+		protected:
+			static constexpr real epsilon = 0.0000001_real;
+			std::shared_ptr<Body> m_body1;	// First body
+			std::shared_ptr<Body> m_body2;	// Second body
+
+			// Issue: The inverted inertia tensor for objects that have infinite mass (inverse mass is 0) isn't actually a 0-matrix
+			// It has some very small values, and thus just multiplying it onto the impulse would still result in very small velocities
+			// If you add this up thousands of times per second, it adds up and thus allows these objects to move even though they have infinite mass
+			// These values are used to solve this issue by being multiplied onto the angular velocity (either 0 or 1)
+			real m_body1_factor = !(m_body1->m_mass_inv <= Constraint::epsilon); // Use this factor whenever adding angular velocity to body1
+			real m_body2_factor = !(m_body2->m_mass_inv <= Constraint::epsilon); // Use this factor whenever adding angular velocity to body2
+		public:
+			Constraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2) : m_body1 { body1 }, m_body2{ body2 } {}
+			virtual ~Constraint() {}
+
+			/// <summary>
+			/// Computes values that are needed for subsequent loop iteration
+			/// These values don't change when applying impulses during the loop, so computing them here gives us much better performance
+			/// </summary>
+			/// <param name="dt">Simulation time step</param>
+			virtual void setUp(real dt) = 0;
+			/// <summary>
+			/// Computes and applies constraint forces by solving the velocity constraint
+			/// </summary>
+			virtual void solveVelocity() = 0;
+
+			/// <summary>
+			/// Should return true if the body is part of the constraint
+			/// </summary>
+			/// <param name="body">Body to check for</param>
+			/// <returns></returns>
+			bool containsBody(std::shared_ptr<Body> body) const {
+				return body == m_body1 || body == m_body2;
+			}
+
+		};
+
+		/// <summary>
+		/// A very simple distance constraint, only acting on the linear velocities of the affected bodies
+		/// Given two bodies, the constraint makes sure there is always a given distance between their center points
+		/// </summary>
+		class DistanceConstraint : public Constraint {
+			real m_distance;							// The distance the constraint has to maintain
+			real m_bias_factor = 0.1_real;				// Bias factor for Baumgarte stabilization
+
+			// These values are computed once in setUp() before each constraint loop, as they don't change between iterations
+			glmvec3 m_rel_pos{ 0.0_real };				// Relative position of the bodies
+			real m_body_distance = 0.0_real;			// Distance between bodies
+			real m_offset = 0.0_real;					// The constraint error
+			glmvec3 m_j1{ 0.0_real };					// First entry of jacobian matrix
+			glmvec3 m_j2{ 0.0_real };					// Second entry of jacobian matrix
+			real m_inv_constraint_mass = 0.0_real;		// Inverse effective constraint mass
+			real m_bias = 0.0_real;						// Bias for Baumgarte stabilization
+		public:
+			/// <summary>
+			/// Constructor
+			/// </summary>
+			/// <param name="body1">First body</param>
+			/// <param name="body2">Second body</param>
+			/// <param name="distance">Distance the constraint should maintain</param>
+			DistanceConstraint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, real distance) : Constraint(body1, body2), m_distance{ distance } {}
+			~DistanceConstraint() {}
+
+			/// <summary>
+			/// Use to update the Baumgarte stabilization bias
+			/// </summary>
+			/// <param name="new_bias"></param>
+			void setTranslationBias(real new_bias) {
+				m_bias_factor = new_bias;
+			}
+
+			void setUp(real dt) override {
+				// Compute distance between the objects' center, their distance and the difference to the constraint distance
+				m_rel_pos = m_body1->m_positionW - m_body2->m_positionW;
+				m_body_distance = glm::length(m_rel_pos);
+				m_offset = m_distance - m_body_distance;
+
+				// Compute parts of the jacobian matrix; in this case the relative positions
+				m_j1 = glm::normalize(m_rel_pos);
+				m_j2 = -m_j1;
+
+				// Compute total constraint mass and invert it if possible
+				real total_mass = m_body1->m_mass_inv + m_body2->m_mass_inv;
+				m_inv_constraint_mass = total_mass < Constraint::epsilon ? 0.0_real : 1.0_real / total_mass;
+
+				// Compute bias for Baumgarte stabilization
+				m_bias = (m_bias_factor * m_offset) / dt;
+			};
+			
+			/// <summary>
+			/// Compute and apply constraint impulses
+			/// </summary>
+			void solveVelocity() override {
+				if (abs(m_offset) > Constraint::epsilon) {
+					// Compute dot product of Jacobian and velocity vector; keep in mind that j2 = -j1, so the original expression can be simplified
+					real jv = glm::dot(m_body1->m_linear_velocityW - m_body2->m_linear_velocityW, m_j1);
+					real lambda = m_inv_constraint_mass * -(jv - m_bias);
+
+					glmvec3 impulse1 = m_j1 * lambda * m_body1->m_mass_inv;
+					glmvec3 impulse2 = m_j2 * lambda * m_body2->m_mass_inv;
+
+					m_body1->m_linear_velocityW += impulse1;
+					m_body2->m_linear_velocityW += impulse2;
+				}				
+			}
+		};
+
+		/// <summary>
+		/// A constraint that models a ball-socket joint. The two bodies are connected at the anchor point given in world space
+		/// They can rotate around the anchor point freely, but no relative translation is allowed
+		/// </summary>
+		class BallSocketJoint : public Constraint {
+			real m_bias_factor = 0.15_real;					// Bias factor for Baumgarte stabilization
+
+			// These values are set when the Joint is created
+			glmvec3 m_anchor_w;								// Anchor point in world space
+			glmvec3 m_anchor_body1;							// Anchor point in local space of body1
+			glmvec3 m_anchor_body2;							// Anchor point in local space of body2
+
+			// These values are computed once before each loop as they don't change between iterations		
+			glmvec3 m_r1{ 0.0_real };						// vector from body1's center to body1's anchor in world space
+			glmvec3 m_r2{ 0.0_real };						// vector from body2's center to body2's anchor in world space
+			glmvec3 m_offset{ 0.0_real };					// Constraint error
+			glmmat3 m_j1{ 0.0_real };						// First part of Jacobian
+			glmmat3 m_j2{ 0.0_real };;						// Second part of Jacobian
+			glmmat3 m_j3{ 0.0_real };						// Third part of Jacobian
+			glmmat3 m_j4{ 0.0_real };						// Fourth part of Jacobian
+			glmmat3 m_inv_constraint_mass{ 0.0_real };		// Inverse effective constraint mass
+			glmvec3 m_bias{ 0.0_real };						// Bias to be used for Baumgarte stabilization
+		public:
+			/// <summary>
+			/// Constructor
+			/// </summary>
+			/// <param name="body1">First body</param>
+			/// <param name="body2">Second body</param>
+			/// <param name="anchor">Anchor point in world space</param>
+			BallSocketJoint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor) : Constraint(body1, body2), m_anchor_w{ anchor } {
+				// Move the anchor point to local space for each body
+				m_anchor_body1 = m_body1->m_model_inv * glmvec4(m_anchor_w, 1.0_real);
+				m_anchor_body2 = m_body2->m_model_inv * glmvec4(m_anchor_w, 1.0_real);
+			}
+			~BallSocketJoint() {}
+
+			/// <summary>
+			/// Use to update the Baumgarte stabilization bias for the translation constraint
+			/// </summary>
+			/// <param name="new_bias"></param>
+			void setTranslationBias(real new_bias) {
+				m_bias_factor = new_bias;
+			}
+
+			/// <summary>
+			/// Computes values that remain static within one loop/timestep
+			/// </summary>
+			/// <param name="dt">Simulation timestep</param>
+			void setUp(real dt) override {
+				// Move anchor points back to world space
+				glmvec3 anchor1 = m_body1->m_model * glmvec4(m_anchor_body1, 1.0_real);
+				glmvec3 anchor2 = m_body2->m_model * glmvec4(m_anchor_body2, 1.0_real);
+
+				// compute vector from body center to bodies' anchor in world space
+				m_r1 = anchor1 - m_body1->m_positionW;
+				m_r2 = anchor2 - m_body2->m_positionW;
+				m_offset = anchor2 - anchor1;
+
+				// Compute components of Jacobian matrix
+				m_j1 = glm::mat3(-1.0_real);
+				m_j2 = glm::matrixCross3(m_r1);
+				m_j3 = glm::mat3(1.0_real);
+				m_j4 = -glm::matrixCross3(m_r2);
+
+				// Compute total constraint mass
+				glmmat3 constraint_mass = m_body1->m_mass_inv * glmmat3(1.0_real) + m_j2 * m_body1->m_inertia_invW * glm::transpose(m_j2) + m_body2->m_mass_inv * glmmat3(1.0_real) + (-m_j4) * m_body2->m_inertia_invW * glm::transpose(-m_j4);
+				// only invert if matrix is actually invertible - can happen when two bodies with infinite mass are involved
+				m_inv_constraint_mass = glm::determinant(constraint_mass) < Constraint::epsilon ? glmmat3(0.0_real) : glm::inverse(constraint_mass);
+				m_bias = (m_bias_factor / dt) * m_offset;
+			};
+
+			/// <summary>
+			/// Computes and applies constraint impulses
+			/// </summary>
+			void solveVelocity() override {
+				glmvec3 abs_offset = glm::abs(m_offset);
+				if (abs_offset.x > Constraint::epsilon || abs_offset.y > Constraint::epsilon || abs_offset.z > Constraint::epsilon) {
+					// Compute product of jacobian (3x12 matrix) and velocity vector (12x1 matrix) with submatrices
+					glmvec3 j1v1 = -m_body1->m_linear_velocityW; // j1 is negated identity matrix
+					glmvec3 j2v2 = m_j2 * m_body1->m_angular_velocityW;
+					glmvec3 j3v3 = m_body2->m_linear_velocityW; // j3 is identity matrix
+					glmvec3 j4v4 = m_j4 * m_body2->m_angular_velocityW;
+					glmvec3 jv = j1v1 + j2v2 + j3v3 + j4v4;
+
+					glmvec3 lambda = m_inv_constraint_mass * (-jv - m_bias);
+			
+					// Compute impulses via constraint_force = J^t * lambda
+					// j2 and j4 are skew symmetric, so their transpose is their negation
+					glmvec3 impulse1 = -lambda; // j1 is negated identity matrix
+					glmvec3 impulse2 = -m_j2 * lambda;
+					glmvec3 impulse3 = lambda; // j3 is identity matrix
+					glmvec3 impulse4 = -m_j4 * lambda;
+
+					m_body1->m_linear_velocityW += m_body1->m_mass_inv * impulse1;
+					m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse2;
+					m_body2->m_linear_velocityW += m_body2->m_mass_inv * impulse3;
+					m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse4;
+				}
+			}
+		};
+
+		/// <summary>
+		/// A hinge constraint that connects two bodies via an anchor point and only allows them to rotate around a given hinge axis in world space
+		/// Supports angle limits and a motor
+		/// </summary>
+		class HingeJoint : public Constraint {
+			std::shared_ptr<BallSocketJoint> m_ballsocket;		// Used for the translation constraint
+			real m_bias_factor_rot = 0.15_real;					// Bias factor for translation constraint Baumgarte stabilization
+			real m_bias_factor_trans = 0.15_real;				// Bias factor for rotation constraint Baumgarte stabilization
+			real m_bias_factor_limit = 0.1_real;				// Bias factor for limit constraint Baumgarte stabilization
+
+			// These values are set once when the Joint is created
+			glmvec3 m_rot_axis_w;								// Hinge axis in world space
+			glmvec3 m_rot_axis_body1;							// Hinge axis in body1's local space
+			glmvec3 m_rot_axis_body2;							// Hinge axis in body2's local space
+
+			bool m_limit_active = false;						// Flag that enables angle limits
+			real m_limit_max = -pi2;							// Maximum angle i.e. max rotation in positive direction
+			real m_limit_min = pi2;								// Minimum angle i.e. max rotation in negative direction
+			glmquat m_init_orientation_inv;						// Inverse of initial orientation between the two bodies
+
+			bool m_motor_active = false;						// Flag that enables the motor (if active, the constraint tries to maintain a certain angular velocity along the hinge axis)
+			real m_fmotor = 0.0_real;							// The speed of the motor in radians/s, i.e. the angular speed that should be maintained
+			real m_fmotor_max = 0.0_real;						// The maximum force the motor is allowed to apply per iteration, can be used to controll ramp up time to motor speed
+			bool m_body1_motor_factor = true;					// Whether body1 should be affected by motor forces
+			bool m_body2_motor_factor = true;					// Whether body2 should be affected by motor forces
+
+			// These values are computed in setUp() before each loop as they don't change between iterations
+			glmvec3 m_axis1_world{ 0.0_real };					// Hinge axis of body1 moved to world space
+			glmvec3 m_axis2_world{ 0.0_real };					// Hinge axis of body2 moved to world space
+
+			// Angle limit 
+			real m_bias_limit_min = 0.0_real;					// Baumgarte bias to be used for lower angle limit
+			real m_bias_limit_max = 0.0_real;					// Baumgarte bias to be used for upper angle limit
+			real m_theta = 0.0_real;							// Angle between the bodies along the hinge axis
+			real m_inv_constraint_mass_limit = 0.0_real;		// Inverted effective constraint mass for angle limit
+
+			// Motor
+			real m_offset_motor = 0.0_real;						// Constraint error for motor
+			real m_inv_constraint_mass_motor = 0.0_real;		// Inverted effective constraint mass for motor
+
+			// Rotation
+			glmvec2 m_offset_rotation{ 0.0_real };				// Constraint error for rotation constraint
+			glmvec3 m_bCa{ 0.0_real };							// Cross product needed for Jacobian and mass
+			glmvec3 m_cCa{ 0.0_real };							// Cross product needed for Jacobian and mass
+			glmmat2 m_inv_constraint_mass_rot{ 0.0_real };		// Inverted effective constraint mass for rotation constraint
+			glmvec2 m_bias_rotation{ 0.0_real };				// Baumgarte bias to be used for rotation constraint
+
+			/// <summary>
+			/// Returns the inverse mass matrix for the motor and limit constraints
+			/// Requires m_axis1_world to have been computed already
+			/// </summary>
+			/// <returns></returns>
+			real getMotorAndLimitMass() const {
+				real mass = glm::dot(m_axis1_world * m_body1->m_inertia_invW, m_axis1_world) + glm::dot(m_axis1_world * m_body2->m_inertia_invW, m_axis1_world);
+				return mass < Constraint::epsilon ? 0.0_real : 1.0_real / mass;
+			}
+
+		public:
+			/// <summary>
+			/// Constructor
+			/// </summary>
+			/// <param name="body1">First body</param>
+			/// <param name="body2">Second body</param>
+			/// <param name="anchor">Anchor point in world space</param>
+			/// <param name="axis">Hinge axis in world space</param>
+			HingeJoint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis) : Constraint(body1, body2) {
+				// Initialize ballsocket joint for translation constraint
+				m_ballsocket = std::make_shared<VPEWorld::BallSocketJoint>(m_body1, m_body2, anchor);
+				m_ballsocket->setTranslationBias(m_bias_factor_trans);
+				// Move rotation axis to local space of each body
+				m_rot_axis_w = glm::normalize(axis);
+				m_rot_axis_body1 = glm::normalize(m_body1->m_model_inv * glmvec4(m_rot_axis_w, 0.0_real));
+				m_rot_axis_body2 = glm::normalize(m_body2->m_model_inv * glmvec4(m_rot_axis_w, 0.0_real));
+			};
+
+			~HingeJoint() {}
+			
+			/// <summary>
+			/// Use this to specify whether body1 should be affected by the motor force or not
+			/// </summary>
+			/// <param name="moved_by_motor">Should this body be moved by the motor?</param>
+			void setBody1MotorEnabled(bool moved_by_motor) {
+				m_body1_motor_factor = moved_by_motor;
+			}
+
+			/// <summary>
+			/// Use this to specify whether body2 should be affected by the motor force or not
+			/// </summary>
+			/// <param name="moved_by_motor">Should this body be moved by the motor?</param>
+			void setBody2MotorEnabled(bool moved_by_motor) {
+				m_body2_motor_factor = moved_by_motor;
+			}
+
+			/// <summary>
+			/// Use to change the Baumgarte stabilization bias factor for the translation constraint
+			/// </summary>
+			/// <param name="new_bias"></param>
+			void setTranslationBias(real new_bias) {
+				m_bias_factor_trans = new_bias;
+				m_ballsocket->setTranslationBias(m_bias_factor_trans);
+			}
+
+			/// <summary>
+			/// Use to change the Baumgarte stabilization bias factor for the rotation constraint
+			/// </summary>
+			/// <param name="new_bias"></param>
+			void setRotationBias(real new_bias) {
+				m_bias_factor_rot = new_bias;
+			}
+
+			/// <summary>
+			/// Use to change the Baumgarte stabilization bias factor for the angle limit constraint
+			/// </summary>
+			/// <param name="new_bias"></param>
+			void setLimitBias(real new_bias) {
+				m_bias_factor_limit = new_bias;
+			}
+
+			/// <summary>
+			/// Enables angle limits for the hinge joint. 
+			/// The current relative orientation of the bodies is used for the initial orientation,
+			/// which then corresponds to an angle of 0.
+			/// </summary>
+			/// <param name="min_angle">Angle that the hinge should be able to rotate around in the negative direction in radians in range [-2*pi, 0]</param>
+			/// <param name="max_angle">Angle that the hinge should be able to rotate around in the positive direction in radians in range [0,  2*pi]</param>
+			void enableLimit(real min_angle, real max_angle) {
+				assert(min_angle < max_angle);
+				assert(min_angle <= 0.0_real);
+				assert(max_angle >= 0.0_real);
+
+				m_limit_min = min_angle;
+				m_limit_max = max_angle;
+				// Compute current orientation between the bodies
+				m_init_orientation_inv = glm::normalize(m_body2->m_orientationLW * glm::inverse(m_body1->m_orientationLW));
+				glm::inverse(m_init_orientation_inv);
+				m_limit_active = true;
+			}
+
+			/// <summary>
+			/// Disables the angle limits for the hinge joint
+			/// </summary>
+			void disableLimit() {
+				m_limit_active = false;
+			}
+
+			/// <summary>
+			/// Enables the motor for the hinge joint.
+			/// If the motor is enabled, the constraint tries to maintain the given angular velocity along the hinge axis between the bodies
+			/// </summary>
+			/// <param name="motor_speed">The angular speed in radians/sec that the motor should maintain</param>
+			/// <param name="max_force">The maximum force in newton meters that can be applied per iteration. Use this to controll ramp up time</param>
+			void enableMotor(real motor_speed, real max_force) {
+				assert(max_force > 0.0_real);
+				m_fmotor = motor_speed;
+				m_fmotor_max = max_force;
+				m_motor_active = true;
+			}
+
+			/// <summary>
+			/// Disables the motor for the hinge joint
+			/// </summary>
+			void disableMotor() {
+				m_motor_active = false;
+				m_fmotor = 0.0_real;
+				m_fmotor_max = 0.0_real;
+			}
+
+			/// <summary>
+			/// Computes values that remain static within one loop/timestep
+			/// Note: We often use m_axis1_world even though the math would require m_rot_axis_w;
+			/// We do this to allow the entire system to tilt, i.e. for the hinge axis to also be able to rotate. Using m_rot_axis_w would lead to the system always trying to keep the same orientation which can become quite unstable
+			/// </summary>
+			/// <param name="dt">Simulation timestep</param>
+			void setUp(real dt) override {
+				m_ballsocket->setUp(dt);
+
+				// Move hinge axis back to world space for each body
+				m_axis1_world = glm::normalize(m_body1->m_model * glmvec4(m_rot_axis_body1, 0.0_real));
+				m_axis2_world = glm::normalize(m_body2->m_model * glmvec4(m_rot_axis_body2, 0.0_real));
+
+				if (m_limit_active) {
+					glmquat current_orientation = m_body2->m_orientationLW * glm::inverse(m_body1->m_orientationLW);
+					// Difference between original orientation and current one
+					glmquat diff_orientation = glm::normalize(current_orientation * m_init_orientation_inv);
+
+					// Recover rotation angle theta from quaternion
+					// See https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation (section Recovering the axis-angle representation)
+					glmvec3 rel_rot_axis(diff_orientation.x, diff_orientation.y, diff_orientation.z);
+					// Two quaternions q and -q encode the same rotation; take whichever one points in the same direction as the hinge axis
+					real w = diff_orientation.w;
+					if (glm::dot(rel_rot_axis, m_axis1_world) < 0.0_real) w = -w; // axes point in different directions
+
+					// This calculates the angle in [0; 2pi] and converts it to [-pi, pi]
+					real theta = std::remainder(2.0_real * std::atan2(glm::length(rel_rot_axis), w), pi2);
+
+					// Our angle is now in [-pi; pi], so negative values go in one direction and positive ones in the other
+					// However, a positive rotation can also be the continuation of a negative one (since it flips over when you go lower than -pi) and vice versa
+					// Even if theta is larger/lower than one of the angle limits,
+					// we only want to compare to the angle that is closer to theta, so convert it accordingly
+					if (theta > m_limit_max) {
+						if (std::abs(std::remainder(theta - m_limit_max, pi2)) > std::abs(std::remainder(theta - m_limit_min, pi2))) {
+							theta -= pi2;
+						}
+					}
+					else if (theta < m_limit_min) {
+						if (std::abs(std::remainder(m_limit_max - theta, pi2)) < std::abs(std::remainder(m_limit_min - theta, pi2))) {
+							theta += pi2;
+						}
+					}
+
+					m_bias_limit_min = (m_bias_factor_limit / dt) * (theta - m_limit_min);
+					m_bias_limit_max = (m_bias_factor_limit / dt) * (m_limit_max - theta);
+					m_theta = theta;
+					m_inv_constraint_mass_limit = getMotorAndLimitMass();
+				}
+
+				if (m_motor_active) {
+					// Get current angular speed along the hinge axis (using m_axis1_world here, see note above class)
+					real speed_projection = glm::dot(m_body2->m_angular_velocityW - m_body1->m_angular_velocityW, m_axis1_world);
+					m_offset_motor = speed_projection + m_fmotor;
+					m_inv_constraint_mass_motor = getMotorAndLimitMass();
+				}
+
+				// Compute 2 orthogonal unit vectors to axis2 to formulate the rotation constraint function
+				glmvec3 b1 = geometry::orthoUnitVector(m_axis2_world);
+				glmvec3 c1 = glm::normalize(glm::cross(m_axis2_world, b1));
+
+				// Constraint error and bias
+				m_offset_rotation = glmvec2(glm::dot(m_axis1_world, b1), glm::dot(m_axis1_world, c1));
+				m_bias_rotation = (m_bias_factor_rot / dt) * m_offset_rotation;
+
+				glmvec3 bCa = glm::cross(b1, m_axis1_world);
+				glmvec3 cCa = glm::cross(c1, m_axis1_world);
+				m_bCa = bCa;
+				m_cCa = cCa;
+
+				// Compute constraint mass matrix with J*M^-1*J^T
+				real a = glm::dot(bCa * m_body1->m_inertia_invW, bCa) + glm::dot(bCa * m_body2->m_inertia_invW, bCa);
+				real b = glm::dot(bCa * m_body1->m_inertia_invW, cCa) + glm::dot(bCa * m_body2->m_inertia_invW, cCa);
+				real c = glm::dot(cCa * m_body1->m_inertia_invW, bCa) + glm::dot(cCa * m_body2->m_inertia_invW, bCa);
+				real d = glm::dot(cCa * m_body1->m_inertia_invW, cCa) + glm::dot(cCa * m_body2->m_inertia_invW, cCa);
+				// Column major!
+				glmmat2 constraint_mass(a, c, b, d);
+				// Only invert if matrix is actually invertible
+				m_inv_constraint_mass_rot = glm::determinant(constraint_mass) < Constraint::epsilon ? glmmat2(0.0_real) : glm::inverse(constraint_mass);
+			};
+
+			/// <summary>
+			/// Computes and applies constraint forces if necessary
+			/// </summary>
+			/// <param name="dt">Delta time since last frame</param>
+			void solveVelocity() override {
+				// Handle limit constraints
+				if (m_limit_active) {
+					if (m_theta < m_limit_min) {
+						// Missing compontents of Jacobian matrix are 0
+						glmvec3 j2 = -m_axis1_world;
+						glmvec3 j4 = m_axis1_world;
+
+						// compute dot product of 1x12 Jacobian matrix and 12x1 velocity vector
+						real jv = glm::dot(m_axis1_world, -m_body1->m_angular_velocityW + m_body2->m_angular_velocityW);
+						real lambda = m_inv_constraint_mass_limit * (-jv - m_bias_limit_min);
+
+						glmvec3 impulse1 = j2 * lambda;
+						glmvec3 impulse2 = j4 * lambda;
+
+						m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse1;
+						m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2;
+					}
+
+					if (m_theta > m_limit_max) { 
+						// Missing compontents of Jacobian matrix are 0
+						glmvec3 j2 = m_axis1_world;
+						glmvec3 j4 = -m_axis1_world;
+
+						// compute dot product of 1x12 Jacobian matrix and 12x1 velocity vector
+						real jv = glm::dot(m_axis1_world, m_body1->m_angular_velocityW - m_body2->m_angular_velocityW);
+						real lambda = m_inv_constraint_mass_limit * (-jv - m_bias_limit_max);
+
+						glmvec3 impulse1 = j2 * lambda;
+						glmvec3 impulse2 = j4 * lambda;
+
+						m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse1;
+						m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2;
+					} 
+				}
+				
+				// Handle motor constraint
+				if (m_motor_active) {
+					// Missing compontents of Jacobian matrix are 0
+					glmvec3 j2 = m_axis1_world;
+					glmvec3 j4 = -m_axis1_world;
+
+					// compute dot product of 1x12 Jacobian matrix and 12x1 velocity vector
+					real jv = glm::dot(m_axis1_world, -m_body2->m_angular_velocityW + m_body1->m_angular_velocityW);
+
+					real bias = m_fmotor; // Our bias is the motor speed. We introduce extra energy into the system here
+					real lambda = m_inv_constraint_mass_motor * (-jv - bias);
+
+					// Clamp lambda so it doesn't exceed the maximum allowed force
+					lambda = std::clamp(lambda, -m_fmotor_max, m_fmotor_max);
+
+					glmvec3 impulse1 = j2 * lambda;
+					glmvec3 impulse2 = j4 * lambda;
+
+					m_body1->m_angular_velocityW += m_body1_motor_factor * m_body1_factor * m_body1->m_inertia_invW * impulse1;
+					m_body2->m_angular_velocityW += m_body2_motor_factor * m_body2_factor * m_body2->m_inertia_invW * impulse2;
+				}
+
+				m_ballsocket->solveVelocity();
+			
+				glmvec2 abs_offset = glm::abs(m_offset_rotation);
+		
+				if (abs_offset.x > Constraint::epsilon || abs_offset.y > Constraint::epsilon) {
+					// Compute Jacobian matrix
+					// Missing compontents are 0
+					glmvec3 j12 = -m_bCa;
+					glmvec3 j22 = -m_cCa;
+					glmvec3 j14 = m_bCa;
+					glmvec3 j24 = m_cCa;
+
+					// Calculate product of 2x12 Jacobian matrix and 12x1 velocity vector
+					glmvec2 jv(
+						glm::dot(j12, m_body1->m_angular_velocityW) + glm::dot(j14, m_body2->m_angular_velocityW),
+						glm::dot(j22, m_body1->m_angular_velocityW) + glm::dot(j24, m_body2->m_angular_velocityW)
+					);
+
+					glmvec2 lambda = m_inv_constraint_mass_rot * (-jv - m_bias_rotation);
+
+					// Compute constraint forces via J^t*lambda. Since J has 0-compontents, we don't have any linear impulses here
+					// Since we can only easily access the columns of J^t, we do the multiplication column-wise instead of using rows
+					// see https://math.stackexchange.com/questions/1422045/matrix-multiplication-of-columns-times-rows-instead-of-rows-times-columns
+					glmvec3 impulse1 = j12 * lambda.x + j22 * lambda.y;
+					glmvec3 impulse2 = j14 * lambda.x + j24 * lambda.y;
+
+					m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse1;
+					m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2;
+				}
+			}
+		};
+
+		/// <summary>
+		/// A fixed joint removes all degrees of freedom by allowing no relative motion between the involved bodies.
+		/// The bodies essentially become one system, i.e. their movement depends completely on each other.
+		/// The joint is defined by an anchor point. 
+		/// If you use a body with infinite mass to fixate it, setting the anchor point to the other, non-fixed body increases stiffness
+		/// </summary>
+		class FixedJoint : public Constraint {
+			std::shared_ptr<BallSocketJoint> m_ballsocket;		// Used for the translation constraint
+			real m_bias_factor_trans = 0.2_real;				// Bias factor for translation constraint Baumgarte stabilization
+			real m_bias_factor_rot = 0.1_real;					// Bias factor for rotation constraint Baumgarte stabilization
+
+			// This is computed when the Joint is created
+			glmquat m_init_orientation_inv;						// Initial orientation of the two bodies
+
+			// This is computed before each loop in setUp()
+			glmmat3 m_inv_constraint_mass_rot{ 0.0_real };		// Inverse effective constraint mass
+			glmvec3 m_bias_rot{ 0.0_real };						// Baumgarte bias to be used for the rotation constraint
+		public:
+			/// <summary>
+			/// Constructor
+			/// </summary>
+			/// <param name="body1">First body</param>
+			/// <param name="body2">Second body</param>
+			/// <param name="anchor">Anchor point in world space</param>
+			FixedJoint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor) : Constraint(body1, body2) {
+				m_ballsocket = std::make_shared<VPEWorld::BallSocketJoint>(m_body1, m_body2, anchor);
+				m_ballsocket->setTranslationBias(m_bias_factor_trans);
+				// Compute inverse of initial orientation between the bodies
+				m_init_orientation_inv = glm::inverse(m_body2->m_orientationLW) * m_body1->m_orientationLW;
+			}
+			~FixedJoint() {}
+
+			/// <summary>
+			/// Use to change the Baumgarte stabilization bias factor for the translation constraint
+			/// </summary>
+			/// <param name="new_bias"></param>
+			void setTranslationBias(real new_bias) {
+				m_bias_factor_trans = new_bias;
+				m_ballsocket->setTranslationBias(m_bias_factor_trans);
+			}
+
+			/// <summary>
+			/// Use to change the Baumgarte stabilization bias factor for the rotation constraint
+			/// </summary>
+			/// <param name="new_bias"></param>
+			void setRotationBias(real new_bias) {
+				m_bias_factor_rot = new_bias;
+			}
+
+			/// <summary>
+			/// Computes values that remain static within one timestep
+			/// </summary>
+			/// <param name="dt">Simulation timestep</param>
+			void setUp(real dt) {
+				m_ballsocket->setUp(dt);
+
+				// Compute constraint mass and invert it if possible
+				glmmat3 constraint_mass = m_body1->m_inertia_invW + m_body2->m_inertia_invW;
+				m_inv_constraint_mass_rot = glm::determinant(constraint_mass) < Constraint::epsilon ? glmmat3(0.0_real) : glm::inverse(constraint_mass);
+
+				// Compute constraint error (relative rotation) and Baumgarte bias
+				glmquat offset = m_body2->m_orientationLW * m_init_orientation_inv * glm::inverse(m_body1->m_orientationLW);
+				m_bias_rot = (m_bias_factor_rot / dt) * 2.0_real * glmvec3(offset.x, offset.y, offset.z);
+			}
+
+			void solveVelocity() {
+				m_ballsocket->solveVelocity();
+
+				// Compute product of 3x12 Jacobian and 12x1 velocity vector
+				// Since the Jacobian is (0 -I 0 I) (I being the 3x3 identity matrix), this is pretty simple here
+				glmvec3 jv = m_body2->m_angular_velocityW - m_body1->m_angular_velocityW;
+				glmvec3 lambda = m_inv_constraint_mass_rot * (-jv - m_bias_rot);
+
+				glmvec3 impulse1 = -lambda;
+				glmvec3 impulse2 = lambda;
+
+				m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse1;
+				m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2;
+			}
+		};
+
+		/// <summary>
+		/// A slider joint only allows one degree of freedom, namely translation along the slide / joint axis.
+		/// The joint is given by an anchor point and translation axis in world space.
+		/// The bodies can then only do relative translations along the translation axis
+		/// If you use a body with infinite mass to fixate it, setting the anchor point to the other, non-fixed body increases stiffness
+		/// </summary>
+		class SliderJoint : public Constraint {
+			real m_bias_factor_trans = 0.2_real;				// Bias factor for translation constraint Baumgarte stabilization
+			real m_bias_factor_rot = 0.2_real;					// Bias factor for rotation constraint Baumgarte stabilization
+			real m_bias_factor_limit = 0.1_real;				// Bias factor for limit constraint Baumgarte stabilization
+
+			bool m_limit_active = false;						// Whether the constraint should limit the min and max relative distance between the bodies
+			real m_limit_min = -std::numeric_limits<real>::max(); // The lower limit for relative distance, i.e. distance limit in negative direction
+			real m_limit_max = std::numeric_limits<real>::max();  // The upper limit for relative distance, i.e. distance limit in positive direction
+
+			bool m_motor_active = false;						// Whether the motor should be active
+			real m_fmotor = 0.0_real;							// Linear motor speed in m/s
+			real m_fmotor_max = 0.0_real;						// Max motor force applied per timestep in Newton
+			bool m_body1_motor_factor = true;					// Whether body1 should be affected by motor forces
+			bool m_body2_motor_factor = true;					// Whether body2 should be affected by motor forces
+
+			// This is computed when the Joint is created
+			glmvec3 m_anchor_world{ 0.0_real };
+			glmvec3 m_anchor_body1;								// Anchor point in local space of body1
+			glmvec3 m_anchor_body2;								// Anchor point in local space of body2
+			glmvec3 m_axis_world{ 0.0_real };					// Translation axis in world space
+			glmvec3 m_axis_body1{ 0.0_real };					// Axis in local space of body 1
+			glmquat m_init_orientation_inv;						// Initial orientation of the two bodies
+
+			// The following values are computed before each loop in setUp()
+			// Translation constraint
+			glmmat2 m_inv_constraint_mass_trans{ 0.0_real };	// Inverse effective constraint mass for translation constraint
+			glmvec2 m_bias_trans{ 0.0_real };					// Baumgarte bias to be used for the translation constraint
+			glmvec3 m_r1{ 0.0_real };							// vector from body1's center to body1's anchor in world space
+			glmvec3 m_r2{ 0.0_real };							// vector from body2's center to body2's anchor in world space
+			glmvec3 m_axis_body1_w{ 0.0_real };					// Translation axis of body1 moved to world space
+			glmvec3 m_anchor_diff{ 0.0_real };					// Relative position difference of the two bodies' anchor points
+
+			// Entries for the translation constraint Jacobian
+			glmvec3 m_j11{ 0.0_real };
+			glmvec3 m_j12{ 0.0_real };
+			glmvec3 m_j13{ 0.0_real };
+			glmvec3 m_j14{ 0.0_real };
+			glmvec3 m_j21{ 0.0_real };
+			glmvec3 m_j22{ 0.0_real };
+			glmvec3 m_j23{ 0.0_real };
+			glmvec3 m_j24{ 0.0_real };
+
+			// Rotation Constraint
+			glmmat3 m_inv_constraint_mass_rot{ 0.0_real };		// Inverse effective constraint mass for the rotaion constraint
+			glmvec3 m_bias_rot{ 0.0_real };						// Baumgarte bias to be used for the rotation constraint
+
+			// Limit Constraint
+			real m_inv_constraint_mass_limit = 0.0_real;		// Inverse effective constraint mass for the limit constraint
+			real m_bias_limit_min = 0.0_real;					// The Baumgarte bias value for the minimum limit constraint
+			real m_bias_limit_max = 0.0_real;					// The Baumgarte bias value for the maximum limit constraint
+			real m_current_distance = 0.0_real;					// The current distance between the bodies
+			// Used for jacobian entries for limit constraint
+			glmvec3 m_r1_anchor_axis{ 0.0_real };
+			glmvec3 m_r2_axis{ 0.0_real };
+
+			// Motor constraint
+			real m_inv_constraint_mass_motor = 0.0_real;		// Inverse effective constraint mass for the motor
+			real m_offset_motor = 0.0_real;						// Constraint error for the motor
+
+		public:
+			/// <summary>
+			/// Constructor of the SliderJoint class
+			/// </summary>
+			/// <param name="body1">First body</param>
+			/// <param name="body2">Second body</param>
+			/// <param name="anchor">Anchor point in world space</param>
+			/// <param name="anchor">Translation axis in world space</param>
+			SliderJoint(std::shared_ptr<Body> body1, std::shared_ptr<Body> body2, glmvec3 anchor, glmvec3 axis) : Constraint(body1, body2), m_anchor_world{ anchor }, m_axis_world{ glm::normalize(axis) } {
+				// Move anchor point into local space for each body
+				m_anchor_body1 = m_body1->m_model_inv * glmvec4(m_anchor_world, 1.0_real);
+				m_anchor_body2 = m_body2->m_model_inv * glmvec4(m_anchor_world, 1.0_real);
+				m_axis_body1 = glm::normalize(m_body1->m_model_inv * glmvec4(m_axis_world, 0.0_real));
+				// Compute current (inverse) orientation between the bodies
+				m_init_orientation_inv = glm::inverse(m_body2->m_orientationLW) * m_body1->m_orientationLW;
+			}
+			~SliderJoint() {}
+
+			/// <summary>
+			/// Use to change the Baumgarte stabilization bias factor for the translation constraint
+			/// </summary>
+			/// <param name="new_bias"></param>
+			void setTranslationBias(real new_bias) {
+				m_bias_factor_trans = new_bias;
+			}
+
+			/// <summary>
+			/// Use to change the Baumgarte stabilization bias factor for the rotation constraint
+			/// </summary>
+			/// <param name="new_bias"></param>
+			void setRotationBias(real new_bias) {
+				m_bias_factor_rot = new_bias;
+			}
+
+			/// <summary>
+			/// Use to change the Baumgarte stabilization bias factor for the translation distance limit constraint
+			/// </summary>
+			/// <param name="new_bias"></param>
+			void setLimitBias(real new_bias) {
+				m_bias_factor_limit = new_bias;
+			}
+
+			/// <summary>
+			/// Enables distance limits for the slider joint
+			/// The current relative distance of the bodies is used for the initial orientation,
+			/// which then corresponds to a distance of 0.
+			/// </summary>
+			/// <param name="min_distance">Minimum relative distance between the bodies, i.e. how far can they translate in the negative direction; in range [-inf; 0]</param>
+			/// <param name="max_distance">Maximum relative distance between the bodies, i.e. how far can they translate in the positive direction; in range [0; inf]</param>
+			void enableLimit(real min_distance, real max_distance) {
+				assert(min_distance < max_distance);
+				assert(min_distance <= 0.0_real);
+				assert(max_distance >= 0.0_real);
+
+				m_limit_min = min_distance;
+				m_limit_max = max_distance;
+				m_limit_active = true;
+			}
+
+			/// <summary>
+			/// Disables the distance limits for the hinge joint
+			/// </summary>
+			void disableLimit() {
+				m_limit_active = false;
+			}
+
+			/// Use this to specify whether body1 should be affected by the motor force or not
+			/// </summary>
+			/// <param name="moved_by_motor">Should this body be moved by the motor?</param>
+			void setBody1MotorEnabled(bool moved_by_motor) {
+				m_body1_motor_factor = moved_by_motor;
+			}
+
+			/// <summary>
+			/// Use this to specify whether body2 should be affected by the motor force or not
+			/// </summary>
+			/// <param name="moved_by_motor">Should this body be moved by the motor?</param>
+			void setBody2MotorEnabled(bool moved_by_motor) {
+				m_body2_motor_factor = moved_by_motor;
+			}
+
+			/// <summary>
+			/// Enables the motor for the slider joint.
+			/// If the motor is enabled, the constraint tries to maintain the given linear velocity along the slider axis between the bodies
+			/// </summary>
+			/// <param name="motor_speed">The linear motor speed in m/s</param>
+			/// <param name="max_force">The maximum force in Newton that can be applied per iteration step. Use this to controll ramp up time</param>
+			void enableMotor(real motor_speed, real max_force) {
+				assert(max_force > 0.0_real);
+				m_fmotor = motor_speed;
+				m_fmotor_max = max_force;
+				m_motor_active = true;
+			}
+
+			/// <summary>
+			/// Disables the motor for the hinge joint
+			/// </summary>
+			void disableMotor() {
+				m_motor_active = false;
+				m_fmotor = 0.0_real;
+				m_fmotor_max = 0.0_real;
+			}
+
+			/// <summary>
+			/// Computes values that remain static within one timestep
+			/// Note: Just like with the HingeJoint, we often use m_axis_body1_w even though the math would require m_axis_world; for the same reasons as with the HingeJoint
+			/// </summary>
+			/// <param name="dt">Simulation timestep</param>
+			void setUp(real dt) {
+				// Translation Constraint
+				// Move body1's axis back to world space
+				m_axis_body1_w = glm::normalize(m_body1->m_model * glmvec4(m_axis_body1, 0.0_real));
+				// Compute two orthogonal unit vectors to the axis to use for the Jacobian and mass matrices
+				glmvec3 n1 = geometry::orthoUnitVector(m_axis_body1_w);
+				glmvec3 n2 = glm::normalize(glm::cross(m_axis_body1_w, n1));
+
+				// Move anchor points back to world space for each body
+				glmvec3 anchor1 = m_body1->m_model * glmvec4(m_anchor_body1, 1.0_real);
+				glmvec3 anchor2 = m_body2->m_model * glmvec4(m_anchor_body2, 1.0_real);
+
+				// compute vector from body center to bodies' anchor in world space
+				m_r1 = anchor1 - m_body1->m_positionW;
+				m_r2 = anchor2 - m_body2->m_positionW;
+				m_anchor_diff = anchor2 - anchor1;
+
+				// Compute constraint error for translation constraint
+				glmvec2 offset_trans{ glm::dot(m_anchor_diff, n1), glm::dot(m_anchor_diff, n2) };
+				m_bias_trans = (m_bias_factor_trans / dt) * offset_trans;
+
+				// Compute Jacobian and mass matrix
+				glmvec3 r1_anchor_diff = m_r1 + m_anchor_diff;
+				glmvec3 r1_anchor_n1 = glm::cross(r1_anchor_diff, n1);
+				glmvec3 r1_anchor_n2 = glm::cross(r1_anchor_diff, n2);
+				glmvec3 r2_n1 = glm::cross(m_r2, n1);
+				glmvec3 r2_n2 = glm::cross(m_r2, n2);
+				m_j11 = -n1;
+				m_j12 = -r1_anchor_n1;
+				m_j13 = n1;
+				m_j14 = r2_n1;
+				m_j21 = -n2;
+				m_j22 = -r1_anchor_n2;
+				m_j23 = n2;
+				m_j24 = r2_n2;
+
+				// Compute effective mass matrix
+				real a = m_body1->m_mass_inv + m_body2->m_mass_inv + glm::dot(r1_anchor_n1, m_body1->m_inertia_invW * r1_anchor_n1) + glm::dot(r2_n1, m_body2->m_inertia_invW * r2_n1);
+				real b = glm::dot(r1_anchor_n1, m_body1->m_inertia_invW * r1_anchor_n2) + glm::dot(r2_n1, m_body2->m_inertia_invW * r2_n2);
+				real c = glm::dot(r1_anchor_n2, m_body1->m_inertia_invW * r1_anchor_n1) + glm::dot(r2_n2, m_body2->m_inertia_invW * r2_n1);
+				real d = m_body1->m_mass_inv + m_body2->m_mass_inv + glm::dot(r1_anchor_n2, m_body1->m_inertia_invW * r1_anchor_n2) + glm::dot(r2_n2, m_body2->m_inertia_invW * r2_n2);
+
+				// Column major!
+				glmmat2 constraint_mass_trans(a, c, b, d);
+				// Only invert if matrix is actually invertible
+				m_inv_constraint_mass_trans = glm::determinant(constraint_mass_trans) < Constraint::epsilon ? glmmat2(0.0_real) : glm::inverse(constraint_mass_trans);
+
+				// Rotation Constraint
+				// Compute constraint mass and invert it if possible
+				glmmat3 constraint_mass_rot = m_body1->m_inertia_invW + m_body2->m_inertia_invW;
+				m_inv_constraint_mass_rot = glm::determinant(constraint_mass_rot) < Constraint::epsilon ? glmmat3(0.0_real) : glm::inverse(constraint_mass_rot);
+
+				// Compute constraint error (relative rotation) and Baumgarte bias
+				glmquat offset = m_body2->m_orientationLW * m_init_orientation_inv * glm::inverse(m_body1->m_orientationLW);
+				m_bias_rot = (m_bias_factor_rot / dt) * 2.0_real * glmvec3(offset.x, offset.y, offset.z);
+
+				// Limit constraint
+				if (m_limit_active) {
+					m_r1_anchor_axis = glm::cross(r1_anchor_diff, m_axis_body1_w);
+					m_r2_axis = glm::cross(m_r2, m_axis_body1_w);
+
+					real limit_mass = m_body1->m_mass_inv + m_body2->m_mass_inv + glm::dot(m_r1_anchor_axis, m_body1->m_inertia_invW * m_r1_anchor_axis) + glm::dot(m_r2_axis, m_body2->m_inertia_invW * m_r2_axis);
+					m_inv_constraint_mass_limit = limit_mass < Constraint::epsilon ? 0.0_real : 1.0_real / limit_mass;
+
+					m_current_distance = glm::dot(m_anchor_diff, m_axis_body1_w);
+					m_bias_limit_min = (m_bias_factor_limit / dt) * (m_current_distance - m_limit_min);
+					m_bias_limit_max = (m_bias_factor_limit / dt) * (m_limit_max - m_current_distance);
+				}
+
+				if (m_motor_active) {
+					m_inv_constraint_mass_motor = m_body1->m_mass_inv + m_body2->m_mass_inv;
+					m_offset_motor = glm::dot(m_axis_body1_w, m_body1->m_linear_velocityW - m_body2->m_linear_velocityW) + m_fmotor;
+				}
+			}
+
+			void solveVelocity() {
+				// Solve limit constraint
+				if (m_limit_active) {
+					if (m_current_distance < m_limit_min) {
+						glmvec3 j1 = -m_axis_body1_w;
+						glmvec3 j2 = -m_r1_anchor_axis;
+						glmvec3 j3 = m_axis_body1_w;
+						glmvec3 j4 = m_r2_axis;
+
+						// compute dot product of 1x12 Jacobian matrix and 12x1 velocity vector
+						real jv = glm::dot(j1, m_body1->m_linear_velocityW) + glm::dot(j2, m_body1->m_angular_velocityW) + glm::dot(j3, m_body2->m_linear_velocityW) + glm::dot(j4, m_body2->m_angular_velocityW);
+						real lambda = m_inv_constraint_mass_limit * (-jv - m_bias_limit_min);
+
+						glmvec3 impulse1 = j1 * lambda;
+						glmvec3 impulse2 = j2 * lambda;
+						glmvec3 impulse3 = j3 * lambda;
+						glmvec3 impulse4 = j4 * lambda;
+
+						m_body1->m_linear_velocityW += m_body1->m_mass_inv * impulse1;
+						m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse2;
+						m_body2->m_linear_velocityW += m_body2->m_mass_inv * impulse3;
+						m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse4;
+					}
+
+					if (m_current_distance > m_limit_max) {
+						glmvec3 j1 = m_axis_body1_w;
+						glmvec3 j2 = m_r1_anchor_axis;
+						glmvec3 j3 = -m_axis_body1_w;
+						glmvec3 j4 = -m_r2_axis;
+
+						// compute dot product of 1x12 Jacobian matrix and 12x1 velocity vector
+						real jv = glm::dot(j1, m_body1->m_linear_velocityW) + glm::dot(j2, m_body1->m_angular_velocityW) + glm::dot(j3, m_body2->m_linear_velocityW) + glm::dot(j4, m_body2->m_angular_velocityW);
+						real lambda = m_inv_constraint_mass_limit * (-jv - m_bias_limit_max);
+
+						glmvec3 impulse1 = j1 * lambda;
+						glmvec3 impulse2 = j2 * lambda;
+						glmvec3 impulse3 = j3 * lambda;
+						glmvec3 impulse4 = j4 * lambda;
+
+						m_body1->m_linear_velocityW += m_body1->m_mass_inv * impulse1;
+						m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse2;
+						m_body2->m_linear_velocityW += m_body2->m_mass_inv * impulse3;
+						m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse4;
+					}
+				}
+
+				// Handle motor constraint
+				if (m_motor_active) {
+					if (std::abs(m_offset_motor) > 0.0_real) {
+						// Missing compontents of Jacobian matrix are 0
+						glmvec3 j1 = m_axis_body1_w;
+						glmvec3 j3 = -m_axis_body1_w;
+
+						// compute dot product of 1x12 Jacobian matrix and 12x1 velocity vector
+						real jv = glm::dot(m_axis_body1_w, m_body1->m_linear_velocityW - m_body2->m_linear_velocityW);
+
+						real bias = m_fmotor; // Our bias is the motor speed. We introduce extra energy into the system here
+						real lambda = m_inv_constraint_mass_motor * (-jv - bias);
+
+						// Clamp lambda so it doesn't exceed the maximum allowed force
+						lambda = std::clamp(lambda, -m_fmotor_max, m_fmotor_max);
+
+						glmvec3 impulse1 = j1 * lambda;
+						glmvec3 impulse2 = j3 * lambda;
+
+						m_body1->m_linear_velocityW += m_body1_motor_factor * m_body1->m_mass_inv * impulse1;
+						m_body2->m_linear_velocityW += m_body2_motor_factor * m_body2->m_mass_inv * impulse2;
+					}
+				}
+
+				// Solve translation constraint
+				glmvec3 abs_offset = glm::abs(m_anchor_diff);
+				if (abs_offset.x > Constraint::epsilon || abs_offset.y > Constraint::epsilon || abs_offset.z > Constraint::epsilon) {
+					// Calculate product of 2x12 Jacobian matrix and 12x1 velocity vector
+					glmvec2 jv_trans(
+						glm::dot(m_j11, m_body1->m_linear_velocityW) + glm::dot(m_j12, m_body1->m_angular_velocityW) + glm::dot(m_j13, m_body2->m_linear_velocityW) + glm::dot(m_j14, m_body2->m_angular_velocityW),
+						glm::dot(m_j21, m_body1->m_linear_velocityW) + glm::dot(m_j22, m_body1->m_angular_velocityW) + glm::dot(m_j23, m_body2->m_linear_velocityW) + glm::dot(m_j24, m_body2->m_angular_velocityW)
+					);
+
+					glmvec2 lambda_trans = m_inv_constraint_mass_trans * (-jv_trans - m_bias_trans);
+
+					// Compute constraint forces via J^t*lambda
+					// Since we can only easily access the columns of J^t, we do the multiplication column-wise instead of using rows
+					// see https://math.stackexchange.com/questions/1422045/matrix-multiplication-of-columns-times-rows-instead-of-rows-times-columns
+					glmvec3 impulse1 = m_j11 * lambda_trans.x + m_j21 * lambda_trans.y;
+					glmvec3 impulse2 = m_j12 * lambda_trans.x + m_j22 * lambda_trans.y;
+					glmvec3 impulse3 = m_j13 * lambda_trans.x + m_j23 * lambda_trans.y;
+					glmvec3 impulse4 = m_j14 * lambda_trans.x + m_j24 * lambda_trans.y;
+
+					m_body1->m_linear_velocityW += m_body1->m_mass_inv * impulse1;
+					m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse2;
+					m_body2->m_linear_velocityW += m_body2->m_mass_inv * impulse3;
+					m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse4;
+				}
+
+				// Solve rotation constraint
+				// Compute product of 3x12 Jacobian and 12x1 velocity vector
+				// Since the Jacobian is (0 -I 0 I) (I being the 3x3 identity matrix), this is pretty simple here
+				glmvec3 jv_rot = m_body2->m_angular_velocityW - m_body1->m_angular_velocityW;
+				glmvec3 lambda_rot = m_inv_constraint_mass_rot * (-jv_rot - m_bias_rot);
+
+				glmvec3 impulse1_rot = -lambda_rot;
+				glmvec3 impulse2_rot = lambda_rot;
+
+				m_body1->m_angular_velocityW += m_body1_factor * m_body1->m_inertia_invW * impulse1_rot;
+				m_body2->m_angular_velocityW += m_body2_factor * m_body2->m_inertia_invW * impulse2_rot;
+			}
+		};
+
 	public:
 		
 		VPEWorld() {};				///Constructor of class VPEWorld
 		virtual ~VPEWorld() {};		///Destructor of class VPEWorld
+
+	//--------------------------------Begin-Cloth-Simulation-Stuff----------------------------------
+	// by Felix Neumann
+
+	public:
+		class Cloth;
+		class ClothConstraint;
+		using callback_move_cloth = std::function<void(double, std::shared_ptr<Cloth>)>;			//call this function when the cloth moves
+		using callback_erase_cloth = std::function<void(std::shared_ptr<Cloth>)>;					//call this function when the cloth is erased
+
+		/// <summary>
+		/// All bodies are stored in the map m_cloths. The key is a void*, which can be used to call
+		/// back an owner if the cloth moves. With this key, the body can also be found.
+		/// So best if there is a 1:1 correspondence. E.g., the owner can be a specific VESceneNode.
+		/// </summary>
+		std::unordered_map<void*, std::shared_ptr<VPEWorld::Cloth>> m_cloths;
+
+		/// <summary>
+		/// Add a new cloth to the physics world.
+		/// </summary>
+		/// <param name="pbody"> The new body.</param>
+		void addCloth(std::shared_ptr<VPEWorld::Cloth> pCloth) {
+			m_cloths.insert({ pCloth->m_owner, pCloth });
+		}
+
+		/// <summary>
+		/// Retrieve a cloth using the owner.
+		/// </summary>
+		/// <param name="owner"> Pointer to the owner </param>
+		/// <returns> Shared pointer to the cloth. </returns>
+		auto getCloth(auto* owner) {
+			return m_cloths[(void*)owner];
+		}
+
+		/// <summary>
+		/// Delete all cloths.
+		/// </summary>
+		void clearCloths() {
+			for (std::pair<void*, std::shared_ptr<Cloth>> cloth : m_cloths)
+				if (cloth.second->m_on_erase)
+					cloth.second->m_on_erase(cloth.second);
+
+			m_cloths.clear();
+		}
+
+		/// <summary>
+		/// Erase one cloth.
+		/// </summary>
+		/// <param name="body"> Shared pointer to the cloth. </param>
+		void eraseCloth(std::shared_ptr<Cloth> cloth) {
+			if (cloth->m_on_erase)
+				cloth->m_on_erase(cloth);
+
+			m_bodies.erase(cloth->m_owner);
+		}
+
+		/// <summary>
+		/// Erase one cloth.
+		/// </summary>
+		/// <param name="owner"> A void pointer to the owner of the cloth. </param>
+		void eraseCloth(auto* owner) {
+			std::shared_ptr<Cloth> cloth = m_cloths[(void*)owner];
+			if (cloth->m_on_erase)
+				cloth->m_on_erase(cloth);
+
+			m_bodies.erase(owner);
+		}
+
+		/// <summary>
+		/// Used to store the information about which vertices form triangles which is fetched from
+		/// the index vector passed to the cloth in its constructor.Triangles are used to create the
+		/// constraints. For each point its index within the mass points vector is stored.
+		/// </summary>
+		struct ClothTriangle
+		{
+			uint32_t massPoint0Index;
+			uint32_t massPoint1Index;
+			uint32_t massPoint2Index;
+		};
+
+		/// <summary>
+		/// A mass point is a vertex of the cloth.
+		/// </summary>
+		class ClothMassPoint
+		{
+		public:
+			std::vector<uint32_t> m_associatedVertices{};											// Indices of all vertices of VEClothEntity with the same initial position as this mass point.
+			glmvec3 pos;																			// Current position of the mass points
+			glmvec3 prevPos;																		// Previous position
+			const glmvec3 initialPos;																// Initial position before any simulation was applied. Used for setTransform function of cloth.
+			glmvec3 vel;																			// Current velocity
+			real invMass;																			// 1 - the mass of the mass point. Dynamically calulated depending on the associated triangles.
+			bool isFixed;																			// true ... transformations are fully applied, false ... point is dragged along by the simulation
+
+		private:
+			const real c_small = 0.01_real;															// Small threshold value
+			const real c_verySmall = c_small / 50.0_real;											// Even smaller threshold value
+			const real c_collisionMargin = 0.045_real;												// Margin for collision detection with polytopes to avoid glitches
+			const real c_friction = 300._real;														// Amount of friction when colliding with polytopes or the ground
+			const real c_damping = 0.1_real;														// Amount of damping
+
+		public:
+			/// <summary>
+			/// Constructor.
+			/// </summary>
+			/// <param name="pos"> Initial position of the mass point. </param>
+			/// <param name="isFixed"> Whether the point is fixed. </param>
+			ClothMassPoint(glm::vec3 pos, bool isFixed = false) : pos{ pos }, prevPos{ pos },
+				initialPos{ pos }, vel{ glmvec3(0._real) }, isFixed{ isFixed }, invMass{ 0 } {}
+
+			/// <summary>
+			/// Apply some external force like gravity or wind.
+			/// </summary>
+			/// <param name="force"> The force to apply. </param>
+			/// <param name="dt"> Delta time. </param>
+			void applyExternalForce(glmvec3 force, real dt)
+			{
+				if (!isFixed)
+				{
+					vel += force * dt;
+					prevPos = pos;
+					pos += vel * dt;
+				}
+			}
+
+			/// <summary>
+			/// Pushes the mass point slightly above the ground if it was below.
+			/// </summary>
+			/// <param name="dt"> Delta time. </param>
+			void resolveGroundCollision(real dt)
+			{
+				if (pos.y < 0)
+				{
+					pos.y = 0 + c_small;
+					vel.y = 0;
+					vel -= vel * c_friction * dt;
+				}
+			}
+
+			/// <summary>
+			/// Checks for collisions with the bodies and resolves them if there are some.
+			/// </summary>
+			/// <param name="bodies"> The bodies to do collision checks with. </param>
+			/// <param name="dt"> Delta time. Only affects how much friction is applied in case
+			/// of a collision. Can be 0 to apply no friction. </param>
+			void resolvePolytopeCollisions(const std::vector<std::shared_ptr<Body>>& bodies,
+				real dt = 0._real)
+			{
+				if (isFixed)																		// Fixed point can go through bodies so that the cloth is always where you expect it to be.
+					return;																			// For example attached as a cape to an avatar.
+
+				for (auto body : bodies)
+				{
+					glmvec3 massPointLocalPos = body->m_model_inv * glmvec4(pos, 1);				// Transform the mass point's position into the body's local space
+
+					if (glm::length(massPointLocalPos) < body->boundingSphereRadius())				// Check if the mass point is within the body's bounding sphere	
+						resolvePolytopeCollision(body, massPointLocalPos, dt);						// Resolve possible collision
+				}
+			}
+
+			/// <summary>
+			/// Dampen the cloth's movement to simulate air resistance. Never set it to zero to
+			/// avoid losing a degree of freedom.
+			/// </summary>
+			/// <param name="dt"> Delta time. </param>
+			void damp(real dt)
+			{
+				if (vel.x + vel.y + vel.z > c_verySmall)
+					vel -= vel * c_damping * std::min(dt, 1._real);
+			}
+
+		private:
+			/// <summary>
+			/// Check if the mass point is within the polytope and push it to the nearest point
+			/// outside if so, 
+			/// </summary>
+			/// <param name="body"> Body that might collide. </param>
+			/// <param name="massPointLocalPos"> The position of the mass point in the body's local
+			/// space (body->invModel * massPoint.pos). </param>
+			/// <param name="dt"> Delta time. Only affects how much friction is applied in case
+			/// of a collision. Can be 0 to apply no friction. </param>
+			void resolvePolytopeCollision(const std::shared_ptr<Body> body,
+				glmvec3 massPointLocalPos, real dt)
+			{
+				std::pair<glmvec3, real> nearestProjectionPoint{ {}, INFINITY };					// First: projection of mass point onto face, second: distance
+
+				for (const Face& face : body->m_polytope->m_faces)									// Iterate over all faces of the polytope
+				{
+					real t = dot(face.m_face_vertex_ptrs[0]->m_positionL +							// Calulate t (distance from face to point along its normal)
+						face.m_normalL * c_collisionMargin -										// Extra margin so that cloth is in front of polytope
+						massPointLocalPos, face.m_normalL);
+
+					if (t < c_small)																// If the point is in front of a face,
+						return;																		// there is no collision
+
+					if (t < nearestProjectionPoint.second)											// Check if the distance is smaller than the previous smallest
+						nearestProjectionPoint = { massPointLocalPos + t * face.m_normalL, t };		// Store the projection point and its distance
+				}
+				// Possible simulation improvement: don't correct straight towards the face 
+				prevPos = pos;																		// but a bit towards the general movement of the cloth
+				pos = body->m_model * (glmvec4(nearestProjectionPoint.first, 1));					// Set the mass point's position which was inside the polytope to the projection point
+				vel -= vel * c_friction * dt;														// Apply friction
+			}
+		};
+
+		/// <summary>
+		/// A constraint is always defined between two mass points and has got a should-length.
+		/// If the actual length between the points differs, their positions are corrected towards
+		/// where they should be.
+		/// </summary>
+		class ClothConstraint
+		{
+		public:
+			ClothMassPoint* point0;
+			ClothMassPoint* point1;
+			real length;																			// The inital legnth between the points
+			real compliance;																		// The inverse of stiffness. So if compliance is 0, the cloth is infinitely stiff
+			const real c_threshold = 0.0001_real;													// Points are only modified if the length difference is greater tthan this
+
+			/// <summary>
+			/// Constructor that calculates the length of the constraint and sets the compliance.
+			/// </summary>
+			/// <param name="point0"> First mass point. </param>
+			/// <param name="point1"> Second mass point. </param>
+			/// <param name="compliance"> Compliance. The inverse of stiffness. </param>
+			ClothConstraint(ClothMassPoint* point0, ClothMassPoint* point1, real compliance)
+				: point0{ point0 }, point1{ point1 }, compliance{ compliance }
+			{
+				length = glm::distance(point0->pos, point1->pos);
+			}
+
+			/// <summary>
+			/// Solves the constraint, meaning it corrects the position of the mass points towards
+			/// where they are expected to be.
+			/// The method used for solving is called XPBD and was developed by Miles Macklin,
+			/// Matthias Muller and Nuttapong Chentanez for NVIDIA.
+			/// https://matthias-research.github.io/pages/publications/XPBD.pdf
+			/// </summary>
+			/// <param name="dt"> Delta time. </param>
+			void solve(real dt) const
+			{
+				if (point0->isFixed && point1->isFixed)												// Do not simulate the point if it is fixed
+					return;																			// Fixed points should always remain where they were placed
+
+				glmvec3 pos0 = point0->pos;
+				glmvec3 pos1 = point1->pos;
+
+				real lengthBetweenPoints = glm::distance(pos0, pos1);								// get the current length between the mass points
+
+				//real lengthBetweenPoints =														// Approximation #1 - Leads to very fidgety simulation behaviour
+				//	geometry::alphaMaxPlusBetaMin(
+				//		geometry::alphaMaxPlusBetaMin(
+				//			pos0.x - pos1.x, pos0.y - pos1.y), pos0.z - pos1.z);
+
+				//real lengthBetweenPoints =
+				//	geometry::alphaMaxPlusBetaMedPlusGammaMin(pos0.x - pos1.x, pos0.y - pos1.y,		// Approximation #2 - similar effect to #1
+				//		pos0.z - pos1.z);
+
+				real lengthDifference = lengthBetweenPoints - length;								// Get the difference of initial length and current length
+
+				if (fabs(lengthDifference) > c_threshold)											// Threshold
+				{
+					glmvec3 directionBetweenPoints = (pos1 - pos0) / lengthBetweenPoints;
+
+					real lambda = -lengthDifference /												// Amount of correction towards the should-be position.
+						(point0->invMass + point1->invMass + compliance / (dt * dt));				// Depends on length difference, compliance, masses and delta time 
+
+					glmvec3 correctionVec0 = -lambda * point0->invMass * directionBetweenPoints;	// Calculate the corrections vectors
+					glmvec3 correctionVec1 = lambda * point1->invMass * directionBetweenPoints;
+
+					if (!point0->isFixed)															// Only apply the correction to one point if the other one is fixed
+					{
+						point0->pos += correctionVec0;												// Update the position
+						point0->vel = (point0->pos - point0->prevPos) / dt;							// Update the velocity
+					}
+
+					if (!point1->isFixed)
+					{
+						point1->pos += correctionVec1;
+						point1->vel = (point1->pos - point1->prevPos) / dt;
+					}
+				}
+			}
+		};
+
+		/// <summary>
+		/// A cloth is a collection of mass points and constraints which it generates upon
+		/// construction based on the vertices and indices that were passed to it via the
+		/// constructor. It offers the user the possibility to interact with the cloth and keeps
+		/// track of nearby rigid bodies for collision detection and resolving.
+		/// </summary>
+		class Cloth
+		{
+		public:
+			std::string	m_name;																		// Name of the cloth
+			void* m_owner;																			// Pointer to owner of this body, must be unique (owner is called if cloth moves)									
+			callback_move_cloth m_on_move;															// Called if the cloth moves
+			callback_erase_cloth m_on_erase;														// Called if the cloth is erased
+
+		private:
+			VPEWorld* m_physics;																	// Pointer to the physics world to access parameters
+			std::vector<ClothMassPoint> m_massPoints{};												// All mass points of the cloth
+			std::vector<ClothConstraint> m_constraints{};											// All constraints (bending and stretching) of the cloth
+			std::vector<vh::vhVertex> m_vertices;													// The vertices of the mesh that was used to create the cloth
+			real m_maxMassPointDistance;															// The max distance between two arbitrary mass points at their inital position
+			const int c_substeps;																	// How many times per frame the constraints should be solved (higher = less stretchy)
+			const real c_movementSimulation;														// How much mass points not fixed should be moved by transformation (0 to 1)
+			std::vector<std::shared_ptr<Body>> m_bodiesNearby;										// A vector that stores all bodies nearby for collision detection
+			int_t m_gridX;																			// X Coordinate in grid for broadphase
+			int_t m_gridZ;																			// Z Coordinate in grid for broadphase
+			int_t m_bodiesNearbyCount;																// Number of nearby bodies during previous broadphase pass
+
+		public:
+			/// <summary>
+			/// Constructs a cloth from a mesh (vector of vertices and vector of indices).
+			/// The method used for integration is called XPBD and was developed by Miles Macklin,
+			/// Matthias Muller and Nuttapong Chentanez for NVIDIA.
+			/// Polytope collision checking and simulated transformations are my own additions.
+			/// https://matthias-research.github.io/pages/publications/XPBD.pdf
+			/// </summary>
+			/// <param name="physics"> Pointer to the physics world. </param>
+			/// <param name="name"> Name of the cloth. </param>
+			/// <param name="owner"> Pointer to the owner. The callback knows how to use this
+			/// pointer. </param>
+			/// <param name="on_move"> Callback that is called when the cloth moves. </param>
+			/// <param name="on_erase"> Callback that is called when the cloth is erased. </param>
+			/// <param name="vertices"> Vertices of the mesh the cloth is created from. </param>
+			/// <param name="indices"> Indices of the mesh the cloth is created from. </param>
+			/// <param name="bendingCompliance"> Opposite of stiffness. 0 means max stiff. </param>
+			/// <param name="fixedPointsPositions"> Points at which the cloth should be attached.
+			/// The positions need to match precisely, so best copy the exact numbers from the obj
+			/// file. </param>
+			/// <param name="substeps"> How many times per frame the constraints should be solved
+			/// (higher = less stretchy). </param>
+			/// <param name="movementSimulation"> How much mass points not fixed should be moved by
+			/// transformation (0 to 1). </param>
+			Cloth(VPEWorld* physics, std::string name, void* owner, callback_move_cloth on_move,
+				callback_erase_cloth on_erase, std::vector<vh::vhVertex> vertices,
+				std::vector<uint32_t> indices, std::vector<glmvec3> fixedPointsPositions,
+				real bendingCompliance = 1, int substeps = 4, real movementSimulation = 0.8)
+				: m_physics{ physics }, m_name{ name }, m_owner{ owner }, m_on_move{ on_move },
+				m_on_erase{ on_erase }, m_vertices{ vertices }, c_substeps{ substeps },
+				c_movementSimulation{ movementSimulation }, m_gridX { -100 }, m_gridZ { -100 },
+				m_bodiesNearbyCount { 0 }
+			{
+				createMassPoints(vertices, fixedPointsPositions);
+				generateConstraints(createTriangles(indices), bendingCompliance);
+				calcMaxMassPointDistance();
+				applyTransformation(glm::rotate(													// Apply a slight rotation to give the sim a degree of freedom for all three dimensions
+					glm::mat4(1.0f), glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f)), true);
+			}
+
+			/// <summary>
+			/// Solves constraints and does collision checking and resolving for all mass points.
+			/// The method that is used called XPBD and was developed by Miles Macklin, Matthias
+			/// Muller and Nuttapong Chentanez for NVIDIA.
+			/// https://matthias-research.github.io/pages/publications/XPBD.pdf
+			/// Polytope collision checking is my own addition.
+			/// </summary>
+			/// <param name="rigidBodyGrid"> The broad phase grid of the rigid bodies. </param>
+			/// <param name="dt"> Delta time. </param>
+			void integrate(const std::unordered_map<intpair_t, body_map>& rigidBodyGrid, real dt)
+			{
+				updateBodiesNearby(rigidBodyGrid);													// Check which bodies from the grid are within the cell and nearby
+
+				real rDt = dt / c_substeps;															// Split up the delta time depending on how many substeps there are
+
+				for (int i = 0; i < c_substeps; ++i)												// Solve amount of substep times
+				{
+					for (ClothMassPoint& massPoint : m_massPoints)									// Apply gravity and damping to all mass points
+					{
+						massPoint.damp(rDt);
+						massPoint.applyExternalForce(glmvec3{ 0, m_physics->c_gravity, 0 }, rDt);
+					}
+
+					for (const ClothConstraint& constraint : m_constraints)							// Solve all constraints
+						constraint.solve(rDt);
+
+					if (m_bodiesNearby.size())														// If there are any rigid bodies nearby
+						for (ClothMassPoint& massPoint : m_massPoints)								// iterate over each mass point
+							massPoint.resolvePolytopeCollisions(m_bodiesNearby, rDt);				// and do collision checks and resolve them if there are any
+
+					if (m_massPoints[0].pos.y < m_maxMassPointDistance)								// If the ground is near
+						for (ClothMassPoint& massPoint : m_massPoints)								// iterate over each mass point
+							massPoint.resolveGroundCollision(rDt);									// and do a collision check and resolve it if there is one
+				}
+			}
+
+			/// <summary>
+			/// Create an updated vertices vector based on the new positions of the mass points
+			/// </summary>
+			/// <returns> A vector with vertices of same length as the initial vertices vector with
+			/// updated position data. </returns>
+			std::vector<vh::vhVertex> generateVertices()
+			{
+				int vertexCount = 0;
+
+				for (const ClothMassPoint& massPoint : m_massPoints)
+					for (const size_t vertexIndex : massPoint.m_associatedVertices)
+					{
+						m_vertices[vertexIndex].pos = massPoint.pos;
+						vertexCount++;
+					}
+
+				return m_vertices;
+			}
+
+			/// <summary>
+			/// Apply transformation to the cloth.
+			/// </summary>
+			/// <param name="transformation"> The transformation matrix. </param>
+			/// <param name="simulateMovement"> If false, all points are fully transformed. If true,
+			/// only fixed points are and the rest are dragged along by the simulation. </param>
+			void applyTransformation(glmmat4 transformation, bool simulateMovement)
+			{
+				for (ClothMassPoint& massPoint : m_massPoints)										// Iterate over all mass points
+				{
+					if (!simulateMovement || massPoint.isFixed)										// Apply the full transformation if the point is fixed or movement is not																
+					{																				// simulated
+						massPoint.prevPos = massPoint.pos;
+						massPoint.pos = transformation * glmvec4(massPoint.pos, 1);
+					}
+
+					else if (simulateMovement && !massPoint.isFixed)								// Elsewise interpolate the point to be dragged along
+					{
+						glmvec3 transformedPos = transformation * glmvec4(massPoint.pos, 1);
+						glmvec3 posToTransPos = transformedPos - massPoint.pos;
+						massPoint.prevPos = massPoint.pos;
+						massPoint.pos = massPoint.pos + posToTransPos * c_movementSimulation;		// If c_movementSimulation is 0, the point is fully dragged along
+					}																				// This results in a lot of stretchyness and unrealistic behaviour
+
+					massPoint.resolvePolytopeCollisions(m_bodiesNearby, 0);							// Check for and solve collisions at the new position
+				}
+			}
+
+			/// <summary>
+			/// Apply a transformation to the initial position of the cloth.
+			/// </summary>
+			/// <param name="transformation"> The transformation matrix. </param>
+			/// <param name="simulateMovement"> If false, all points are fully transformed. If true,
+			/// only fixed points are and the rest are dragged along by the simulation. </param>
+			void setTransformation(glmmat4 transformation, bool simulateMovement)
+			{
+				for (ClothMassPoint& massPoint : m_massPoints)										// Iterate over all mass points
+				{
+					if (!simulateMovement || massPoint.isFixed)										// Apply the full transformation if the point is fixed or movement is not																
+					{																				// simulated
+						massPoint.prevPos = massPoint.pos;
+						massPoint.pos = transformation * glmvec4(massPoint.initialPos, 1);			// Use the initial position of the mass point
+					}
+
+					else if (simulateMovement && !massPoint.isFixed)								// Elsewise interpolate the point to be dragged along
+					{
+						glmvec3 transformedPos = transformation * glmvec4(massPoint.initialPos, 1);	// Use the initial position of the mass point
+						glmvec3 posToTransPos = transformedPos - massPoint.pos;
+						massPoint.prevPos = massPoint.pos;
+						massPoint.pos = massPoint.pos + posToTransPos * c_movementSimulation;		// If c_movementSimulation is 0, the point is fully dragged along
+					}																				// This results in a lot of stretchyness and unrealistic behaviour
+
+					massPoint.resolvePolytopeCollisions(m_bodiesNearby, 0);							// Check for and solve collisions at the new position
+				}
+			}
+
+		private:
+			/// <summary>
+			/// Checks which bodies are within the cloth's grid cell and neighbors and sufficiently
+			/// nearby
+			/// </summary>
+			/// <param name="rigidBodyGrid"> The rigid body grid. </param>
+			void updateBodiesNearby(const std::unordered_map<intpair_t, body_map>& rigidBodyGrid)
+			{
+				int_t gridX = static_cast<int_t>(m_massPoints[0].pos.x / m_physics->m_width);		// Cell coordinates of cloth in grid
+				int_t gridZ = static_cast<int_t>(m_massPoints[0].pos.z / m_physics->m_width);
+
+				int_t bodiesNearbyCount = 0;
+
+				for (const auto& cell : rigidBodyGrid)												// Count how many rigid bodies are currently in cell or neighbor cells
+					if (std::abs(cell.first.first - gridX) < 2
+						&& std::abs(cell.first.second - gridZ) < 2)
+						bodiesNearbyCount += (int_t) cell.second.size();
+
+				if (gridX != m_gridX || gridZ != m_gridZ ||											// Only check for changes if either the cloth's cell has changed or there
+					bodiesNearbyCount != m_bodiesNearbyCount)										// are new bodies nearby.
+				{
+					m_bodiesNearby.clear();															// Reset vector of bodies nearby
+
+					for (const auto& cell : rigidBodyGrid)											// Iterate over all non-empty cells
+						if (std::abs(cell.first.first - gridX) < 2									// Check if it is the cell of the cloth or a neighbor
+							&& std::abs(cell.first.second - gridZ) < 2)
+							for (auto it = cell.second.begin(); it != cell.second.end(); ++it)		// If so, add all bodies within the cell
+								m_bodiesNearby.push_back(it->second);
+				}
+
+				auto it = m_bodiesNearby.begin();													// Iterate over all bodies of cloth's current cell and its neighbors to do an 
+				while (it != m_bodiesNearby.end())													// additional check if the bodies are near enough to collide; This is cheaper than
+				{																					// iterating through all mass points for a body that can't collide anyway														
+					glmvec3 clothLocalPos =
+						(*it)->m_model_inv * glmvec4(m_massPoints[0].pos, 1);						// Tranform position of cloth into bodies local space
+
+					if (glm::length(clothLocalPos) > ((*it)->boundingSphereRadius() +				// Remove nearby body if it cannot touch cloth
+						m_maxMassPointDistance) * 2)
+					{
+						it = m_bodiesNearby.erase(it);
+						--bodiesNearbyCount;
+					}
+					else
+						++it;
+				}
+
+				m_gridX = gridX;																	// Store current values for next call
+				m_gridZ = gridZ;
+				m_bodiesNearbyCount = bodiesNearbyCount;
+			}
+
+			/// <summary>
+			/// Creates a mass point for each unique vertex-position
+			/// nearby
+			/// </summary>
+			/// <param name="vertices"> The vertices of the mesh. </param>
+			/// <param name="fixedPointsPositions"> The positions of the vertices that should be
+			/// fixed. </param>
+			void createMassPoints(const std::vector<vh::vhVertex>& vertices,
+				const std::vector<glmvec3> fixedPointsPositions)
+			{
+				std::map<std::vector<real>, int> alreadyAddedPositions{};							// Already stored positions for duplicate removal
+																									// first is the position, second the index of the corresponding mass point
+				for (size_t i = 0; i < vertices.size(); ++i)
+				{
+					glmvec3 vertexPosGlm = vertices[i].pos;											// Convert glm::vec3 to std::vector for stl algorithms to work
+					std::vector vertexPos = { vertexPosGlm.x, vertexPosGlm.y, vertexPosGlm.z };
+
+					if (alreadyAddedPositions.count(vertexPos))										// Add an associated vertex to the mass point if it already exists
+					{
+						int massPointIndex = alreadyAddedPositions[vertexPos];
+						m_massPoints[massPointIndex].m_associatedVertices.push_back((uint32_t) i);
+					}
+					else																			// Create a new mass point if none exists yet
+					{
+						alreadyAddedPositions[vertexPos] = (int) m_massPoints.size();
+
+						glm::vec3 vertexPosGlm = { vertexPos[0], vertexPos[1], vertexPos[2] };		// Convert from std::vector back to glm::vec3
+
+						ClothMassPoint massPoint(vertexPosGlm);
+
+						if (std::find(fixedPointsPositions.begin(), fixedPointsPositions.end(),		// Fixate the point if its position is within the fixed points vector
+							vertexPosGlm) != fixedPointsPositions.end())
+							massPoint.isFixed = true;
+
+						m_massPoints.push_back(massPoint);
+						m_massPoints[m_massPoints.size() - 1].m_associatedVertices.
+							push_back((uint32_t) i);
+					}
+				}
+			}
+
+			/// <summary>
+			/// Check the distance between all mass points and store the longest one for collision
+			/// checking.
+			/// </summary>
+			void calcMaxMassPointDistance()
+			{
+				real maxDistance = 0;
+
+				for (const ClothMassPoint& point0 : m_massPoints)
+					for (const ClothMassPoint& point1 : m_massPoints)
+					{
+						real distance = glm::distance(point0.pos, point1.pos);
+						if (distance > maxDistance)
+							m_maxMassPointDistance = distance;
+					}
+			}
+
+			/// <summary>
+			/// Creates triangles of mass points based on the triangles of vertices of the mesh.
+			/// This is necessary since in the mesh there might be multiple vertices at a position
+			/// where there is only one mass point.
+			/// Also sets the inverse mass of each mass point since it depends on the triangle size.
+			/// </summary>
+			/// <param name="indices"> The indices vector of the mesh. </param>
+			/// <returns> A vector of all triangles of mass points of the mesh. </returns>
+			std::vector<ClothTriangle> createTriangles(std::vector<uint32_t> indices)
+			{
+				std::vector<ClothTriangle> triangles;
+				ClothTriangle triangle{};
+
+				for (uint32_t indicesIndex = 0; indicesIndex < indices.size(); ++indicesIndex)		// Iterate over all vertex indices, 3 vertices in a row form a triangle
+				{
+					uint32_t vertexIndex = indices[indicesIndex];									// The index of the vertex
+					uint32_t associatedMassPointIndex = 0;
+
+					for (uint32_t massPointIndex = 0; massPointIndex < m_massPoints.size();			// Find the index of the mass point that corresponds to the vertex
+						++massPointIndex)
+					{
+						std::vector<uint32_t>& associatedVertices =
+							m_massPoints[massPointIndex].m_associatedVertices;
+
+						if (std::find(associatedVertices.begin(), associatedVertices.end(),			// The mass point corresponds if its associated vertices vector 
+							vertexIndex) != associatedVertices.end())								// contains the index of the vertex
+						{
+							associatedMassPointIndex = massPointIndex;
+							break;																	// Stop searching once the corresponding mass point was found
+						}
+					}
+
+					if (indicesIndex % 3 == 0)														// Add the index of the mass point to the triangle
+						triangle.massPoint0Index = associatedMassPointIndex;
+					else if (indicesIndex % 3 == 1)
+						triangle.massPoint1Index = associatedMassPointIndex;
+					else																			// If it is the final corner of the triangle, calculate the inverse mass
+					{																				// for each point and add the triangle to the triangles vector
+						triangle.massPoint2Index = associatedMassPointIndex;
+
+						ClothMassPoint& p0 = m_massPoints[triangle.massPoint0Index];
+						ClothMassPoint& p1 = m_massPoints[triangle.massPoint1Index];
+						ClothMassPoint& p2 = m_massPoints[triangle.massPoint2Index];
+
+						real d0 = glm::distance(p0.pos, p1.pos);
+						real d1 = glm::distance(p1.pos, p2.pos);
+						real d2 = glm::distance(p2.pos, p0.pos);
+
+						real semiPerimeter = (d0 + d1 + d2) / 2;
+
+						real area = std::sqrt(semiPerimeter * (semiPerimeter - d0) *
+							(semiPerimeter - d1) * (semiPerimeter - d2));
+
+						real invMass = 1 / area / 3;
+
+						p0.invMass = invMass;
+						p1.invMass = invMass;
+						p2.invMass = invMass;
+
+						triangles.push_back(triangle);
+					}
+				}
+
+				return triangles;
+			}
+
+			/// <summary>
+			/// Generates constraints between mass points used to simulate the cloth.
+			/// Two types of constraints are being generated: Edge-constraints between all pairs of
+			/// mass points that form an edge of a triangle and bending-constraints between all
+			/// pairs of points of triangles with a shared edge that are themselves not part of the
+			/// shared edge.
+			/// The method of using edge and bending constraints to simulate a cloth is commonly
+			/// used with XPBD, a soft-body simulation method developed by Miles Macklin, Matthias
+			/// Muller and Nuttapong Chentanez for NVIDIA.
+			/// https://matthias-research.github.io/pages/publications/XPBD.pdf
+			/// The algorithm for finding neighboring triangles is from this video:
+			/// https://www.youtube.com/watch?v=z5oWopN39OU
+			/// </summary>
+			/// <param name="bendingCompliance"> The inverse of stiffness. 0 = max stiff </param>
+			void generateConstraints(const std::vector<ClothTriangle>& triangles,
+				real bendingCompliance)
+			{
+				std::vector<std::array<uint32_t, 3>> edges;											// Edge List: Each entry contains the indices of two mass points of an
+																									// edge in sorted order and the third mass point index of the triangle
+				for (uint32_t triangleIndex = 0; triangleIndex < triangles.size();					// Iterate over all triangles
+					++triangleIndex)
+				{
+					ClothTriangle triangle = triangles[triangleIndex];
+
+					std::array<uint32_t, 3> edge0 = {
+						std::min(triangle.massPoint0Index, triangle.massPoint1Index),
+						std::max(triangle.massPoint0Index, triangle.massPoint1Index),
+						triangle.massPoint2Index,
+					};
+
+					std::array<uint32_t, 3> edge1 = {
+						std::min(triangle.massPoint1Index, triangle.massPoint2Index),
+						std::max(triangle.massPoint1Index, triangle.massPoint2Index),
+						triangle.massPoint0Index,
+					};
+
+					std::array<uint32_t, 3> edge2 = {
+						std::min(triangle.massPoint0Index, triangle.massPoint2Index),
+						std::max(triangle.massPoint0Index, triangle.massPoint2Index),
+						triangle.massPoint1Index,
+					};
+
+					edges.push_back(edge0);
+					edges.push_back(edge1);
+					edges.push_back(edge2);
+				}
+
+				std::sort(edges.begin(), edges.end());												// Sort the edge list. Shared edges are now right after each other.
+
+				for (uint32_t edgeIndex = 0; edgeIndex < edges.size(); ++edgeIndex)					// Iterate over all edges
+					if (edgeIndex == edges.size() - 1 ||											// If it is the last edge or one of its edge mass point indices differs
+						edges[edgeIndex][0] != edges[edgeIndex + 1][0] ||							// from the next entry, the edge is unique
+						edges[edgeIndex][1] != edges[edgeIndex + 1][1])
+					{
+						ClothConstraint newEdgeConstraint(&m_massPoints[edges[edgeIndex][0]],		// Create edge constraint between the points of the edge
+							&m_massPoints[edges[edgeIndex][1]], 0);
+
+						m_constraints.push_back(newEdgeConstraint);
+					}
+					else																			// Elsewise the edge is shared between triangles
+					{
+						ClothConstraint newBendingConstraint(&m_massPoints[edges[edgeIndex][2]],	// Create bending constraint between the points not part of the edge
+							&m_massPoints[edges[edgeIndex + 1][2]], bendingCompliance);
+
+						m_constraints.push_back(newBendingConstraint);
+					}
+			}
+		};
+
+	//---------------------------------End-Cloth-Simulation-Stuff-----------------------------------
+
 	};
 
 };
@@ -1599,6 +3489,59 @@ namespace geometry {
 			}
 		}
 	}
+
+	/// <summary>
+	/// Returns a unit vector that is orthogonal to vec
+	/// </summary>
+	inline glmvec3 orthoUnitVector(const glmvec3& vec) {
+		assert(glm::length(vec) > c_eps);
+		glmvec3 vec_abs = glm::abs(vec);
+		int min_index = vec_abs.x < vec_abs.y ? (vec_abs.x < vec_abs.z ? 0 : 2) : (vec_abs.y < vec_abs.z ? 1 : 2);
+
+		intpair_t indices(min_index == 0 ? intpair_t{1, 2} : (min_index == 1 ? intpair_t{0, 2} : std::pair<int, int>{ 0, 1 }));
+		glmvec3 ortho(0.0_real);
+		ortho[indices.first] = -vec[indices.second];
+		ortho[indices.second] = vec[indices.first];
+
+		return glm::normalize(ortho);
+	}
+
+	//--------------------------------Begin-Cloth-Simulation-Stuff----------------------------------
+	// by Felix Neumann
+
+	/// <summary>
+	/// Alpha Max Plus Beta Min - Approximates square root of the sum of two squares (magnitude of a
+	/// 2d vector).
+	/// https://en.wikipedia.org/wiki/Alpha_max_plus_beta_min_algorithm
+	/// </summary>
+	inline real alphaMaxPlusBetaMin(real a, real b)
+	{
+		real absA = fabs(a);
+		real absB = fabs(b);
+		if (absA > absB)
+			return (real)(0.96043387010342 * absA + 0.397824734759316 * absB);
+
+		return (real)(0.96043387010342 * absB + 0.397824734759316 * absA);
+	}
+
+	/// <summary>
+	/// Alpha Max Plus Beta Min extented to 3 dimensions. Approximates the magnitude of a 3d vector.
+	/// https://math.stackexchange.com/questions/1282435/
+	/// https://stackoverflow.com/questions/1582356/
+	/// </summary>
+	inline real alphaMaxPlusBetaMedPlusGammaMin(real a, real b, real c)
+	{
+		real absA = fabs(a);
+		real absB = fabs(b);
+		real absC = fabs(c);
+
+		real min = std::min(absA, std::min(absB, absC));
+		real max = std::max(absA, std::max(absB, absC));
+		real med = std::max(std::min(absA, absB), std::min(std::max(absA, absB), absC));
+
+		return (real)(0.939808635172325 * max + 0.389281482723725 * med + 0.29870618761438 * min);
+	}
+	//---------------------------------End-Cloth-Simulation-Stuff-----------------------------------
 }
 
 

@@ -227,6 +227,9 @@ namespace ve
 		addSubrenderer(new VESubrenderFW_Skyplane(*this));
 		addSubrenderer(new VESubrenderFW_Shadow(*this));
 		addSubrenderer(new VESubrender_Nuklear(*this));
+
+		//---------------------------------Cloth-Simulation-Stuff-----------------------------------
+		addSubrenderer(new VESubrenderFW_Cloth(*this));
 	}
 
 	/**
