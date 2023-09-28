@@ -1,6 +1,4 @@
 /bin
-VulkanEngine.VC.db
-VulkanEngine.VC.VC.opendb
 /.vs
 git_config.txt
 renderdoc.cap
@@ -24,3 +22,4 @@ bin/Release/*
 examples/CMakeFiles/*
 examples/physicsexample/CMakeFiles/*
 examples/physicsexample/physicsexample.dir/*
+ViennaPhysicsEngine.sln
