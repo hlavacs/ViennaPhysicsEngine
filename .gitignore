@@ -23,3 +23,6 @@ examples/CMakeFiles/*
 examples/physicsexample/CMakeFiles/*
 examples/physicsexample/physicsexample.dir/*
 ViennaPhysicsEngine.sln
+CMakeCache.txt
+cmake_install.cmake
+examples/physicsexample/cmake_install.cmake
