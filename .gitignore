@@ -23,4 +23,4 @@ bin/Debug/*
 bin/Release/*
 examples/CMakeFiles/*
 examples/physicsexample/CMakeFiles/*
-examples/physicsexample/simplegame.dir/*
+examples/physicsexample/physicsexample.dir/*

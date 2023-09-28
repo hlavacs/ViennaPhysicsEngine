@@ -1,6 +1,6 @@
 
 
-add_executable( physicsexample main.cpp VPEConstraintDemos.cpp VPEConstraintDemos.hpp)
+add_executable( physicsexample physicsexample.cpp VPEConstraintDemos.cpp VPEConstraintDemos.hpp)
 
 set( VulkanEngine ${CMAKE_SOURCE_DIR}/../ViennaVulkanEngine )
 
