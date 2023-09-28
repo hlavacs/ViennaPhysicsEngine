@@ -1,6 +1,6 @@
 
 
-add_executable( physicsexample physicsexample.cpp VPEConstraintDemos.cpp VPEConstraintDemos.hpp)
+add_executable( physicsexample physicsexample.cpp VPEConstraintDemos.cpp VPEConstraintDemos.hpp ${CMAKE_SOURCE_DIR}/include/VPE.hpp)
 
 set( VulkanEngine ${CMAKE_SOURCE_DIR}/../ViennaVulkanEngine )
 
@@ -11,18 +11,18 @@ set_target_properties(physicsexample PROPERTIES
 
 find_package(Vulkan REQUIRED)
 
-include_directories(
-      ${CMAKE_SOURCE_DIR}
-      ${Vulkan_INCLUDE_DIRS}
-      ${VulkanEngine}/VulkanEngine
-      ${VulkanEngine}/external/Assimp/include
-      ${VulkanEngine}/external/irrKlang/include
-      ${VulkanEngine}/external/glm
-      ${VulkanEngine}/external/threadpool
-      ${VulkanEngine}/external/stb
-      ${VulkanEngine}/external/nuklear
-      ${VulkanEngine}/external/glfw/include
-      )
+target_include_directories(physicsexample PUBLIC
+          ${CMAKE_SOURCE_DIR}/include
+          ${Vulkan_INCLUDE_DIRS}
+          ${VulkanEngine}/VulkanEngine
+          ${VulkanEngine}/external/Assimp/include
+          ${VulkanEngine}/external/irrKlang/include
+          ${VulkanEngine}/external/glm
+          ${VulkanEngine}/external/threadpool
+          ${VulkanEngine}/external/stb
+          ${VulkanEngine}/external/nuklear
+          ${VulkanEngine}/external/glfw/include
+          )
 
 set( AssimpDir ${VulkanEngine}/external/Assimp/lib/x64)
 set( AssimpLibRel ${AssimpDir}/Release/assimp-vc140-mt.lib ${AssimpDir}/Release/IrrXML.lib ${AssimpDir}/Release/zlib.lib )

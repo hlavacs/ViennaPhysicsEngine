@@ -1,6 +1,6 @@
 # The Vienna Physics Engine (VPE)
 The Vienna Physics Engine (VPE) is a simple, single file physics engine for educational purposes.
-Rendering is done by the Vienna Vulkan Engine.
+Rendering can done by any render engine or framework. The example project provided in this repo uses the Vienna Vulkan Engine for rendering.
 
 The VPE is developed as basis for game based courses at the Faculty of Computer Science of the University of Vienna, held by Prof. Helmut Hlavacs:
 
@@ -8,7 +8,8 @@ The VPE is developed as basis for game based courses at the Faculty of Computer 
 - https://ufind.univie.ac.at/de/course.html?lv=052212&semester=2019W
 - https://ufind.univie.ac.at/de/course.html?lv=052211&semester=2019S
 
-VPE's main contributor is Prof. Helmut Hlavacs (http://entertain.univie.ac.at/~hlavacs/). However, VPE will be heavily involved in the aforementioned courses, and other courses as well.
+VPE's main contributor is Prof. Helmut Hlavacs (http://entertain.univie.ac.at/~hlavacs/). The parts for general constraints have been provided by
+
 
 VPE features are:
 - C++20
