@@ -1,6 +1,6 @@
 # The Vienna Physics Engine (VPE)
 The Vienna Physics Engine (VPE) is a simple, single file physics engine for educational purposes.
-Rendering can done by any render engine or framework. The example project provided in this repo uses the Vienna Vulkan Engine for rendering.
+Rendering can done by any render engine or framework. The example project provided in this repo uses the Vienna Vulkan Engine (https://github.com/hlavacs/ViennaVulkanEngine) for rendering.
 
 The VPE is developed as basis for game based courses at the Faculty of Computer Science of the University of Vienna, held by Prof. Helmut Hlavacs:
 
@@ -8,24 +8,34 @@ The VPE is developed as basis for game based courses at the Faculty of Computer 
 - https://ufind.univie.ac.at/de/course.html?lv=052212&semester=2019W
 - https://ufind.univie.ac.at/de/course.html?lv=052211&semester=2019S
 
-VPE's main contributor is Prof. Helmut Hlavacs (http://entertain.univie.ac.at/~hlavacs/). The parts for general constraints have been provided by
-
+VPE's main contributor is Prof. Helmut Hlavacs (http://entertain.univie.ac.at/~hlavacs/). The parts for general constraints have been implemented by Julian Schneebaur. The softbody simulation was implemented by Felix Neumann.
 
 VPE features are:
 - C++20
-- Polytopes only
-- Sequential impulse based
+- Full rigid body simulation, for now for polytopes only
+- Sequential impulse based solver
 - Implements two solvers to choose from
 - Friction
 - Contact set reduction
-- Warm starting, stable stacking
+- Warm starting for stable stacking
+- Many joint constraints: ball-socket, hinge with angle limits, motor, slider with limits, fixed
+- Combined models: bridge, drive train, rag doll
 
-# Set up for Windows 10
+# Set up for Windows 11
 
-The whole engine is contained in VPE.hpp. Clone the project, open the .sln file, compile, run.
+The whole engine is contained in VPE.hpp. The provided example program uses the Vienna Vulkan Engine for rendering and is thus currently restricted to Windows 11. If you want to compile the example, do the following steps:
+- Make sure you have an up to date CMake, MS Visual Studio 22 and the Vulkan SDK installed.
+- Clone both projects Vienna Vulkan Engine and Vienna Physics Engine, into the same directory, next to each other.
+- Cd into Vienna Vulkan Engine and run CMake. Alternatively run the msvc bat file. CMake creates an sln project file.
+- Open the sln file and compile the project. Sometimes compile it twice to make sure everything is done correctly.
+- You might also manually compile the doxyfile subproject to create the documentation. For this you must have Doxygen installed.
+- Cd into the Vienna Physics Engine directory and run CMake (or the msvc bat file).
+- Open the sln file and compile the project.
+- Now you can run the example. 
+
 For Windows 11, all non-Vulkan dependencies are in the external directory. The Vulkan SDK is supposed to be pointed at by the VULKAN_SDK environment variable.
 
-The project will be updated regularly, so it makes sense to download the source files once in a while, or clone the whole project. Make sure to keep your main.cpp or other files that you created.
+The project will be updated regularly, so it makes sense to pull the newest version regularly.
 
 # Using VPE
 
