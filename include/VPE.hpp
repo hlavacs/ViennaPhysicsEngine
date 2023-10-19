@@ -547,13 +547,13 @@ namespace vpe {
 				pos += m_physics->m_pbias_factor * m_pbias * (real)dt;
 				if (use_pbias) { m_pbias = glmvec3{ 0,0,0 }; }
 
-				auto avW = glmmat3{ m_model_inv } *m_angular_velocityW;	//The same for orientation
-				real len = glm::length(avW);
+				auto avL = glmmat3{ m_model_inv } *m_angular_velocityW;	//The same for orientation
+				real len = glm::length(avL);
 				if (len > m_physics->c_small) {
-					if (m_physics->m_clamp_position == 1) quat = glm::rotate(quat, len * (real)dt, avW / len);	//Euler step
+					if (m_physics->m_clamp_position == 1) quat = glm::rotate(quat, len * (real)dt, avL / len);	//Euler step
 					active = true;
 				}
-				if (m_physics->m_clamp_position == 0 && len != 0.0_real) quat = glm::rotate(quat, len * (real)dt, avW / len); //Euler step
+				if (m_physics->m_clamp_position == 0 && len != 0.0_real) quat = glm::rotate(quat, len * (real)dt, avL / len); //Euler step
 
 				if (active) {
 					m_damping = 0.0_real;						//If the body moves then no damping
