@@ -15,6 +15,7 @@ target_include_directories(physicsexample PUBLIC
           ${CMAKE_SOURCE_DIR}/include
           ${Vulkan_INCLUDE_DIRS}
           ${VulkanEngine}/VulkanEngine
+          ${CMAKE_SOURCE_DIR}/../ViennaVulkanEngine/VulkanEngine
           ${VulkanEngine}/external/Assimp/include
           ${VulkanEngine}/external/irrKlang/include
           ${VulkanEngine}/external/glm
