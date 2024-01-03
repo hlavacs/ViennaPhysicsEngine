@@ -1,5 +1,6 @@
 /bin
 /.vs
+build/*
 git_config.txt
 renderdoc.cap
 */MakeFile
