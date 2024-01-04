@@ -1,0 +1,30 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(Windows) Debug",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/../ViennaVulkanEngine/bin/Debug/physicsexample.exe",  
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/../ViennaVulkanEngine/bin/Debug/",
+            "environment": [],
+            "externalConsole": true
+          },
+          {
+            "name": "(Windows) Run without Debugging",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/../ViennaVulkanEngine/bin/Release/physicsexample.exe",  
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/../ViennaVulkanEngine/bin/Release/",
+            "environment": [],
+            "externalConsole": true
+          }
+    ]
+}
