@@ -99,6 +99,35 @@ namespace ve {
 	//---------------------------------End-Cloth-Simulation-Stuff-----------------------------------
 
 
+	/// <summary>
+	/// Called by the grass of it moves.
+	/// </summary>
+	/// <param name="dt"> Delta time.</param>
+	/// <param name="grass"> Pointer to the grass so that the owner can get the data. </param>
+	inline VPEWorld::callback_move_grass onMoveGrass =
+		[&](double dt, std::shared_ptr<VPEWorld::Grass> grass)
+	{
+		VEClothEntity* grassOwner = static_cast<VEClothEntity*>(grass->m_owner);					// Owner is a pointer to a scene node
+		auto vertices = grass->generateVertices();													// Vertices with updated position data
+		(static_cast<VEClothMesh*> (grassOwner->m_pMesh))->updateVertices(vertices);				// Update the vertices of the mesh
+		/*for (auto pos : vertices) {
+			std::cout << pos << '\n';
+		}
+		std::cout << '\n';*/
+	};
+
+	/// <summary>
+	/// Called by the grass if it is erased.
+	/// </summary>
+	/// <param name="grass"> Shared pointer to the grass. </param>
+	inline VPEWorld::callback_erase_grass onEraseGrass =
+		[&](std::shared_ptr<VPEWorld::Grass> grass) {
+		VESceneNode* node = static_cast<VESceneNode*>(grass->m_owner);								// Owner is a pointer to a scene node
+		getSceneManagerPointer()->deleteSceneNodeAndChildren(										// Delete the owner and child node
+			((VESceneNode*)grass->m_owner)->getName());												// associated with the cloth
+	};
+
+
 	//----------------------------------------------------------------------------------------------
 	//Listener for driving the simulation 
 
@@ -169,8 +198,8 @@ namespace ve {
 					VESceneNode* cube0;
 					static real dy = 0.5_real;
 					VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/crate0", "cube.obj", 0, getRoot()));
-					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_cube, glmvec3{ 1.0_real }, glmvec3{positionCamera.x, dy++, positionCamera.z + 4}, glmquat{ 1,0,0,0 }, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction );
-					body->setForce( 0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} } );
+					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_ico, glmvec3{ 1.0_real }, glmvec3{positionCamera.x, dy++, positionCamera.z + 4}, glmquat{ 1,0,0,0 }, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction );
+					body->setForce( 0ul, VPEWorld::Force{ glm::vec3{0.0}, glm::vec3{0.0,1.0,0.0}, glm::vec3{-1.0,0.0,0.0}, glm::vec3{0.0} });
 					body->m_on_move = onMove;
 					body->m_on_erase = onErase;
 					m_physics->addBody(body);
@@ -471,6 +500,85 @@ namespace ve {
 				nk_layout_row_dynamic(ctx, 30, 1);
 				nk_label(ctx, "New Cloth: C, Switch Cloth: N, Cloth Controls: I, K, J, L, U, O",
 					NK_TEXT_LEFT);
+
+				nk_layout_row_dynamic(ctx, 30, 1);
+				nk_label(ctx, "<Wind Simulation controls go here>",
+					NK_TEXT_LEFT);
+
+				nk_layout_row_dynamic(ctx, 30, 3);
+				if (nk_option_label(ctx, "Wind off", m_physics->m_wind_mode == 0))
+					m_physics->m_wind_mode = 0;
+				if (nk_option_label(ctx, "Wind Perl2D", m_physics->m_wind_mode == 1))
+					m_physics->m_wind_mode = 1;
+				if (nk_option_label(ctx, "Wind Perl3D", m_physics->m_wind_mode == 2))
+					m_physics->m_wind_mode = 2;
+
+				nk_layout_row_dynamic(ctx, 30, 2);
+				if (nk_option_label(ctx, "Wind Curl2D", m_physics->m_wind_mode == 3))
+					m_physics->m_wind_mode = 3;
+				if (nk_option_label(ctx, "Wind Curl3D", m_physics->m_wind_mode == 4))
+					m_physics->m_wind_mode = 4;
+
+				str.str("");
+				str << "Wind Power: " << m_physics->m_wind_power;
+				nk_layout_row_dynamic(ctx, 30, 3);
+				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+				if (nk_button_label(ctx, "+1")) {
+					m_physics->m_wind_power += 1;
+				}
+				if (nk_button_label(ctx, "-1")) {
+					m_physics->m_wind_power -= 1;
+				}
+
+				str.str("");
+				str << "Noise: " << m_physics->m_noise_power;
+				nk_layout_row_dynamic(ctx, 30, 3);
+				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+				if (nk_button_label(ctx, "+0.05")) {
+					if (m_physics->m_noise_power < 1.0f)
+						m_physics->m_noise_power += 0.05;
+				}
+				if (nk_button_label(ctx, "-0.05")) {
+					if (m_physics->m_noise_power > 0.0f)
+						m_physics->m_noise_power -= 0.05;
+				}
+
+				nk_layout_row_dynamic(ctx, 30, 1);
+				nk_label(ctx, "Wind Direction:",
+					NK_TEXT_LEFT);
+
+				str.str("");
+				str << "X: " << m_physics->m_wind_direction.x;
+				nk_layout_row_dynamic(ctx, 30, 3);
+				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+				if (nk_button_label(ctx, "+1")) {
+					m_physics->m_wind_direction += glm::vec3{ 1.0,0.0,0.0 };
+				}
+				if (nk_button_label(ctx, "-1")) {
+					m_physics->m_wind_direction -= glm::vec3{ 1.0,0.0,0.0 };
+				}
+
+				str.str("");
+				str << "Y: " << m_physics->m_wind_direction.y;
+				nk_layout_row_dynamic(ctx, 30, 3);
+				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+				if (nk_button_label(ctx, "+1")) {
+					m_physics->m_wind_direction += glm::vec3{ 0.0,1.0,0.0 };
+				}
+				if (nk_button_label(ctx, "-1")) {
+					m_physics->m_wind_direction -= glm::vec3{ 0.0,1.0,0.0 };
+				}
+
+				str.str("");
+				str << "Z: " << m_physics->m_wind_direction.z;
+				nk_layout_row_dynamic(ctx, 30, 3);
+				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+				if (nk_button_label(ctx, "+1")) {
+					m_physics->m_wind_direction += glm::vec3{ 0.0,0.0,1.0 };
+				}
+				if (nk_button_label(ctx, "-1")) {
+					m_physics->m_wind_direction -= glm::vec3{ 0.0,0.0,1.0 };
+				}
 			}
 			nk_end(ctx);
 		}
@@ -657,13 +765,14 @@ namespace ve {
 
 				auto vertices = ((VEClothMesh*) (clothEntity->m_pMesh))->getInitialVertices();		// Get the vertices of the model
 				auto indices = ((VEClothMesh*) (clothEntity->m_pMesh))->getIndices();				// Get the indices of the model
+
 				std::vector<glm::vec3> fixedPoints =												// Choose the points where the cloth should be fixed
 				{ {-1.000000, 2.000000, -0.000000}, {1.000000, 2.000000, 0.000000} };				// Left and right top in this case
-
+				
 				auto physicsCloth = std::make_shared<VPEWorld::Cloth>(m_physics,					// Create the cloth
 					"Cloth" + std::to_string(m_physics->m_cloths.size()), clothEntity, onMoveCloth,
 					onEraseCloth, vertices, indices, fixedPoints, 50, 4, 0.8);
-
+				
 				m_physics->addCloth(physicsCloth);													// Add the cloth to the physics world
 			}
 
@@ -684,6 +793,344 @@ namespace ve {
 			: VEEventListener(name), m_physics{ physics } { };
 	};
 
+	//---------------------------------End-Cloth-Simulation-Stuff-----------------------------------
+
+	//---------------------------------Begin-Wind-Simulation-Stuff----------------------------------
+
+	class VEEventListenerWindSimulationControls : public VEEventListener
+	{
+		VPEWorld* m_physics;																		// Pointer to the physics world
+		real time = 0.0_real;																// Index of currently selected Cloth
+		const float c_speed = 3.0f;																	// Speed of cloth movement
+
+		std::default_random_engine rnd_gen{ 32415 };					//Random numbers
+		std::uniform_real_distribution<> rnd_unif{ 0.0f, 1.0f };		//Random numbers
+
+		glm::vec2 *vector_field = new glm::vec2[100];
+
+	public:
+		/// <summary>
+		/// Callback for event key stroke. Depending on the key pressed, a cloth is created or
+		/// moved.
+		/// </summary>
+		/// <param name="event"> The keyboard event. </param>
+		/// <returns> False, so the key is not consumed. </returns>
+		bool onKeyboard(veEvent event) {
+
+			time += event.dt;
+
+			if (event.idata1 == GLFW_KEY_M && event.idata3 == GLFW_PRESS)							// Create Wind Simulation Scene
+			{												
+				{
+					glm::mat4 transform = glm::translate(glm::mat4(1.0f),
+						glm::vec3(5.0f, 0.0f, 0.0f));
+
+					VESceneNode* pScene;																// Get the scene root 
+					VECHECKPOINTER(pScene =
+						getSceneManagerPointer()->createSceneNode("Level 1", getRoot()));
+
+					VEClothEntity* clothEntity;															// Create a new cloth Entity and load the desired model
+					VECHECKPOINTER(clothEntity =
+						getSceneManagerPointer()->loadClothModel(
+							"Cloth" + std::to_string(m_physics->m_cloths.size()),
+							"../../media/models/cloths/cloth0", "cloth.obj"));
+
+					pScene->addChild(clothEntity);														// Add the entity to the scene
+
+					auto vertices = ((VEClothMesh*)(clothEntity->m_pMesh))->getInitialVertices();		// Get the vertices of the model
+					auto indices = ((VEClothMesh*)(clothEntity->m_pMesh))->getIndices();				// Get the indices of the model
+					std::vector<glm::vec3> fixedPoints =												// Choose the points where the cloth should be fixed
+					{ {-1.000000, 2.000000, -0.000000}, {1.000000, 2.000000, 0.000000} };				// Left and right top in this case
+
+					auto physicsCloth = std::make_shared<VPEWorld::Cloth>(m_physics,					// Create the cloth
+						"Cloth" + std::to_string(m_physics->m_cloths.size()), clothEntity, onMoveCloth,
+						onEraseCloth, vertices, indices, fixedPoints, 50, 4, 0.8);
+
+					m_physics->addCloth(physicsCloth);													// Add the cloth to the physics world
+
+					m_physics->getCloth(clothEntity)->applyTransformation(transform, false);
+				}
+				{
+					glm::mat4 transform = glm::translate(glm::mat4(1.0f),
+						glm::vec3(2.7f, 0.0f, 0.0f));
+
+					VESceneNode* pScene;																// Get the scene root 
+					VECHECKPOINTER(pScene =
+						getSceneManagerPointer()->createSceneNode("Level 1", getRoot()));
+
+					VEClothEntity* clothEntity;															// Create a new cloth Entity and load the desired model
+					VECHECKPOINTER(clothEntity =
+						getSceneManagerPointer()->loadClothModel(
+							"Cloth" + std::to_string(m_physics->m_cloths.size()),
+							"../../media/models/cloths/cloth0", "cloth.obj"));
+
+					pScene->addChild(clothEntity);														// Add the entity to the scene
+
+					auto vertices = ((VEClothMesh*)(clothEntity->m_pMesh))->getInitialVertices();		// Get the vertices of the model
+					auto indices = ((VEClothMesh*)(clothEntity->m_pMesh))->getIndices();				// Get the indices of the model
+					std::vector<glm::vec3> fixedPoints =												// Choose the points where the cloth should be fixed
+					{ {-1.000000, 2.000000, -0.000000}, {1.000000, 2.000000, 0.000000} };				// Left and right top in this case
+
+					auto physicsCloth = std::make_shared<VPEWorld::Cloth>(m_physics,					// Create the cloth
+						"Cloth" + std::to_string(m_physics->m_cloths.size()), clothEntity, onMoveCloth,
+						onEraseCloth, vertices, indices, fixedPoints, 5, 4, 0.8);
+
+					m_physics->addCloth(physicsCloth);													// Add the cloth to the physics world
+
+					m_physics->getCloth(clothEntity)->applyTransformation(transform, false);
+				}
+				{
+					glm::mat4 transform = glm::translate(glm::mat4(1.0f),
+						glm::vec3(0.4f, 0.0f, 0.0f));
+
+					VESceneNode* pScene;																// Get the scene root 
+					VECHECKPOINTER(pScene =
+						getSceneManagerPointer()->createSceneNode("Level 1", getRoot()));
+
+					VEClothEntity* clothEntity;															// Create a new cloth Entity and load the desired model
+					VECHECKPOINTER(clothEntity =
+						getSceneManagerPointer()->loadClothModel(
+							"Cloth" + std::to_string(m_physics->m_cloths.size()),
+							"../../media/models/cloths/cloth0", "cloth.obj"));
+
+					pScene->addChild(clothEntity);														// Add the entity to the scene
+
+					auto vertices = ((VEClothMesh*)(clothEntity->m_pMesh))->getInitialVertices();		// Get the vertices of the model
+					auto indices = ((VEClothMesh*)(clothEntity->m_pMesh))->getIndices();				// Get the indices of the model
+					std::vector<glm::vec3> fixedPoints =												// Choose the points where the cloth should be fixed
+					{ {-1.000000, 2.000000, -0.000000}, {1.000000, 2.000000, 0.000000} };				// Left and right top in this case
+
+					auto physicsCloth = std::make_shared<VPEWorld::Cloth>(m_physics,					// Create the cloth
+						"Cloth" + std::to_string(m_physics->m_cloths.size()), clothEntity, onMoveCloth,
+						onEraseCloth, vertices, indices, fixedPoints, 0.1, 4, 0.8);
+
+					m_physics->addCloth(physicsCloth);													// Add the cloth to the physics world
+
+					m_physics->getCloth(clothEntity)->applyTransformation(transform, false);
+				}
+				{
+					glm::mat4 transform = glm::translate(glm::mat4(1.0f),
+						glm::vec3(2.0f, 4.0f, 3.0f));
+
+					VESceneNode* pScene;																// Get the scene root 
+					VECHECKPOINTER(pScene =
+						getSceneManagerPointer()->createSceneNode("Level 1", getRoot()));
+
+					VEClothEntity* clothEntity;															// Create a new cloth Entity and load the desired model
+					VECHECKPOINTER(clothEntity =
+						getSceneManagerPointer()->loadClothModel(
+							"Cloth" + std::to_string(m_physics->m_cloths.size()),
+							"../../media/models/cloths/cloth0", "cloth.obj"));
+
+					pScene->addChild(clothEntity);														// Add the entity to the scene
+
+					auto vertices = ((VEClothMesh*)(clothEntity->m_pMesh))->getInitialVertices();		// Get the vertices of the model
+					auto indices = ((VEClothMesh*)(clothEntity->m_pMesh))->getIndices();				// Get the indices of the model
+					std::vector<glm::vec3> fixedPoints =												// Choose the points where the cloth should be fixed
+					{ {-1.000000, 2.000000, -0.000000}, {-1.000000, -0.000000, -0.000000} };				// Left and right top in this case
+
+					auto physicsCloth = std::make_shared<VPEWorld::Cloth>(m_physics,					// Create the cloth
+						"Cloth" + std::to_string(m_physics->m_cloths.size()), clothEntity, onMoveCloth,
+						onEraseCloth, vertices, indices, fixedPoints, 50, 4, 0.8);
+
+					m_physics->addCloth(physicsCloth);													// Add the cloth to the physics world
+
+					m_physics->getCloth(clothEntity)->applyTransformation(transform, false);
+				}
+				{
+					glm::mat4 transform = glm::translate(glm::mat4(1.0f),
+						glm::vec3(-0.1f, 4.0f, 3.2f));
+
+					VESceneNode* pScene;																// Get the scene root 
+					VECHECKPOINTER(pScene =
+						getSceneManagerPointer()->createSceneNode("Level 1", getRoot()));
+
+					VEClothEntity* clothEntity;															// Create a new cloth Entity and load the desired model
+					VECHECKPOINTER(clothEntity =
+						getSceneManagerPointer()->loadClothModel(
+							"Cloth" + std::to_string(m_physics->m_cloths.size()),
+							"../../media/models/cloths/cloth0", "cloth.obj"));
+
+					pScene->addChild(clothEntity);														// Add the entity to the scene
+
+					auto vertices = ((VEClothMesh*)(clothEntity->m_pMesh))->getInitialVertices();		// Get the vertices of the model
+					auto indices = ((VEClothMesh*)(clothEntity->m_pMesh))->getIndices();				// Get the indices of the model
+					std::vector<glm::vec3> fixedPoints =												// Choose the points where the cloth should be fixed
+					{ {-1.000000, 2.000000, -0.000000}, {-1.000000, -0.000000, -0.000000} };				// Left and right top in this case
+
+					auto physicsCloth = std::make_shared<VPEWorld::Cloth>(m_physics,					// Create the cloth
+						"Cloth" + std::to_string(m_physics->m_cloths.size()), clothEntity, onMoveCloth,
+						onEraseCloth, vertices, indices, fixedPoints, 5, 4, 0.8);
+
+					m_physics->addCloth(physicsCloth);													// Add the cloth to the physics world
+
+					m_physics->getCloth(clothEntity)->applyTransformation(transform, false);
+				}
+				{
+					glm::mat4 transform = glm::translate(glm::mat4(1.0f),
+						glm::vec3(4.4f, 4.0f, 2.9f));
+
+					VESceneNode* pScene;																// Get the scene root 
+					VECHECKPOINTER(pScene =
+						getSceneManagerPointer()->createSceneNode("Level 1", getRoot()));
+
+					VEClothEntity* clothEntity;															// Create a new cloth Entity and load the desired model
+					VECHECKPOINTER(clothEntity =
+						getSceneManagerPointer()->loadClothModel(
+							"Cloth" + std::to_string(m_physics->m_cloths.size()),
+							"../../media/models/cloths/cloth0", "cloth.obj"));
+
+					pScene->addChild(clothEntity);														// Add the entity to the scene
+
+					auto vertices = ((VEClothMesh*)(clothEntity->m_pMesh))->getInitialVertices();		// Get the vertices of the model
+					auto indices = ((VEClothMesh*)(clothEntity->m_pMesh))->getIndices();				// Get the indices of the model
+					std::vector<glm::vec3> fixedPoints =												// Choose the points where the cloth should be fixed
+					{ {-1.000000, 2.000000, -0.000000}, {-1.000000, -0.000000, -0.000000} };				// Left and right top in this case
+
+					auto physicsCloth = std::make_shared<VPEWorld::Cloth>(m_physics,					// Create the cloth
+						"Cloth" + std::to_string(m_physics->m_cloths.size()), clothEntity, onMoveCloth,
+						onEraseCloth, vertices, indices, fixedPoints, 0.1, 4, 0.8);
+
+					m_physics->addCloth(physicsCloth);													// Add the cloth to the physics world
+
+					m_physics->getCloth(clothEntity)->applyTransformation(transform, false);
+				}
+				{
+				VESceneNode* ico0;
+				VECHECKPOINTER(ico0 = getSceneManagerPointer()->loadModel("The Icosahedron" + std::to_string(m_physics->m_body_id), "../../media/models/test/ico", "icosahedron.obj", 0, getRoot()));
+				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), ico0, &m_physics->g_ico, glmvec3{ 0.5_real }, glmvec3{ 6.0_real, 0.5_real, -1.5_real }, glmquat{ 1,0,0,0 }, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, 1.0_real / 10.0_real, m_physics->m_restitution, m_physics->m_friction);
+				body->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
+				body->m_on_move = onMove;
+				body->m_on_erase = onErase;
+				body->movement = true;
+				m_physics->addBody(body); 
+				}
+				//{
+
+				//	glm::vec3 start_pos{ 1.0,0.0,-1.0 };
+				//	for (int x = 0; x < 10; ++x) {
+				//		for (int z = 0; z < 10; ++z) {
+				//			glm::vec3 cur_pos = start_pos + glm::vec3{ x / 5.0, 0.0, -z / 5.0 };
+
+				//			VESceneNode* pScene;																// Get the scene root 
+				//			VECHECKPOINTER(pScene =
+				//				getSceneManagerPointer()->createSceneNode("Level 1", getRoot()));
+
+				//			std::cout << "parent created\n";
+
+				//			VEClothEntity* grassEntity;															// Create a new cloth Entity and load the desired model
+				//			VECHECKPOINTER(grassEntity =
+				//				getSceneManagerPointer()->loadClothModel(
+				//					"Grass" + std::to_string(m_physics->m_grass.size()),
+				//					"../../media/models/test/grass", "Grass.obj"));
+
+				//			std::cout << "child created\n";
+
+				//			pScene->addChild(grassEntity);														// Add the entity to the scene
+
+				//			std::cout << "child added\n";
+
+				//			auto vertices = ((VEClothMesh*)(grassEntity->m_pMesh))->getInitialVertices();		// Get the vertices of the model
+
+				//			std::cout << "vertices got\n";
+
+				//			int tip_index = 0;
+				//			real inv_mass = 1.0_real / 100.0_real;
+
+				//			auto grass = std::make_shared<VPEWorld::Grass>(m_physics, "Grass" + std::to_string(m_physics->m_grass.size()), grassEntity, onMoveGrass,
+				//				onEraseGrass, vertices, tip_index, inv_mass);
+
+				//			std::cout << "pointer created\n";
+
+				//			//grass->applyTransform(glm::translate(cur_pos));
+
+				//			m_physics->addGrass(grass);
+				//			
+				//		}
+				//	}
+				//}
+				glm::vec3 start_pos{ 1.0,0.0,-1.0 };
+				for (int x = 0; x < 10; ++x) {
+					for (int z = 0; z < 10; ++z) {
+						glm::vec3 cur_pos = start_pos + glm::vec3{ x / 5.0, 0.0, -z / 5.0 };
+						VESceneNode* pScene;																// Get the scene root 
+						VECHECKPOINTER(pScene =
+							getSceneManagerPointer()->createSceneNode("Level 1", getRoot()));
+
+						std::cout << "parent created\n";
+
+						VEClothEntity* grassEntity;															// Create a new cloth Entity and load the desired model
+						VECHECKPOINTER(grassEntity =
+							getSceneManagerPointer()->loadClothModel(
+								"Grass" + std::to_string(m_physics->m_grass.size()),
+								"../../media/models/test/grass", "Grass.obj"));
+
+						std::cout << "child created\n";
+
+						pScene->addChild(grassEntity);														// Add the entity to the scene
+
+						std::cout << "child added\n";
+
+						auto vertices = ((VEClothMesh*)(grassEntity->m_pMesh))->getInitialVertices();		// Get the vertices of the model
+
+						std::cout << "vertices got\n";
+
+						int tip_index = 0;
+						real inv_mass = 1.0_real / 100.0_real;
+						real hooke = 0.7_real;
+
+						auto grass = std::make_shared<VPEWorld::Grass>(m_physics, "Grass" + std::to_string(m_physics->m_grass.size()), grassEntity, onMoveGrass,
+							onEraseGrass, vertices, tip_index, inv_mass, hooke);
+
+						std::cout << "pointer created\n";
+
+						grass->applyTransform(glm::translate(cur_pos));
+
+						m_physics->addGrass(grass);
+					}
+				}
+			}
+
+			return false;
+		}
+
+		void loadClothWithTransform(glm::mat4 transform = glm::mat4{ 0.0f }) {
+			VESceneNode* pScene;																// Get the scene root 
+			VECHECKPOINTER(pScene =
+				getSceneManagerPointer()->createSceneNode("Level 1", getRoot()));
+
+			VEClothEntity* clothEntity;															// Create a new cloth Entity and load the desired model
+			VECHECKPOINTER(clothEntity =
+				getSceneManagerPointer()->loadClothModel(
+					"Cloth" + std::to_string(m_physics->m_cloths.size()),
+					"../../media/models/cloths/cloth0", "cloth.obj"));
+
+			pScene->addChild(clothEntity);														// Add the entity to the scene
+
+			auto vertices = ((VEClothMesh*)(clothEntity->m_pMesh))->getInitialVertices();		// Get the vertices of the model
+			auto indices = ((VEClothMesh*)(clothEntity->m_pMesh))->getIndices();				// Get the indices of the model
+			std::vector<glm::vec3> fixedPoints =												// Choose the points where the cloth should be fixed
+			{ {-1.000000, 2.000000, -0.000000}, {1.000000, 2.000000, 0.000000} };				// Left and right top in this case
+
+			auto physicsCloth = std::make_shared<VPEWorld::Cloth>(m_physics,					// Create the cloth
+				"Cloth" + std::to_string(m_physics->m_cloths.size()), clothEntity, onMoveCloth,
+				onEraseCloth, vertices, indices, fixedPoints, 50, 4, 0.8);
+
+			m_physics->addCloth(physicsCloth);													// Add the cloth to the physics world
+
+			m_physics->getCloth(clothEntity)->applyTransformation(transform, false);
+		}
+
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="name"> Name of the listener. </param>
+		/// <param name="physics"> Pointer to the physics world. </param>
+		VEEventListenerWindSimulationControls(std::string name, VPEWorld* physics)
+			: VEEventListener(name), m_physics{ physics } { };
+	};
+
+	//---------------------------------End-Wind-Simulation-Stuff------------------------------------
 
 	//----------------------------------------------------------------------------------------------
 	// My custom engine
@@ -698,6 +1145,7 @@ namespace ve {
 		VEEventListenerPhysicsGUI* m_physics_listener_gui;
 		VEEventListenerConstraintsGUI* m_physics_listener_constraints_gui;
 		VEEventListenerClothControls* m_physics_listener_cloth;
+		VEEventListenerWindSimulationControls* m_physics_listener_wind;
 
 		MyVulkanEngine(veRendererType type = veRendererType::VE_RENDERER_TYPE_FORWARD,
 			bool debug = false) : VEEngine(type, debug) {};
@@ -716,6 +1164,8 @@ namespace ve {
 				"Constraints GUI", &m_physics), { veEvent::VE_EVENT_DRAW_OVERLAY });
 			registerEventListener(m_physics_listener_cloth = new VEEventListenerClothControls(
 				"Cloth Controls", &m_physics), { veEvent::VE_EVENT_KEYBOARD });
+			registerEventListener(m_physics_listener_wind = new VEEventListenerWindSimulationControls(
+				"Wind Controls", &m_physics), { veEvent::VE_EVENT_KEYBOARD });
 		};
 		
 
