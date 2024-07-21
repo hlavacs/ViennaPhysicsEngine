@@ -107,13 +107,8 @@ namespace ve {
 	inline VPEWorld::callback_move_grass onMoveGrass =
 		[&](double dt, std::shared_ptr<VPEWorld::Grass> grass)
 	{
-		VEClothEntity* grassOwner = static_cast<VEClothEntity*>(grass->m_owner);					// Owner is a pointer to a scene node
-		auto vertices = grass->generateVertices();													// Vertices with updated position data
-		(static_cast<VEClothMesh*> (grassOwner->m_pMesh))->updateVertices(vertices);				// Update the vertices of the mesh
-		/*for (auto pos : vertices) {
-			std::cout << pos << '\n';
-		}
-		std::cout << '\n';*/
+		VESceneNode* grass0 = static_cast<VESceneNode*>(grass->m_owner);								// Owner is a pointer to a scene node												// Extrapolate
+		grass0->setTransform(grass->getTransform());													// Set the scene node data
 	};
 
 	/// <summary>
@@ -150,6 +145,43 @@ namespace ve {
 
 		///Destructor of class EventListenerCollision
 		virtual ~VEEventListenerPhysics() {};
+	};
+
+	class VEEventListenerPerformance : public VEEventListener {
+	protected:
+
+		/// <summary>
+		/// EventListener to measure the performance of the wind simulation
+		/// </summary>
+		
+		real fps;
+
+		void onFrameStarted(veEvent event) {
+			fps = 0.05_real * m_physics->m_fps + 0.95_real * fps;
+			if ((int)(m_physics->m_current_time * 100.0_real) % 1000 == 0)
+				std::cout << fps << '\n';
+		}
+
+		bool onKeyboard(veEvent event) {
+
+			if (event.idata1 == GLFW_KEY_1 && event.idata3 == GLFW_PRESS) {
+				std::cout << fps << '\n';
+			}
+
+			return false;
+		};
+
+		VPEWorld* m_physics;																		//Pointer to the physics world
+
+	public:
+		///Constructor of class EventListenerCollision
+		VEEventListenerPerformance(std::string name, VPEWorld* physics)
+			: VEEventListener(name), m_physics{ physics } {
+			fps = 0.0_real;
+		};
+
+		///Destructor of class EventListenerCollision
+		virtual ~VEEventListenerPerformance() {};
 	};
 
 
@@ -502,7 +534,7 @@ namespace ve {
 					NK_TEXT_LEFT);
 
 				nk_layout_row_dynamic(ctx, 30, 1);
-				nk_label(ctx, "<Wind Simulation controls go here>",
+				nk_label(ctx, "Press 'M' to create a wind simulation scene",
 					NK_TEXT_LEFT);
 
 				nk_layout_row_dynamic(ctx, 30, 3);
@@ -513,11 +545,13 @@ namespace ve {
 				if (nk_option_label(ctx, "Wind Perl3D", m_physics->m_wind_mode == 2))
 					m_physics->m_wind_mode = 2;
 
-				nk_layout_row_dynamic(ctx, 30, 2);
+				nk_layout_row_dynamic(ctx, 30, 3);
 				if (nk_option_label(ctx, "Wind Curl2D", m_physics->m_wind_mode == 3))
 					m_physics->m_wind_mode = 3;
 				if (nk_option_label(ctx, "Wind Curl3D", m_physics->m_wind_mode == 4))
 					m_physics->m_wind_mode = 4;
+				if (nk_option_label(ctx, "Wind Bitangent3D", m_physics->m_wind_mode == 5))
+					m_physics->m_wind_mode = 5;
 
 				str.str("");
 				str << "Wind Power: " << m_physics->m_wind_power;
@@ -1002,91 +1036,22 @@ namespace ve {
 				body->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
 				body->m_on_move = onMove;
 				body->m_on_erase = onErase;
-				body->movement = true;
 				m_physics->addBody(body); 
 				}
-				//{
+				{
+					glm::vec3 start_pos{ 1.0,0.0,-1.0 };
+					real inv_mass = 1.0_real / 100.0_real;
 
-				//	glm::vec3 start_pos{ 1.0,0.0,-1.0 };
-				//	for (int x = 0; x < 10; ++x) {
-				//		for (int z = 0; z < 10; ++z) {
-				//			glm::vec3 cur_pos = start_pos + glm::vec3{ x / 5.0, 0.0, -z / 5.0 };
+					for (int x = 0; x < 40; ++x) {
+						for (int z = 0; z < 25; ++z) {
+							glm::vec3 cur_pos = start_pos + glm::vec3{ x / 20.0, 0.0, -z / 20.0 };
 
-				//			VESceneNode* pScene;																// Get the scene root 
-				//			VECHECKPOINTER(pScene =
-				//				getSceneManagerPointer()->createSceneNode("Level 1", getRoot()));
-
-				//			std::cout << "parent created\n";
-
-				//			VEClothEntity* grassEntity;															// Create a new cloth Entity and load the desired model
-				//			VECHECKPOINTER(grassEntity =
-				//				getSceneManagerPointer()->loadClothModel(
-				//					"Grass" + std::to_string(m_physics->m_grass.size()),
-				//					"../../media/models/test/grass", "Grass.obj"));
-
-				//			std::cout << "child created\n";
-
-				//			pScene->addChild(grassEntity);														// Add the entity to the scene
-
-				//			std::cout << "child added\n";
-
-				//			auto vertices = ((VEClothMesh*)(grassEntity->m_pMesh))->getInitialVertices();		// Get the vertices of the model
-
-				//			std::cout << "vertices got\n";
-
-				//			int tip_index = 0;
-				//			real inv_mass = 1.0_real / 100.0_real;
-
-				//			auto grass = std::make_shared<VPEWorld::Grass>(m_physics, "Grass" + std::to_string(m_physics->m_grass.size()), grassEntity, onMoveGrass,
-				//				onEraseGrass, vertices, tip_index, inv_mass);
-
-				//			std::cout << "pointer created\n";
-
-				//			//grass->applyTransform(glm::translate(cur_pos));
-
-				//			m_physics->addGrass(grass);
-				//			
-				//		}
-				//	}
-				//}
-				glm::vec3 start_pos{ 1.0,0.0,-1.0 };
-				for (int x = 0; x < 10; ++x) {
-					for (int z = 0; z < 10; ++z) {
-						glm::vec3 cur_pos = start_pos + glm::vec3{ x / 5.0, 0.0, -z / 5.0 };
-						VESceneNode* pScene;																// Get the scene root 
-						VECHECKPOINTER(pScene =
-							getSceneManagerPointer()->createSceneNode("Level 1", getRoot()));
-
-						std::cout << "parent created\n";
-
-						VEClothEntity* grassEntity;															// Create a new cloth Entity and load the desired model
-						VECHECKPOINTER(grassEntity =
-							getSceneManagerPointer()->loadClothModel(
-								"Grass" + std::to_string(m_physics->m_grass.size()),
-								"../../media/models/test/grass", "Grass.obj"));
-
-						std::cout << "child created\n";
-
-						pScene->addChild(grassEntity);														// Add the entity to the scene
-
-						std::cout << "child added\n";
-
-						auto vertices = ((VEClothMesh*)(grassEntity->m_pMesh))->getInitialVertices();		// Get the vertices of the model
-
-						std::cout << "vertices got\n";
-
-						int tip_index = 0;
-						real inv_mass = 1.0_real / 100.0_real;
-						real hooke = 0.7_real;
-
-						auto grass = std::make_shared<VPEWorld::Grass>(m_physics, "Grass" + std::to_string(m_physics->m_grass.size()), grassEntity, onMoveGrass,
-							onEraseGrass, vertices, tip_index, inv_mass, hooke);
-
-						std::cout << "pointer created\n";
-
-						grass->applyTransform(glm::translate(cur_pos));
-
-						m_physics->addGrass(grass);
+							VESceneNode* grass0;
+							VECHECKPOINTER(grass0 = getSceneManagerPointer()->loadModel("The Grass" + std::to_string(m_physics->m_grass_id), "../../media/models/test/grass", "Grass.obj", 0, getRoot()));
+							auto grass = std::make_shared<VPEWorld::Grass>(m_physics, "Grass" + std::to_string(m_physics->m_grass.size()), grass0, onMoveGrass, onEraseGrass, glm::vec3{0.0,0.1,0.0}, inv_mass);
+							grass->applyTranslation(glm::translate(cur_pos));
+							m_physics->addGrass(grass);
+						}
 					}
 				}
 			}
@@ -1146,6 +1111,7 @@ namespace ve {
 		VEEventListenerConstraintsGUI* m_physics_listener_constraints_gui;
 		VEEventListenerClothControls* m_physics_listener_cloth;
 		VEEventListenerWindSimulationControls* m_physics_listener_wind;
+		VEEventListenerPerformance* m_physics_listener_performance;
 
 		MyVulkanEngine(veRendererType type = veRendererType::VE_RENDERER_TYPE_FORWARD,
 			bool debug = false) : VEEngine(type, debug) {};
@@ -1166,6 +1132,8 @@ namespace ve {
 				"Cloth Controls", &m_physics), { veEvent::VE_EVENT_KEYBOARD });
 			registerEventListener(m_physics_listener_wind = new VEEventListenerWindSimulationControls(
 				"Wind Controls", &m_physics), { veEvent::VE_EVENT_KEYBOARD });
+			registerEventListener(m_physics_listener_performance = new VEEventListenerPerformance(
+				"Performance", &m_physics), { veEvent::VE_EVENT_FRAME_STARTED, veEvent::VE_EVENT_KEYBOARD });
 		};
 		
 

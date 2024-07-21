@@ -91,7 +91,9 @@ namespace geometry {
 	real alphaMaxPlusBetaMedPlusGammaMin(real a, real b, real c);
 }
 
+//----------------------------------Wind-Simulation-Stuff----------------------------------------
 //Algorithms from namespace noise, defined below this file
+//by Marius Damm
 namespace noise {
 	inline real lerp(real t, real a, real b);
 	inline real fade(real t);
@@ -103,6 +105,7 @@ namespace noise {
 	inline glm::vec3 perlin3D(real x, real y, real z, real time);
 	inline glm::vec3 curl2D(real x, real z, real time);
 	inline glm::vec3 curl3D(real x, real y, real z, real time);
+	inline glm::vec3 bitang3D(real x, real y, real z, real time);
 }
 
 
@@ -522,8 +525,6 @@ namespace vpe {
 			uint64_t	m_loop_last_active{ 0 };		//The loop number in which this body was last time active
 
 			bool		collision = true;				//Body will be considered for collision
-			bool		movement = true;				//Body will be considered in the movement during tick()
-			bool		grass = false;					//Body resembles Grass
 
 			std::unordered_map<uint64_t, Force> m_forces;//forces acting on this body
 
@@ -735,19 +736,6 @@ namespace vpe {
 				auto compare = [&](auto& a, auto& b) { return glm::dot(dirL, a.m_positionL) < glm::dot(dirL, b.m_positionL); };
 				return std::ranges::max_element(m_polytope->m_vertices, compare)._Ptr;
 			};
-
-			void updateWindForce(glm::vec3 wind) {
-				setForce(7, Force{ wind });
-
-				if (grass) {
-					removeForce(7);
-					setForce(7, Force{ glm::vec3{0.0}, glm::vec3{1.0}, wind, glm::vec3{0.0} });
-					glmvec3 hooke = glmvec3{ 0.0,1.0,0.0 } - m_orientationLW * glmvec3{ 0.0,1.0,0.0 };
-					real length = hooke.length();
-					glmvec3 hooke_force = hooke * glm::vec3{ length * length * length * 0.6_real};
-					setForce(8, VPEWorld::Force{ hooke_force });
-				}
-			}
 		};
 
 		//--------------------------------------------------------------------------------------------------
@@ -885,11 +873,11 @@ namespace vpe {
 		real	m_restitution = 0.2_real;					//Coefficient of restitution (bounciness)
 		real	m_friction = 1.0_real;						//Coefficient of friction
 		real	m_fps = 0.0_real;
-		int		m_wind_mode = 0;
-		glmvec3 m_wind_direction = glmvec3{ 0 };
-		real	m_wind_power = 0.0_real;
-		real	m_noise_power = 1.0_real;
-		real	m_last_wind_time = 0.0_real;
+
+		int		m_wind_mode = 0;							//The chosen noise algorithm for wind simulation
+		glmvec3 m_wind_direction = glmvec3{ 0 };			//The general direction of the wind
+		real	m_wind_power = 0.0_real;					//The power of the entire wind
+		real	m_noise_power = 1.0_real;					//Factor for the influence of noise on the wind
 
 		//--------------------------------------------------------------------------------------------------
 		//simulation state
@@ -1216,11 +1204,10 @@ namespace vpe {
 				warmStart();			//Warm start the resting contacts if possible
 
 				for (auto& body : m_bodies) { 
-					body.second->removeForce(7);
-					body.second->removeForce(8);
+					body.second->removeForce(7);												//Remove wind force
 
-					if (m_wind_mode!=0 && body.second->movement) 
-						body.second->updateWindForce(getWind(body.second->m_positionW));
+					if (m_wind_mode!=0) 
+						body.second->setForce(7, Force{ getWind(body.second->m_positionW) });	//Add wind force if wind simulation is turned on
 
 					body.second->stepVelocity(m_sim_delta_time);								//Integration step for velocity
 				}	
@@ -1243,8 +1230,13 @@ namespace vpe {
 
 				//---------------------------End-Cloth-Simulation-Stuff-----------------------------
 
+				//--------------------------Begin-Wind-Simulation-Stuff-----------------------------
+				//by Marius Damm
+
 				for (auto& grass : m_grass)
-					grass.second->calculateMovement((real) m_sim_delta_time);
+					grass.second->calculateMovement((real) m_sim_delta_time);						//Calculate the movement of all grass objects
+
+				//---------------------------End-Wind-Simulation-Stuff------------------------------
 
 				m_last_slot = m_next_slot;			//Remember last slot
 				m_next_slot += m_sim_delta_time;	//Move to next time slot as slong as we do not surpass current time
@@ -1267,9 +1259,13 @@ namespace vpe {
 
 			//-----------------------------End-Cloth-Simulation-Stuff-------------------------------
 
-			for (auto& grass : m_grass)															// Notify the owner of the grass that the grass has moved
+			//----------------------------Begin-Wind-Simulation-Stuff-------------------------------
+
+			for (auto& grass : m_grass)																// Notify the owner of the grass object that the grass has moved
 				if (grass.second->m_on_move)
 					grass.second->m_on_move(m_current_time - m_last_slot, grass.second);
+
+			//-----------------------------End-Wind-Simulation-Stuff--------------------------------
 
 			m_last_time = m_current_time;	//save last time
 		};
@@ -1529,6 +1525,13 @@ namespace vpe {
 			} while (num > 0 && (m_mode == SIMULATION_MODE_DEBUG || std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count() < 1.0e6 * max_time));
 		}
 
+		//-----------------------------Begin-Wind-Simulation-Stuff----------------------------------
+		//by Marius Damm
+
+		/// <summary>
+		/// Calculate the wind force dependant on the current wind mode and the position given.
+		/// </summary>
+		/// <param name="pos">Position given to calculate the noise at.</param>
 		glmvec3 getWind(glmvec3 pos) {
 			glm::vec3 noise{ 0.0 };
 			if (m_wind_mode == 0)
@@ -1541,8 +1544,12 @@ namespace vpe {
 				noise = noise::curl2D(pos.x, pos.z, m_current_time);
 			if (m_wind_mode == 4)
 				noise = noise::curl3D(pos.x, pos.y, pos.z, m_current_time);
+			if (m_wind_mode == 5)
+				noise = noise::bitang3D(pos.x, pos.y, pos.z, m_current_time);
 			return (m_wind_direction + noise * m_noise_power) * m_wind_power;
 		}
+
+		//-----------------------------Begin-Wind-Simulation-Stuff----------------------------------
 
 		//----------------------------------------------------------------------------------------------------
 
@@ -3156,13 +3163,13 @@ namespace vpe {
 				createMassPoints(vertices, fixedPointsPositions);
 				generateConstraints(createTriangles(indices), bendingCompliance);
 				calcMaxMassPointDistance();
-				applyTransformation(glm::rotate(													// Apply a slight rotation to give the sim a degree of freedom for all three dimensions
+				applyTransformation(glm::rotate(														// Apply a slight rotation to give the sim a degree of freedom for all three dimensions
 					glm::mat4(1.0f), glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f)), true);
 				glm::vec3 point_sum{ 0.0 };
 				for (auto point : fixedPointsPositions) {
 					point_sum += point;
 				}
-				m_center_point = point_sum * glm::vec3{ 1.0_real / (real)fixedPointsPositions.size() };
+				m_center_point = point_sum * glm::vec3{ 1.0_real / (real)fixedPointsPositions.size() }; //Calculate the center point between the fixed points. Needed for wind simulation
 			}
 
 			/// <summary>
@@ -3180,11 +3187,11 @@ namespace vpe {
 
 				real rDt = dt / c_substeps;															// Split up the delta time depending on how many substeps there are
 
-				glm::vec3 wind_force = m_physics->getWind(m_center_point);
+				glm::vec3 wind_force = m_physics->getWind(m_center_point);							// Calculate the wind force based on the center point
 
 				for (int i = 0; i < c_substeps; ++i)												// Solve amount of substep times
 				{
-					for (ClothMassPoint& massPoint : m_massPoints)									// Apply gravity and damping to all mass points
+					for (ClothMassPoint& massPoint : m_massPoints)									// Apply gravity, wind force and damping to all mass points
 					{
 						massPoint.damp(rDt);
 						glmvec3 force = glmvec3{ 0, m_physics->c_gravity, 0 } + wind_force;
@@ -3251,7 +3258,7 @@ namespace vpe {
 					massPoint.resolvePolytopeCollisions(m_bodiesNearby, 0);							// Check for and solve collisions at the new position
 				}
 
-				m_center_point = transformation * glm::vec4(m_center_point, 1);						// Move the center point, for Wind Simulation
+				m_center_point = transformation * glm::vec4(m_center_point, 1);						// Also move the center point
 			}
 
 			/// <summary>
@@ -3528,19 +3535,27 @@ namespace vpe {
 
 	//---------------------------------End-Cloth-Simulation-Stuff-----------------------------------
 
+	//--------------------------------Begin-Grass-Simulation-Stuff----------------------------------
+
 		class Grass;
 		using callback_move_grass = std::function<void(double, std::shared_ptr<Grass>)>;			//call this function when the cloth moves
 		using callback_erase_grass = std::function<void(std::shared_ptr<Grass>)>;					//call this function when the cloth is erased
 
+		/// <summary>
+		/// All grass bodies are stored in the map m_grass. The key is a void*, which can be used to call
+		/// back an owner if the grass moves. With this key, the body can also be found.
+		/// So best if there is a 1:1 correspondence. E.g., the owner can be a specific VESceneNode.
+		/// </summary>
 		std::unordered_map<void*, std::shared_ptr<VPEWorld::Grass>> m_grass;
+		uint64_t m_grass_id{ 0 };
 
 		/// <summary>
 		/// Add a new grass to the physics world.
 		/// </summary>
 		/// <param name="pbody"> The new body.</param>
 		void addGrass(std::shared_ptr<VPEWorld::Grass> pGrass) {
-			std::cout << "try inserting Grass #" << m_grass.size() << " inserted!\n";
 			m_grass.insert({ pGrass->m_owner, pGrass });
+			m_grass_id++;
 		}
 
 		/// <summary>
@@ -3586,24 +3601,30 @@ namespace vpe {
 			m_bodies.erase(owner);
 		}
 
+		/// <summary>
+		/// A GrassMassPoint resembles a mass point of a grass object. It stores the relevant data
+		/// for movement calculations regarding a specific mass point.
+		/// </summary>
 		struct GrassMassPoint {
 			glm::vec3 m_position;
 			glm::vec3 m_velocity;
 			glm::vec3 m_force;
 			glm::mat4 m_transform;
 			real m_inv_mass;
-			int m_index;
 		};
 
+		/// <summary>
+		/// A grass object resembles a single trangular grass blade. It consists of a GrassMassPoint 
+		/// as a tip and a glm::vec3 as a root. With those informations it calculates its movement.
+		/// </summary>
 		class Grass {
 			GrassMassPoint m_tip;
 			glm::vec3 m_orig_vec;
 			glm::vec3 m_cur_vec;
 			glm::vec3 m_root;
 			glm::mat4 m_transform;
+			glm::mat4 m_translation;
 			real m_hooke;
-
-			std::vector<glm::vec3> m_vertices;
 
 			VPEWorld* m_physics;
 
@@ -3616,54 +3637,75 @@ namespace vpe {
 
 		private:
 
+			/// <summary>
+			/// Calculate the Hooke force that acts on the grassand add it to the tip points forces.
+			/// </summary>
 			void calculateHooke() {
-				glm::vec3 spring_vec = glm::normalize(glm::vec3{ m_tip.m_transform					// Calculate current vector from root to tip
-														* glm::vec4{ m_tip.m_position, 1.0 } } 
-														- m_root);					
-				real spring_angle = acos(glm::dot(glm::normalize(spring_vec),						// Angle between current and original vector           
-													glm::normalize(m_orig_vec)));			
-				glm::vec3 spring_force = glm::normalize(m_orig_vec - spring_vec)					// Force that pulls the spring back to its original position
-											* glm::vec3{ spring_angle * -m_hooke * 10};
-				m_tip.m_force += spring_force;
+				if (m_cur_vec != m_orig_vec) {
+					real spring_angle = acos(glm::dot(m_cur_vec, m_orig_vec));														// Angle between current and original vector           
+					glm::vec3 spring_force = glm::normalize(glm::normalize(m_orig_vec - m_cur_vec) - m_tip.m_velocity)				// Force that pulls the spring back to its original position
+										   * glm::vec3{ spring_angle * m_hooke * 0.15f };
+					m_tip.m_force += spring_force;
+				}
 			}
 
+			/// <summary>
+			/// Get the wind force that acts onto the grass and add it to the tip points forces.
+			/// </summary>
 			void applyWind() {
-				m_tip.m_force += m_physics->getWind(m_tip.m_position);
+				glm::vec3 wind = m_physics->getWind(m_translation * glm::vec4{ m_tip.m_position ,1.0f});
+				m_tip.m_force += wind * 0.05f;
 			}
 
 		public:
 
+			/// <summary>
+			/// Constructs a grass blade based on a simple spring-mass system
+			/// </summary>
+			/// <param name="physics"> Pointer to the physics world. </param>
+			/// <param name="name"> Name of the grass. </param>
+			/// <param name="owner"> Pointer to the owner. The callback knows how to use this
+			/// pointer. </param>
+			/// <param name="on_move"> Callback that is called when the cloth moves. </param>
+			/// <param name="on_erase"> Callback that is called when the cloth is erased. </param>
+			/// <param name="tip_position"> Position of the tip point. </param>
+			/// <param name="inv_tip_mass"> The inverse mass of the tip point. </param>
+			/// <param name="hooke_const"> A constant for the Hooke force calculation. </param>
+			/// <param name="root"> Position of the root point. </param>
 			Grass(VPEWorld* physics,
 					std::string name,
 					void* owner,
 					callback_move_grass on_move,
 					callback_erase_grass on_erase,
-					std::vector<glm::vec3> vertices,
-					int tip_index, 
+					glm::vec3 tip_position,
 					real inv_tip_mass, 
-					real hooke_const = 0.5, 
+					real hooke_const = 2.0f, 
 					glm::vec3 root = glm::vec3{ 0.0 })
 					: m_name{ name },
 					m_owner{ owner },
 					m_on_move{ on_move },
 					m_on_erase{ on_erase },
-					m_vertices{ vertices }, 
 					m_hooke{ hooke_const }, 
 					m_root{ root },
 					m_physics{ physics } {
 
-				m_tip.m_position = vertices[tip_index];
 				m_tip.m_inv_mass = inv_tip_mass;
-				m_tip.m_index = tip_index;
 				m_tip.m_force = glm::vec3{ 0.0 };
 				m_tip.m_velocity = glm::vec3{ 0.0 };
 				m_tip.m_transform = glm::mat4{ 1.0 };
+				m_tip.m_position = tip_position;
 
-				m_orig_vec = m_tip.m_position - m_root;
+				m_orig_vec = glm::normalize(m_tip.m_position - m_root);
 				m_cur_vec = m_orig_vec;
 				m_transform = glm::mat4{ 1.0 };
+				m_translation = glm::mat4{ 1.0 };
 			}
 
+			/// <summary>
+			/// Calculate the movement of the grass regarding wind and Hooke force. 
+			/// The movement is applied via a rotation around the root point.
+			/// </summary>
+			/// <param name="dt"> The delta time of the simulation since the last tick. </param>
 			void calculateMovement(real dt) {
 
 				if (m_physics->m_wind_mode!=0) {
@@ -3671,34 +3713,48 @@ namespace vpe {
 
 					applyWind();
 
-					m_tip.m_velocity += m_tip.m_force * m_tip.m_inv_mass * dt;					
-					glm::vec3 movement_vec = glm::normalize(glm::vec3{ m_tip.m_transform * glm::vec4{ m_tip.m_position, 1.0 } } + m_tip.m_velocity);
-					m_cur_vec = glm::normalize(glm::vec3{ m_tip.m_transform * glm::vec4{ m_tip.m_position, 1.0 } });
-					real angle = acos(glm::dot(m_cur_vec, movement_vec));
-					if (angle > 0.0) {
-						glm::vec3 axis = glm::cross(m_cur_vec, movement_vec);
+					m_tip.m_velocity += m_tip.m_force * m_tip.m_inv_mass * dt;									// Calculate the velocity using forces, inverse mass and delta time
+					glm::vec3 movement_vec = glm::normalize(glm::vec3{ m_transform								// Calculate the movement vector with respect to velocity
+																	 * glm::vec4{ m_tip.m_position, 1.0 } } 
+														  + m_tip.m_velocity);
+					m_cur_vec = glm::normalize(glm::vec3{ m_transform * glm::vec4{ m_tip.m_position, 1.0 } });	// Set the current direction vector with respect to the previous movements
+					real angle = acos(glm::dot(m_cur_vec, movement_vec));										// Angle between the current and predicted direction vector
+					if (angle > 0.0) {																			// Only calculate a rotation if there is a displacement
+						glm::vec3 axis = glm::cross(m_cur_vec, movement_vec);									// Rotation axis through the cross product between the current and predicted vector
 						glm::mat4 rotation = glm::rotate(glm::mat4{ 1.0 }, angle, axis);
-						m_tip.m_transform = m_tip.m_transform * rotation;
+						m_transform = rotation * m_transform;
 					}
-					m_tip.m_force = glm::vec3{ 0.0 };
+					m_tip.m_force = glm::vec3{ 0.0 };															// Set the force acting onto the tip to 0
 				}
 			}
 
-			std::vector<glm::vec3> generateVertices() {
-				std::vector<glm::vec3> transformed_verts{m_vertices};
-				transformed_verts[m_tip.m_index] = m_transform * m_tip.m_transform * glm::vec4{ m_tip.m_position, 1.0 };
-				for (int i = 0; i < transformed_verts.size(); ++i)
-					if (i != m_tip.m_index)
-						transformed_verts[i] = m_transform * glm::vec4{ transformed_verts[i], 1.0 };
-				return transformed_verts;
+			// <summary>
+			/// Get the current transform of the grass.
+			/// </summary>
+			glm::mat4 getTransform() {
+				return m_translation * m_transform;
 			}
 
+			// <summary>
+			/// Apply a transform onto the grass.
+			/// </summary>
+			/// <param name="transform"> 4x4 matrix of the desired transformation. </param>
 			void applyTransform(glm::mat4 transform) {
 				m_transform = transform * m_transform;
 			}
 
+			// <summary>
+			/// Apply a translation onto the grass.
+			/// </summary>
+			/// <param name="transform"> 4x4 matrix of the desired translation. </param>
+			void applyTranslation(glm::mat4 translation) {
+				m_translation = translation * m_translation;
+			}
+
 		}; 
 	};
+
+	//---------------------------------End-Grass-Simulation-Stuff-----------------------------------
 
 };
 
@@ -3855,10 +3911,13 @@ namespace geometry {
 }
 
 //---------------------------------Begin-Wind-Simulation-Stuff--------------------------------------
+// by Marius Damm
 namespace noise {
 	
-	//https://cs.nyu.edu/~perlin/noise/
-	//Based upon Ken Perlin "Improving Noise"
+	/// <summary>
+	/// Pseudo-random permutation table used for generating Perlin Noise.
+	/// https://cs.nyu.edu/~perlin/noise/
+	/// </summary>
 
 	const int p[] = { 151,160,137,91,90,15,
 	   131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,
@@ -3880,12 +3939,21 @@ namespace noise {
 		return p[a];
 	}
 
+	/// <summary>
+	/// Linear interpolation function.
+	/// </summary>
 	inline real lerp(real t, real a, real b) {
 		return a + t * (b - a);
 	}
+	/// <summary>
+	/// Quintic polinomial fading function for Perlin Noise.
+	/// </summary>
 	inline real fade(real t) {
 		return t * t * t * (t * (t * 6 - 15) + 10);
 	}
+	/// <summary>
+	/// Gradient function for 2D input, time varying.
+	/// </summary>
 	inline real gradient2D(int hash, real x, real z, real time) {
 		int h = hash & 15;
 		real u = h < 8 ? x : z;
@@ -3893,6 +3961,9 @@ namespace noise {
 		real grad = ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v) + time;
 		return sin(1.1f * grad) * cos(1.7f * sin(0.45f * grad));
 	}
+	/// <summary>
+	/// Gradient function for 3D input, time varying.
+	/// </summary>
 	inline real gradient3D(int hash, real x, real y, real z, real time) {
 		int h = hash & 15;
 		real u = h < 8 ? x : y;
@@ -3900,6 +3971,10 @@ namespace noise {
 		real grad = ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v) + time;
 		return sin(1.1f * grad) * cos(1.7f * sin(0.45f * grad));
 	}
+	/// <summary>
+	/// Function for computing Perlin Noise based on 2D Coordinates and time. 
+	/// https://cs.nyu.edu/~perlin/noise/
+	/// </summary>
 	inline real noise2D(real x, real z, real time) {
 		int X = (int)std::floor(x) & 255;
 		int Z = (int)std::floor(z) & 255;
@@ -3919,6 +3994,10 @@ namespace noise {
 									  gradient2D(perm(B + 1), x + 1, z + 1, time)));
 		return result;
 	}
+	/// <summary>
+	/// Function for computing Perlin Noise based on 3D Coordinates and time. 
+	/// https://cs.nyu.edu/~perlin/noise/
+	/// </summary>
 	inline real noise3D(real x, real y, real z, real time) {
 		int X = (int)std::floor(x) & 255;
 		int Y = (int)std::floor(y) & 255;
@@ -3937,7 +4016,7 @@ namespace noise {
 		int AB = perm(A + 1) + Z;
 		int B = perm(X + 1) + Y;
 		int BA = perm(B) + Z;
-		int BB = perm(B + 1) + Z;
+		int BB = perm(B + 1) + Z;		
 
 		real result = lerp(w, lerp(v, lerp(u, gradient3D(perm(AA), x, y, z, time),
 											  gradient3D(perm(BA), x - 1, y, z, time)),
@@ -3955,6 +4034,9 @@ namespace noise {
 	inline glm::vec3 perlin3D(real x, real y, real z, real time) {
 		return glm::vec3{ noise3D(x, y, z, time), noise3D(x + 1234.56f, y + 7890.12f, z + 3456.78f, time), noise3D(x + 9012.34f, y + 5678.90f, z + 1234.56f, time) };
 	}
+	/// <summary>
+	/// Function for computing Curl Noise based on 2D Coordinates and time.
+	/// </summary>
 	inline glm::vec3 curl2D(real x, real z, real time) {
 		real eps = 1e-4f;
 
@@ -3972,57 +4054,66 @@ namespace noise {
 
 		return glm::normalize(glm::vec3(dz, 0.0, -dx));
 	}
+	/// <summary>
+	/// Function for computing Curl Noise based on 3D Coordinates and time.
+	/// </summary>
 	inline glm::vec3 curl3D(real x, real y, real z, real time) {
 		real eps = 1e-4f;
 
-		//Find rate of change in X plane
-		real n1 = noise3D(x + eps, y, z, time);
-		real n2 = noise3D(x - eps, y, z, time);
-		//Average to find approximate derivative
-		real dx = (n1 - n2) / (2 * eps);
+		real n1 = noise3D(x, y + eps, z, time);
+		real n2 = noise3D(x, y - eps, z, time);
+		
+		real d1y = (n1 - n2) / (2 * eps);
 
-		//Find rate of change in Y plane
-		n1 = noise3D(x, y + eps, z, time);
-		n2 = noise3D(x, y - eps, z, time);
-		//Average to find approximate derivative
-		real dy = (n1 - n2) / (2 * eps);
-
-		//Find rate of change in Z plane
 		n1 = noise3D(x, y, z + eps, time);
 		n2 = noise3D(x, y, z - eps, time);
-		//Average to find approximate derivative
-		real dz = (n1 - n2) / (2 * eps);
+		
+		real d1z = (n1 - n2) / (2 * eps);
 
-		glm::vec3 noiseGrad0 = {dx, dy, dz};
+		n1 = noise3D(x + 1234.56f + eps, y + 7890.12f, z + 3456.78f, time);
+		n2 = noise3D(x + 1234.56f - eps, y + 7890.12f, z + 3456.78f, time);
+		
+		real d2x = (n1 - n2) / (2 * eps);
 
-		// Offset position for second noise read
-		x += 10.5;
-		y += 10.5;
-		z += 10.5;
+		n1 = noise3D(x + 1234.56f, y + 7890.12f, z + 3456.78f + eps, time);
+		n2 = noise3D(x + 1234.56f, y + 7890.12f, z + 3456.78f - eps, time);
+		
+		real d2z = (n1 - n2) / (2 * eps);
 
-		//Find rate of change in X
-		n1 = noise3D(x + eps, y, z, time);
-		n2 = noise3D(x - eps, y, z, time);
-		//Average to find approximate derivative
-		dx = (n1 - n2) / (2 * eps);
+		n1 = noise3D(x + 9012.34f + eps, y + 5678.90f, z + 1234.56f, time);
+		n2 = noise3D(x + 9012.34f - eps, y + 5678.90f, z + 1234.56f, time);
+		
+		real d3x = (n1 - n2) / (2 * eps);
 
-		//Find rate of change in Y
-		n1 = noise3D(x, y + eps, z, time);
-		n2 = noise3D(x, y - eps, z, time);
-		//Average to find approximate derivative
-		dy = (n1 - n2) / (2 * eps);
+		n1 = noise3D(x + 9012.34f, y + 5678.90f + eps, z + 1234.56f, time);
+		n2 = noise3D(x + 9012.34f, y + 5678.90f - eps, z + 1234.56f, time);
 
-		//Find rate of change in Z
-		n1 = noise3D(x, y, z + eps, time);
-		n2 = noise3D(x, y, z - eps, time);
-		//Average to find approximate derivative
-		dz = (n1 - n2) / (2 * eps);
+		real d3y = (n1 - n2) / (2 * eps);
 
-		glm::vec3 noiseGrad1 = {dx, dy, dz};
+		return glm::normalize(glm::vec3(d3y - d2z, d1z - d3x, d2x - d1y));
+	}
+	/// <summary>
+	/// Function for computing Bitangent Noise based on 3D Coordinates and time. 
+	/// https://atyuwen.github.io/posts/bitangent-noise/
+	/// </summary>
+	inline glm::vec3 bitang3D(real x, real y, real z, real time) {
+		real eps = 1e-4f;
 
-		noiseGrad0 = glm::normalize(noiseGrad0);
-		noiseGrad1 = glm::normalize(noiseGrad1);
-		return glm::cross(noiseGrad0, noiseGrad1);
+		glm::vec3 n1 = perlin3D(x + eps, y + eps, z + eps, time);
+		glm::vec3 n2 = perlin3D(x - eps, y - eps, z - eps, time);
+
+		glm::vec3 gn1 = (n1 - n2) * glm::vec3{2 * eps};
+
+		x += 1000.0f;
+		y += 1000.0f;
+		z += 1000.0f;
+
+		n1 = perlin3D(x + eps, y + eps, z + eps, time);
+		n2 = perlin3D(x - eps, y - eps, z - eps, time);
+
+		glm::vec3 gn2 = (n1 - n2) * glm::vec3{2 * eps};
+
+		return glm::normalize(glm::cross(gn1, gn2));
 	}
 
 }
