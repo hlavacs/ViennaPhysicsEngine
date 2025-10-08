@@ -1,6 +1,6 @@
 # The Vienna Physics Engine (VPE)
 The Vienna Physics Engine (VPE) is a simple, single file physics engine for educational purposes.
-Rendering can done by any render engine or framework. The example project provided in this repo uses the Vienna Vulkan Engine (https://github.com/hlavacs/ViennaVulkanEngine) for rendering.
+Rendering can done by any render engine or framework. The example project provided in this repo uses the Vienna Vulkan Engine (https://github.com/hlavacs/ViennaVulkanEngine) BRANCH 1.1 (!!!) for rendering. If you do not want this then exclude the example from building.
 
 The VPE is developed as basis for game based courses at the Faculty of Computer Science of the University of Vienna, held by Prof. Helmut Hlavacs:
 
@@ -23,7 +23,7 @@ VPE features are:
 
 # Set up for Windows 11
 
-The whole engine is contained in VPE.hpp. The provided example program uses the Vienna Vulkan Engine for rendering and is thus currently restricted to Windows 11. If you want to compile the example, do the following steps:
+The whole engine is contained in VPE.hpp. The provided example program uses the Vienna Vulkan Engine BRANCH 1.1 for rendering and is thus currently restricted to Windows 11. If you want to compile the example, do the following steps:
 - Make sure you have an up to date CMake, MS Visual Studio 22 and the Vulkan SDK installed.
 - Clone both projects Vienna Vulkan Engine and Vienna Physics Engine, into the same directory, next to each other.
 - Cd into Vienna Vulkan Engine and run CMake. Alternatively run the msvc bat file. CMake creates an sln project file.
@@ -32,7 +32,7 @@ The whole engine is contained in VPE.hpp. The provided example program uses the 
 - Cd into the Vienna Physics Engine directory and run CMake (or the msvc bat file).
 - Open the sln file and compile the project.
 - Note that the physicsexample.exe file is copied to the bin directory of the Vienna Vulkan Engine!
-- Make sure that the physics example is the starting project.
+- Make sure the physicsexample.exe file is in the same directory as the assimp lib file (e.g., Vienna Vulkan Engine/bin/Release). 
 - Now you can run the example.
 
 For Windows 11, all non-Vulkan dependencies are in the external directory. The Vulkan SDK is supposed to be pointed at by the VULKAN_SDK environment variable.

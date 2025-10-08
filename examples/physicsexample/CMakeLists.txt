@@ -2,7 +2,7 @@
 
 add_executable( physicsexample physicsexample.cpp VPEConstraintDemos.cpp VPEConstraintDemos.hpp ${CMAKE_SOURCE_DIR}/include/VPE.hpp)
 
-set( VulkanEngine ${CMAKE_SOURCE_DIR}/../ViennaVulkanEngine )
+set( VulkanEngine ${CMAKE_SOURCE_DIR}/../ViennaVulkanEngine1.1 )
 
 set_target_properties(physicsexample PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY ${VulkanEngine}/bin
@@ -14,8 +14,8 @@ find_package(Vulkan REQUIRED)
 target_include_directories(physicsexample PUBLIC
           ${CMAKE_SOURCE_DIR}/include
           ${Vulkan_INCLUDE_DIRS}
-          ${VulkanEngine}/VulkanEngine
-          ${CMAKE_SOURCE_DIR}/../ViennaVulkanEngine/VulkanEngine
+          ${VulkanEngine}
+		  ${VulkanEngine}/VulkanEngine
           ${VulkanEngine}/external/Assimp/include
           ${VulkanEngine}/external/irrKlang/include
           ${VulkanEngine}/external/glm
