@@ -1,6 +1,7 @@
 # The Vienna Physics Engine (VPE)
 The Vienna Physics Engine (VPE) is a simple, single file physics engine for educational purposes.
-Rendering can done by any render engine or framework. The example project provided in this repo uses the Vienna Vulkan Engine (https://github.com/hlavacs/ViennaVulkanEngine) BRANCH 1.1 (!!!) for rendering. If you do not want this then exclude the example from building.
+Rendering can done by any render engine or framework. The example project provided in this repo uses the Vienna Vulkan Engine (https://github.com/hlavacs/ViennaVulkanEngine) BRANCH v1.1 (!!!) for rendering.
+If you do not want this then exclude the example from building.
 
 The VPE is developed as basis for game based courses at the Faculty of Computer Science of the University of Vienna, held by Prof. Helmut Hlavacs:
 
@@ -25,7 +26,8 @@ VPE features are:
 
 The whole engine is contained in VPE.hpp. The provided example program uses the Vienna Vulkan Engine BRANCH 1.1 for rendering and is thus currently restricted to Windows 11. If you want to compile the example, do the following steps:
 - Make sure you have an up to date CMake, MS Visual Studio 22 and the Vulkan SDK installed.
-- Clone both projects Vienna Vulkan Engine and Vienna Physics Engine, into the same directory, next to each other.
+- Clone the Vienna Vulkan Engine v1.1: *git clone -b v1.1 https://github.com/hlavacs/ViennaVulkanEngine.git ViennaVulkanEngine1.1*
+- Clone the Vienna Physics Engine into the same directory, next to each other: *git clone https://github.com/hlavacs/ViennaPhysicsEngine.git*
 - Cd into Vienna Vulkan Engine and run CMake. Alternatively run the msvc bat file. CMake creates an sln project file.
 - Open the sln file and compile the project. Sometimes compile it twice to make sure everything is done correctly.
 - You might also manually compile the doxyfile subproject to create the documentation. For this you must have Doxygen installed.
