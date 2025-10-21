@@ -400,7 +400,7 @@ namespace vpe {
 		/// Vertices, edges and faces. We use a left handed space. Edges can have signs, meaning
 		/// their vectors are multiplied with this factor (1 or -1). 
 		/// </summary>
-		inline static Polytope g_cube {
+		inline static Polytope g_cube{
 			{ { -0.5_real,-0.5_real,-0.5_real }, { -0.5_real,-0.5_real,0.5_real }, { -0.5_real,0.5_real,0.5_real }, { -0.5_real,0.5_real,-0.5_real },
 			{ 0.5_real,-0.5_real,0.5_real }, { 0.5_real,-0.5_real,-0.5_real }, { 0.5_real,0.5_real,-0.5_real }, { 0.5_real,0.5_real,0.5_real } },
 			{ {0,1}, {1,2}, {2,3}, {3,0}, {4,5}, {5,6}, {6,7}, {7,4}, {5,0}, {1,4}, {3,6}, {7,2} }, //edges
@@ -414,7 +414,63 @@ namespace vpe {
 			[](real mass, glmvec3& s) { //callback for calculating the inertia tensor of this polytope
 				return mass * glmmat3{ {s.y * s.y + s.z * s.z,0,0}, {0,s.x * s.x + s.z * s.z,0}, {0,0,s.x * s.x + s.y * s.y} } / 12.0_real;
 			}
+
 		};
+		inline static Polytope g_cylinder{
+
+			{
+				{ -0.072439_real,  0.401990_real, -0.032864_real },
+				{  0.076968_real,  0.401990_real, -0.032864_real },
+				{ -0.072439_real,  0.024364_real,  0.148991_real },
+				{  0.076968_real,  0.024364_real,  0.148991_real },
+				{ -0.072439_real, -0.068901_real,  0.557615_real },
+				{  0.076968_real, -0.068901_real,  0.557615_real },
+				{ -0.072439_real,  0.192423_real,  0.885306_real },
+				{  0.076968_real,  0.192423_real,  0.885306_real },
+				{ -0.072439_real,  0.611556_real,  0.885306_real },
+				{  0.076968_real,  0.611556_real,  0.885306_real },
+				{ -0.072439_real,  0.872880_real,  0.557615_real },
+				{  0.076968_real,  0.872880_real,  0.557615_real },
+				{ -0.072439_real,  0.779615_real,  0.148991_real },
+				{  0.076968_real,  0.779615_real,  0.148991_real }
+			},
+
+			{
+				{0, 1}, {1, 3}, {2, 3}, {0, 2}, {3, 5}, {4, 5}, {2, 4},
+				{5, 7}, {6, 7}, {4, 6}, {7, 9}, {8, 9}, {6, 8}, {9, 11},
+				{10, 11}, {8, 10}, {1, 13}, {11, 13}, {12, 13}, {10, 12},
+				{0, 12}
+			},
+			{
+				{ {0,  1}, {1,  1}, {2, -1}, {3, -1} },
+				{ {2,  1}, {4,  1}, {5, -1}, {6, -1} },
+				{ {5,  1}, {7,  1}, {8, -1}, {9, -1} },
+				{ {8,  1}, {10, 1}, {11,-1}, {12,-1} },
+				{ {11, 1}, {13, 1}, {14,-1}, {15,-1} },
+				{ {1, -1}, {16, 1}, {17,-1}, {13,-1}, {10,-1}, {7, -1}, {4, -1} },
+				{ {14, 1}, {17, 1}, {18,-1}, {19,-1} },
+				{ {18, 1}, {16,-1}, {0, -1}, {20, 1} },
+				{ {3,  1}, {6,  1}, {9,  1}, {12, 1}, {15, 1}, {19, 1}, {20,-1} }
+			},
+
+			[](real mass, glmvec3& s) { //callback for calculating the inertia tensor of this polytope
+				return mass * glmmat3{ {s.y * s.y + s.z * s.z,0,0}, {0,s.x * s.x + s.z * s.z,0}, {0,0,s.x * s.x + s.y * s.y} } / 12.0_real;
+			}
+
+			//// --- inertia callback 
+			//[](real mass, glmvec3& s) {
+			//	real r = 0.5_real * s.x;
+			//	real h = s.z;
+			//	real Ixy = mass * ((3.0_real * r * r) + (h * h)) / 12.0_real;
+			//	real Iz = mass * (r * r) / 2.0_real;
+			//	return glmmat3{ {Ixy, 0,   0},
+			//					{0,   Ixy, 0},
+			//					{0,   0,   Iz} };
+			//}
+		};
+
+
+
 
 		//--------------------------------------------------------------------------------------------------
 		//Physics engine stuff

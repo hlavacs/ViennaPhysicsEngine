@@ -44,6 +44,9 @@ namespace ve {
 		return centerBody;
 	}
 
+
+
+
 	void ConstraintDemos::bridge() {
 		glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
 		glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
