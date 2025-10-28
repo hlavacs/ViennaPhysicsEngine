@@ -32,6 +32,8 @@ namespace ve {
 		std::shared_ptr<VPEWorld::Body> createAndAddBody(glmvec3 scale, glmvec3 position, glmquat orientation, real inv_mass, bool gravity, real friction = 1.0_real);
 		std::shared_ptr<VPEWorld::Body> createAndAddWheel(glmvec3 scale, glmvec3 position, glmquat orientation, real inv_mass, bool gravity, real friction = 1.0_real);
 		std::shared_ptr<VPEWorld::Body> createAndAddHandlesPassive(glmvec3 scale, glmvec3 position, glmquat orientation, real inv_mass, bool gravity, real friction = 1.0_real);
+	
+		std::shared_ptr<VPEWorld::Body> createAndAddHandlesActive(glmvec3 scale, glmvec3 position, glmquat orientation, real inv_mass, bool gravity, real friction = 1.0_real);
 		/// <summary>
 		/// Creates a wheel-like structure with one center cube at init_pos and num_cubes rotated equally around it
 		/// </summary>
