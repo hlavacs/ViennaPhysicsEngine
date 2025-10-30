@@ -41,7 +41,7 @@ namespace ve {
 	/// This callback is used for updating the visual body whenever a physics body moves.
 	/// It is also used for extrapolating the new position between two simulation slots.
 	/// </summary>
-	inline VPEWorld::callback_move onMove = [&](double dt, std::shared_ptr<VPEWorld::Body> body) {
+	inline VPEWorld::callback_move onMove = [](double dt, std::shared_ptr<VPEWorld::Body> body) {
 		VESceneNode* cube = static_cast<VESceneNode*>(body->m_owner);								// Owner is a pointer to a scene node
 		glmvec3 pos = body->m_positionW;															// New position of the scene node
 		glmquat orient = body->m_orientationLW;														// New orientation of the scende node
@@ -53,7 +53,7 @@ namespace ve {
 	/// This callback is called if the body is intentionally deleted. It is not called if the engine
 	/// shuts down and all bodies are deleted.
 	/// </summary>
-	inline VPEWorld::callback_erase onErase = [&](std::shared_ptr<VPEWorld::Body> body) {
+	inline VPEWorld::callback_erase onErase = [](std::shared_ptr<VPEWorld::Body> body) {
 		VESceneNode* node = static_cast<VESceneNode*>(body->m_owner);								// Owner is a pointer to a scene node
 		getSceneManagerPointer()->deleteSceneNodeAndChildren(
 			((VESceneNode*)body->m_owner)->getName());
@@ -78,7 +78,7 @@ namespace ve {
 	/// <param name="dt"> Delta time.</param>
 	/// <param name="cloth"> Pointer to the cloth so that the owner can get the data. </param>
 	inline VPEWorld::callback_move_cloth onMoveCloth =
-		[&](double dt, std::shared_ptr<VPEWorld::Cloth> cloth)
+		[](double dt, std::shared_ptr<VPEWorld::Cloth> cloth)
 	{
 		VEClothEntity* clothOwner = static_cast<VEClothEntity*>(cloth->m_owner);					// Owner is a pointer to a scene node
 		auto vertices = cloth->generateVertices();													// Vertices with updated position data
@@ -90,7 +90,7 @@ namespace ve {
 	/// </summary>
 	/// <param name="cloth"> Shared pointer to the cloth. </param>
 	inline VPEWorld::callback_erase_cloth onEraseCloth =
-		[&](std::shared_ptr<VPEWorld::Cloth> cloth) {
+		[](std::shared_ptr<VPEWorld::Cloth> cloth) {
 		VESceneNode* node = static_cast<VESceneNode*>(cloth->m_owner);								// Owner is a pointer to a scene node
 		getSceneManagerPointer()->deleteSceneNodeAndChildren(										// Delete the owner and child node
 			((VESceneNode*)cloth->m_owner)->getName());												// associated with the cloth
