@@ -470,6 +470,83 @@ namespace vpe {
 		};
 
 
+		inline static Polytope g_tire{
+			{
+				{ -0.074704_real,  0.000000_real, -0.483001_real }, // 0  (v1)
+				{  0.074704_real,  0.000000_real, -0.483001_real }, // 1  (v2)
+				{ -0.074704_real, -0.377625_real, -0.301146_real }, // 2  (v3)
+				{  0.074704_real, -0.377625_real, -0.301146_real }, // 3  (v4)
+				{ -0.074703_real, -0.470891_real,  0.107478_real }, // 4  (v5)
+				{  0.074704_real, -0.470891_real,  0.107478_real }, // 5  (v6)
+				{ -0.074704_real, -0.209566_real,  0.435169_real }, // 6  (v7)
+				{  0.074704_real, -0.209566_real,  0.435169_real }, // 7  (v8)
+				{ -0.074704_real,  0.209566_real,  0.435169_real }, // 8  (v9)
+				{  0.074704_real,  0.209566_real,  0.435169_real }, // 9  (v10)
+				{ -0.074704_real,  0.470891_real,  0.107478_real }, // 10 (v11)
+				{  0.074703_real,  0.470891_real,  0.107478_real }, // 11 (v12)
+				{ -0.074704_real,  0.377625_real, -0.301146_real }, // 12 (v13)
+				{  0.074704_real,  0.377625_real, -0.301146_real }  // 13 (v14)
+			},
+
+			{
+				{ 0, 1 },   // 0
+				{ 0, 2 },   // 1
+				{ 0, 12 },  // 2
+				{ 1, 3 },   // 3
+				{ 1, 13 },  // 4
+				{ 2, 3 },   // 5
+				{ 2, 4 },   // 6
+				{ 3, 5 },   // 7
+				{ 4, 5 },   // 8
+				{ 4, 6 },   // 9
+				{ 5, 7 },   // 10
+				{ 6, 7 },   // 11
+				{ 6, 8 },   // 12
+				{ 7, 9 },   // 13
+				{ 8, 9 },   // 14
+				{ 8, 10 },  // 15
+				{ 9, 11 },  // 16
+				{ 10, 11 }, // 17
+				{ 10, 12 }, // 18
+				{ 11, 13 }, // 19
+				{ 12, 13 }  // 20
+			}, // edges
+
+			{
+				{ { 0,  1 }, { 3,  1 }, { 5, -1 }, { 1, -1 } },
+
+				{ { 5,  1 }, { 7,  1 }, { 8, -1 }, { 6, -1 } },
+
+				{ { 8,  1 }, { 10, 1 }, { 11, -1 }, { 9, -1 } },
+
+				{ { 11, 1 }, { 13, 1 }, { 14, -1 }, { 12, -1 } },
+
+				{ { 14, 1 }, { 16, 1 }, { 17, -1 }, { 15, -1 } },
+
+				{ { 3, -1 }, { 4,  1 }, { 19, -1 }, { 16, -1 },
+				  { 13, -1 }, { 10, -1 }, { 7, -1 } },
+
+				  { { 17, 1 }, { 19, 1 }, { 20, -1 }, { 18, -1 } },
+
+				  { { 20, 1 }, { 4, -1 }, { 0, -1 }, { 2,  1 } },
+
+
+				  { { 1,  1 }, { 6,  1 }, { 9,  1 }, { 12, 1 },
+					{ 15, 1 }, { 18, 1 }, { 2, -1 } }
+			  },
+
+			// inertia callback – this keeps the same style as your cube,
+			// but it’s still the box approximation; swap it out if you
+			// have an analytic cylinder inertia handy.
+			[](real mass, glmvec3& s) {
+				return mass * glmmat3{
+					{ s.y * s.y + s.z * s.z, 0, 0 },
+					{ 0, s.x * s.x + s.z * s.z, 0 },
+					{ 0, 0, s.x * s.x + s.y * s.y }
+				} / 12.0_real;
+			}
+		};
+
 
 
 		//--------------------------------------------------------------------------------------------------
@@ -527,6 +604,8 @@ namespace vpe {
 			glmvec3		m_pbias{ 0, 0, 0 };				//extra energy if body overlaps with another body
 			uint32_t	m_num_resting{ 0 };				//number resting contact points 
 			real		m_damping{ 0 };					//damping velocity of resting contact points
+			glmvec3 m_angular_factor{ 1.0_real, 1.0_real, 1.0_real }; // 1 = free, 0 = locked
+
 
 			/// <summary>
 			/// Constructor of class Body. Uses ony default parameters.
@@ -570,6 +649,10 @@ namespace vpe {
 			/// </summary>
 			/// <param name="id">The force ID.</param>
 			/// <param name="force">The force itself.</param>
+			void setAngularFactor(const glmvec3& f) {
+				m_angular_factor = f;
+			}
+
 			template<typename F>
 			void setForce(uint64_t id, F&& force) {
 				m_forces[id] = std::forward<F>(force);
@@ -605,8 +688,12 @@ namespace vpe {
 				pos += m_physics->m_pbias_factor * m_pbias * (real)dt;
 				if (use_pbias) { m_pbias = glmvec3{ 0,0,0 }; }
 
-				auto avL = glmmat3{ m_model_inv } *m_angular_velocityW;	//The same for orientation
+				//auto avL = glmmat3{ m_model_inv } *m_angular_velocityW;	//The same for orientation
+				//real len = glm::length(avL);
+				glmvec3 angW = m_angular_velocityW * m_angular_factor; // kill locked axes
+				auto avL = glmmat3{ m_model_inv } *angW;
 				real len = glm::length(avL);
+
 				if (len > m_physics->c_small) {
 					if (m_physics->m_clamp_position == 1) quat = glm::rotate(quat, len * (real)dt, avL / len);	//Euler step
 					active = true;
@@ -644,6 +731,8 @@ namespace vpe {
 				m_linear_velocityW.x *= 1.0_real / (1.0_real + (real)m_physics->m_sim_delta_time * m_damping);	//apply sideways damping if any
 				m_linear_velocityW.z *= 1.0_real / (1.0_real + (real)m_physics->m_sim_delta_time * m_damping);
 				m_angular_velocityW *= 1.0_real / (1.0_real + (real)m_physics->m_sim_delta_time * m_damping);
+				//angular factor
+				m_angular_velocityW *= m_angular_factor;
 			}
 
 			/// <summary>

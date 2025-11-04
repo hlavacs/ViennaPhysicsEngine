@@ -114,6 +114,7 @@ namespace ve {
 		}
 
 		VPEWorld* m_physics;																		//Pointer to the physics world
+		
 
 	public:
 		///Constructor of class EventListenerCollision
@@ -123,7 +124,6 @@ namespace ve {
 		///Destructor of class EventListenerCollision
 		virtual ~VEEventListenerPhysics() {};
 	};
-
 
 	//----------------------------------------------------------------------------------------------
 	//Listener for creating bodies with keyboard
@@ -206,15 +206,28 @@ namespace ve {
 				m_physics->addBody(body);
 			}
 
+			if (event.idata1 == GLFW_KEY_L) {
+				if (event.idata3 == GLFW_PRESS || event.idata3 == GLFW_REPEAT) {
+					std::cout << "GO!";
+					m_trialBike->setEngine(true);   // start engine
+				}
+				else if (event.idata3 == GLFW_RELEASE) {
+					std::cout << "STOP!";
+					m_trialBike->setEngine(false);  // stop engine
+				}
+			}
+
 			return false;
 		};
 
 		VPEWorld* m_physics;	//Pointer to the physics world
+		TrialBike* m_trialBike;
 
 	public:
 		/// Constructor of class EventListenerCollision
-		VEEventListenerPhysicsKeys(std::string name, VPEWorld* physics)
-			: VEEventListener(name), m_physics{physics} { };
+		VEEventListenerPhysicsKeys(std::string name, VPEWorld* physics, TrialBike* m_trialBike)
+			: VEEventListener(name), m_physics{ physics }, m_trialBike{ m_trialBike } {
+		};
 
 		///Destructor of class EventListenerCollision
 		virtual ~VEEventListenerPhysicsKeys() {};
@@ -584,111 +597,6 @@ namespace ve {
 	};
 
 
-	//--------------------------------Begin-Cloth-Simulation-Stuff----------------------------------
-	// by Felix Neumann
-	// Cloth Simulation Demo
-	// Listener for creating and controlling cloths
-
-	/// <summary>
-	/// An demo on how one can use the cloth simulation features. Allows for spawning and moving
-	/// cloths.
-	/// </summary>
-	class VEEventListenerClothControls : public VEEventListener
-	{
-		VPEWorld* m_physics;																		// Pointer to the physics world
-		int m_currentClothIndex = 0;																// Index of currently selected Cloth
-		const float c_speed = 3.0f;																	// Speed of cloth movement
-	public:
-		/// <summary>
-		/// Callback for event key stroke. Depending on the key pressed, a cloth is created or
-		/// moved.
-		/// </summary>
-		/// <param name="event"> The keyboard event. </param>
-		/// <returns> False, so the key is not consumed. </returns>
-		bool onKeyboard(veEvent event) {
-			VESceneNode* cloth = getSceneManagerPointer()->getSceneNode(							// A cloth in the physics world can be gotten with a pointer to its owner
-				"Cloth" + std::to_string(m_currentClothIndex));
-
-			if (event.idata1 == GLFW_KEY_L)
-			{
-				m_physics->getCloth(cloth)->applyTransformation(glm::translate(glm::mat4(1.0f),		// The cloth can be moved by applying a transformation
-					glm::vec3(c_speed * event.dt, 0.0f, 0.0f)), true);
-			}
-
-			if (event.idata1 == GLFW_KEY_J)
-			{
-				m_physics->getCloth(cloth)->applyTransformation(glm::translate(glm::mat4(1.0f),
-					glm::vec3(-c_speed * event.dt, 0.0f, 0.0f)), true);
-			}
-
-			if (event.idata1 == GLFW_KEY_O)
-			{
-				m_physics->getCloth(cloth)->applyTransformation(glm::translate(glm::mat4(1.0f),
-					glm::vec3(0.0f, c_speed * event.dt, 0.0f)), true);
-			}
-
-			if (event.idata1 == GLFW_KEY_U)
-			{
-				m_physics->getCloth(cloth)->applyTransformation(glm::translate(glm::mat4(1.0f),
-					glm::vec3(0.0f, -c_speed * event.dt, 0.0f)), true);
-			}
-
-			if (event.idata1 == GLFW_KEY_I)
-			{
-				m_physics->getCloth(cloth)->applyTransformation(glm::translate(glm::mat4(1.0f),
-					glm::vec3(0.0f, 0.0f, c_speed * event.dt)), true);
-			}
-
-			if (event.idata1 == GLFW_KEY_K)
-			{
-				m_physics->getCloth(cloth)->applyTransformation(glm::translate(glm::mat4(1.0f),
-					glm::vec3(0.0f, 0.0f, -c_speed * event.dt)), false);
-			}
-
-			if (event.idata1 == GLFW_KEY_C && event.idata3 == GLFW_PRESS)							// Create a new cloth
-			{
-				VESceneNode* pScene;																// Get the scene root 
-				VECHECKPOINTER(pScene =
-					getSceneManagerPointer()->createSceneNode("Level 1", getRoot()));
-				
-				VEClothEntity* clothEntity;															// Create a new cloth Entity and load the desired model
-				VECHECKPOINTER(clothEntity = 
-					getSceneManagerPointer()->loadClothModel(
-						"Cloth" + std::to_string(m_physics->m_cloths.size()),
-						"../../media/models/cloths/cloth0", "cloth.obj"));
-
-				pScene->addChild(clothEntity);														// Add the entity to the scene
-
-				auto vertices = ((VEClothMesh*) (clothEntity->m_pMesh))->getInitialVertices();		// Get the vertices of the model
-				auto indices = ((VEClothMesh*) (clothEntity->m_pMesh))->getIndices();				// Get the indices of the model
-				std::vector<glm::vec3> fixedPoints =												// Choose the points where the cloth should be fixed
-				{ {-1.000000, 2.000000, -0.000000}, {1.000000, 2.000000, 0.000000} };				// Left and right top in this case
-
-				auto physicsCloth = std::make_shared<VPEWorld::Cloth>(m_physics,					// Create the cloth
-					"Cloth" + std::to_string(m_physics->m_cloths.size()), clothEntity, onMoveCloth,
-					onEraseCloth, vertices, indices, fixedPoints, 50, 4, 0.8);
-
-				m_physics->addCloth(physicsCloth);													// Add the cloth to the physics world
-			}
-
-			if (event.idata1 == GLFW_KEY_N && event.idata3 == GLFW_PRESS)							// Switch between cloths
-			{
-				m_currentClothIndex = (m_currentClothIndex + 1) % m_physics->m_cloths.size();
-			}
-
-			return false;
-		}
-
-		/// <summary>
-		/// 
-		/// </summary>
-		/// <param name="name"> Name of the listener. </param>
-		/// <param name="physics"> Pointer to the physics world. </param>
-		VEEventListenerClothControls(std::string name, VPEWorld* physics)
-			: VEEventListener(name), m_physics{ physics } { };
-	};
-
-
 	//----------------------------------------------------------------------------------------------
 	// My custom engine
 
@@ -701,10 +609,11 @@ namespace ve {
 		VEEventListenerPhysicsKeys* m_physics_listener_keys;
 		VEEventListenerPhysicsGUI* m_physics_listener_gui;
 		VEEventListenerConstraintsGUI* m_physics_listener_constraints_gui;
-		VEEventListenerClothControls* m_physics_listener_cloth;
+		TrialBike m_trialBike;
 
 		MyVulkanEngine(veRendererType type = veRendererType::VE_RENDERER_TYPE_FORWARD,
-			bool debug = false) : VEEngine(type, debug) {};
+			bool debug = false) : VEEngine(type, debug),
+			m_trialBike(&m_physics, onMove, onErase) {};
 
 		/// Register an event listener to interact with the user
 		virtual void registerEventListeners() {
@@ -713,13 +622,11 @@ namespace ve {
 			registerEventListener(m_physics_listener = new VEEventListenerPhysics(
 				"Physics", &m_physics), { veEvent::VE_EVENT_FRAME_STARTED });
 			registerEventListener(m_physics_listener_keys = new VEEventListenerPhysicsKeys(
-				"Physics Keys", &m_physics), { veEvent::VE_EVENT_KEYBOARD });
+				"Physics Keys", &m_physics, &m_trialBike), { veEvent::VE_EVENT_KEYBOARD });
 			registerEventListener(m_physics_listener_gui = new VEEventListenerPhysicsGUI(
 				"Physics GUI",&m_physics), { veEvent::VE_EVENT_DRAW_OVERLAY });
 			registerEventListener(m_physics_listener_constraints_gui = new VEEventListenerConstraintsGUI(
 				"Constraints GUI", &m_physics), { veEvent::VE_EVENT_DRAW_OVERLAY });
-			registerEventListener(m_physics_listener_cloth = new VEEventListenerClothControls(
-				"Cloth Controls", &m_physics), { veEvent::VE_EVENT_KEYBOARD });
 		};
 		
 
@@ -752,7 +659,13 @@ namespace ve {
 				"The Plane/plane_t_n_s.obj/plane/Entity_0") );
 			pE4->setParam( glm::vec4(1000.0f, 1000.0f, 0.0f, 0.0f) );
 
+
+			m_trialBike.bikeTwoWheels();
+
+
 			getSceneManagerPointer()->getSceneNode("StandardCameraParent")->setPosition({0,1,-4});
+
+
 
 			/*
 			VESceneNode* e1, * eParent;
