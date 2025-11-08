@@ -21,8 +21,6 @@ inline std::vector<glmvec3> getInitRandomPoints(size_t amount)
     std::uniform_real_distribution<> rnd_unif{-0.5, 0.5};
 
     std::vector<glmvec3> startings_points;
-    startings_points.reserve(amount);
-
     for (size_t idx = 0; idx < amount; ++idx)
     {
         real x = (real)rnd_unif(rnd_gen);
@@ -61,37 +59,53 @@ inline Tetrahedra getSuperTetrahedron(const std::vector<glmvec3> &points)
     real mid_z = (min_z + max_z) / 2.0_real;
 
     real deltaMax = std::max({max_x - min_x, max_y - min_y, max_z - min_z});
+    real scale = 10;
 
-    return Tetrahedra({mid_x - deltaMax * 20, mid_y - deltaMax * 20, mid_z - deltaMax},
-                      {mid_x, mid_y + deltaMax * 20, mid_z - deltaMax * 20},
-                      {mid_x + deltaMax * 20, mid_y - deltaMax, mid_z - deltaMax},
-                      {mid_x, mid_y + deltaMax, mid_z + deltaMax * 20});
+    return Tetrahedra({mid_x - deltaMax * scale, mid_y - deltaMax * scale, mid_z - deltaMax},
+                      {mid_x, mid_y + deltaMax * scale, mid_z - deltaMax * scale},
+                      {mid_x + deltaMax * scale, mid_y - deltaMax, mid_z - deltaMax},
+                      {mid_x, mid_y + deltaMax, mid_z + deltaMax * scale});
+}
+
+inline bool arePointsCoplanar(std::vector<glmvec3> points, glmvec3 point)
+{
+    // https://www.cuemath.com/geometry/coplanar/
+    glmvec3 a = points[0];
+    glmvec3 b = points[1];
+    glmvec3 c = points[2];
+    glmvec3 d = point;
+
+    glmvec3 AB = b - a;
+    glmvec3 BC = c - b;
+    glmvec3 CD = d - c;
+
+    glmmat3 m(AB, BC, CD);
+
+    return glm::determinant(m) == 0;
 }
 
 inline std::vector<Tetrahedra> BowyerWatson(std::vector<glmvec3> pointList)
 {
-    std::vector<Tetrahedra> triangulation;
+    std::vector<Tetrahedra> triangulation = {};
     Tetrahedra superTetrahedron = getSuperTetrahedron(pointList);
     triangulation.push_back(superTetrahedron);
 
-    for (glmvec3 eachPoint : pointList)
+    for (const glmvec3 &eachPoint : pointList)
     {
-        std::vector<Tetrahedra> badTetrahedron;
-        std::vector<Face> badTetrahedronFaces;
-        for (Tetrahedra eachTetrahedron : triangulation)
+        std::vector<Face> badTetrahedronFaces = {};
+        for (Tetrahedra &eachTetrahedron : triangulation)
         {
             if (eachTetrahedron.isInCircumSphere(eachPoint))
             {
                 eachTetrahedron.setBad(true);
-                badTetrahedron.push_back(eachTetrahedron);
                 std::vector<Face> faces = eachTetrahedron.getFaces();
                 badTetrahedronFaces.insert(badTetrahedronFaces.end(), faces.begin(), faces.end());
             }
         }
 
-        for (size_t first_idx = 0; first_idx < badTetrahedronFaces.size(); ++first_idx)
+        for (size_t first_idx = 0; first_idx < badTetrahedronFaces.size(); first_idx++)
         {
-            for (size_t second_idx = first_idx + 1; second_idx < badTetrahedronFaces.size(); ++second_idx)
+            for (size_t second_idx = first_idx + 1; second_idx < badTetrahedronFaces.size(); second_idx++)
             {
                 if (badTetrahedronFaces[first_idx].isFaceEqualTo(badTetrahedronFaces[second_idx]))
                 {
@@ -104,21 +118,26 @@ inline std::vector<Tetrahedra> BowyerWatson(std::vector<glmvec3> pointList)
         badTetrahedronFaces.erase(std::remove_if(badTetrahedronFaces.begin(), badTetrahedronFaces.end(), [](Face &face)
                                                  { return face.getBad(); }),
                                   badTetrahedronFaces.end());
+
         triangulation.erase(std::remove_if(triangulation.begin(), triangulation.end(), [](Tetrahedra &t)
                                            { return t.getBad(); }),
                             triangulation.end());
 
         for (Face eachFace : badTetrahedronFaces)
         {
-            triangulation.push_back(Tetrahedra(eachFace, eachPoint));
+            if (!arePointsCoplanar(eachFace.getPoints(), eachPoint))
+            {
+                triangulation.push_back(Tetrahedra(eachFace, eachPoint));
+            }
         }
     }
+
     std::vector<glmvec3> vertices = superTetrahedron.getPoints();
     triangulation.erase(std::remove_if(triangulation.begin(), triangulation.end(), [vertices](Tetrahedra &t)
-                                       { return t.containsPosition(vertices[0]) ||
-                                                t.containsPosition(vertices[1]) ||
-                                                t.containsPosition(vertices[2]) ||
-                                                t.containsPosition(vertices[3]); }),
+                                       { return t.containsPoint(vertices[0]) ||
+                                                t.containsPoint(vertices[1]) ||
+                                                t.containsPoint(vertices[2]) ||
+                                                t.containsPoint(vertices[3]); }),
                         triangulation.end());
 
     return triangulation;

@@ -29,7 +29,6 @@ public:
 
     Tetrahedra(Face face, glmvec3 d)
     {
-
         std::vector<glmvec3> face_points = face.getPoints();
         this->a = face_points[0];
         this->b = face_points[1];
@@ -60,6 +59,11 @@ public:
         return center;
     }
 
+    real getRadius() const
+    {
+        return radius;
+    }
+
     bool getBad()
     {
         return isBad;
@@ -68,11 +72,6 @@ public:
     void setBad(bool bad)
     {
         isBad = bad;
-    }
-
-    bool containsPosition(glmvec3 point)
-    {
-        return isVectorEqualTo(a, point) || isVectorEqualTo(b, point) || isVectorEqualTo(c, point) || isVectorEqualTo(d, point);
     }
 
     void calculateCircumSphere()
@@ -100,19 +99,17 @@ public:
 
         this->center = glmvec3(x_0, y_0, z_0);
         this->radius = std::sqrt(x_0 * x_0 + y_0 * y_0 + z_0 * z_0 - glm::determinant(m15) / glm::determinant(m11));
-
-        std::cout << center << std::endl;
-        std::cout << radius << std::endl;
     }
     bool isInCircumSphere(glmvec3 point)
     {
-        return (std::pow(this->center.x - point.x, 2) + std::pow(this->center.y - point.y, 2) + std::pow(this->center.z - point.z, 2) - std::pow(this->radius, 2)) <= 0;
+        real distance = real(std::pow(point.x - this->center.x, 2) + std::pow(point.y - this->center.y, 2) + std::pow(point.z - this->center.z, 2));
+        real epsilon_value = std::numeric_limits<real>::epsilon() * distance;
+        return distance <= std::pow(this->radius, 2) + epsilon_value;
     }
 
-    bool operator<(const Tetrahedra &other) const
+    bool containsPoint(glmvec3 point)
     {
-        real pi = 2 * std::acos(0.0);
-        return 4 / 3 * pi * std::pow(radius, 3) < 4 / 3 * pi * std::pow(other.radius, 3);
+        return isVectorEqualTo(a, point) || isVectorEqualTo(b, point) || isVectorEqualTo(c, point) || isVectorEqualTo(d, point);
     }
 
     bool isTetrahedraEqualTo(const Tetrahedra &other) const
@@ -132,9 +129,10 @@ public:
         o << "Tetrahedra\n";
         for (auto &eachPoint : t.getPoints())
         {
-            o << "Point" << eachPoint << "\n";
+            o << "Point " << eachPoint << "\n";
         }
-        o << "Sphere Center" << t.getCenter() << "\n";
+        o << "Sphere Center " << t.getCenter() << "\n";
+        o << "Radius " << t.getRadius() << "\n";
         return o;
     }
 };
