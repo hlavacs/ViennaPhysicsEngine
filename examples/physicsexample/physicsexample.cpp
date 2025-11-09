@@ -111,15 +111,43 @@ namespace ve {
 		/// </summary>
 		void onFrameStarted(veEvent event) {
 			m_physics->tick(event.dt);
+
+
+			//making the camera sideways, facing the bike and following it so it is always in the center of the screen
+			auto sceneMgr = getSceneManagerPointer();
+			auto* cam = sceneMgr->getSceneNode("StandardCamera");
+
+
+			if (m_trialBike) {
+				glm::vec3 bikePos = m_trialBike->getFramePosition();
+
+				const float camX = 9.0f;   
+				const float camY = 1.0f;   
+
+				glm::vec3 newPos = glm::vec3(camX, camY, bikePos.z+5.0f);
+
+				cam->setTransform(glm::translate(glm::mat4(1.0f), newPos));
+
+				glm::vec3 camPos = newPos;
+				glm::vec3 target = camPos + glm::vec3(-1.0f, 0.0f, 0.0f); //look at -x
+				glm::vec3 up(0, 1, 0);
+
+				glm::mat4 view = glm::lookAtLH(camPos, target, up);
+				cam->setTransform(glm::inverse(view));
+			}
+
+
 		}
 
 		VPEWorld* m_physics;																		//Pointer to the physics world
+		TrialBike* m_trialBike;
 		
 
 	public:
 		///Constructor of class EventListenerCollision
-		VEEventListenerPhysics(std::string name, VPEWorld* physics)
-			: VEEventListener(name),m_physics{ physics } { };
+		VEEventListenerPhysics(std::string name, VPEWorld* physics, TrialBike* m_trialBike)
+			: VEEventListener(name), m_physics{ physics }, m_trialBike{m_trialBike} {
+		};
 
 		///Destructor of class EventListenerCollision
 		virtual ~VEEventListenerPhysics() {};
@@ -208,11 +236,11 @@ namespace ve {
 
 			if (event.idata1 == GLFW_KEY_L) {
 				if (event.idata3 == GLFW_PRESS || event.idata3 == GLFW_REPEAT) {
-					std::cout << "GO!";
+					//std::cout << "GO!";
 					m_trialBike->setEngine(true);   // start engine
 				}
 				else if (event.idata3 == GLFW_RELEASE) {
-					std::cout << "STOP!";
+					//std::cout << "STOP!";
 					m_trialBike->setEngine(false);  // stop engine
 				}
 			}
@@ -620,7 +648,7 @@ namespace ve {
 			VEEngine::registerEventListeners();
 
 			registerEventListener(m_physics_listener = new VEEventListenerPhysics(
-				"Physics", &m_physics), { veEvent::VE_EVENT_FRAME_STARTED });
+				"Physics", &m_physics, &m_trialBike), { veEvent::VE_EVENT_FRAME_STARTED });
 			registerEventListener(m_physics_listener_keys = new VEEventListenerPhysicsKeys(
 				"Physics Keys", &m_physics, &m_trialBike), { veEvent::VE_EVENT_KEYBOARD });
 			registerEventListener(m_physics_listener_gui = new VEEventListenerPhysicsGUI(

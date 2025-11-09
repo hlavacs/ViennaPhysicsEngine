@@ -17,7 +17,7 @@ namespace ve {
 		std::shared_ptr<VPEWorld::HingeJoint> m_rearHinge = nullptr;
 		real m_targetOmega = 6.0_real;    
 		real m_maxMotorTorque = 80.0_real;   
-		
+		std::shared_ptr<VPEWorld::Body> m_frame;
 	public:
 		TrialBike(VPEWorld* physics, VPEWorld::callback_move onMove, VPEWorld::callback_erase onErase) : m_physics{ physics }, m_onMove{ onMove }, m_onErase{ onErase } {}
 		~TrialBike() {}
@@ -35,7 +35,7 @@ namespace ve {
 		std::shared_ptr<VPEWorld::Body> createAndAddBody(glmvec3 scale, glmvec3 position, glmquat orientation, real inv_mass, bool gravity, real friction = 1.0_real);
 		std::shared_ptr<VPEWorld::Body> createAndAddWheel(glmvec3 scale, glmvec3 position, glmquat orientation, real inv_mass, bool gravity, real friction = 1.0_real);
 		std::shared_ptr<VPEWorld::Body> createAndAddHandlesPassive(glmvec3 scale, glmvec3 position, glmquat orientation, real inv_mass, bool gravity, real friction = 1.0_real);
-	
+		glm::vec3 getFramePosition() const;
 		std::shared_ptr<VPEWorld::Body> createAndAddHandlesActive(glmvec3 scale, glmvec3 position, glmquat orientation, real inv_mass, bool gravity, real friction = 1.0_real);
 		void setEngine(bool on);
 		/// <summary>

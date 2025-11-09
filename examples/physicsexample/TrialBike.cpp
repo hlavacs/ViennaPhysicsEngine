@@ -94,6 +94,7 @@ namespace ve {
 
         // create bodies
         auto frame = TrialBike::createAndAddBody(glmvec3{ 1.0_real }, centre, glmquat{ 1,0,0,0 }, invMassFrame, true, 0.6_real);
+        m_frame = frame;
         frame->setAngularFactor(glmvec3{ 1.0_real, 0.0_real, 0.0_real });
 
 
@@ -188,6 +189,12 @@ namespace ve {
        }
     }
 
+    glm::vec3 TrialBike::getFramePosition() const {
+        if (m_frame) {
+            return m_frame->m_positionW; 
+        }
 
+        return glm::vec3(0.0f);
+    }
 
 }
