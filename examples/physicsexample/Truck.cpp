@@ -13,7 +13,7 @@ namespace ve {
         VECHECKPOINTER(model = getSceneManagerPointer()->loadModel("Model" + std::to_string(m_physics->m_body_id), "../../media/models/truck", "Truck.obj", 0, getRoot()));
         
 		// Create the truck body with the specified parameters
-        auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), model, &m_physics->g_truck_cube, scale, position, orientation, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, inv_mass, m_physics->m_restitution, friction);
+        auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), model, &m_physics->g_truck_cuboid, scale, position, orientation, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, inv_mass, m_physics->m_restitution, friction);
         
 		// Set callbacks for movement and erasure
         body->m_on_move = m_onMove;
