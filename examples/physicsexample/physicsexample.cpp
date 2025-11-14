@@ -29,6 +29,7 @@
 #include "VPE.hpp"
 #include "VPEConstraintDemos.hpp"
 
+#include "Truck.hpp"
 using namespace vpe;
 
 
@@ -557,8 +558,9 @@ namespace ve {
 				nk_layout_row_dynamic(ctx, 30, 5);
 				if (nk_button_label(ctx, "Bridge")) { m_constraintDemos.bridge(); }
 				if (nk_button_label(ctx, "Ragdoll")) { m_constraintDemos.ragdoll(); }
-				if (nk_button_label(ctx, "Cannon")) { m_constraintDemos.sliderCannon(); }
+				//if (nk_button_label(ctx, "Cannon")) { m_constraintDemos.sliderCannon(); }
 				if (nk_button_label(ctx, "Wheel")) { m_constraintDemos.wheel(); }
+				if (nk_button_label(ctx, "Truck")) { m_truck.truckFourWheels(); }
 				if (nk_button_label(ctx, "Chain")) { m_constraintDemos.hingeChain(); }
 			}
 			nk_end(ctx);
@@ -566,6 +568,7 @@ namespace ve {
 
 		VPEWorld* m_physics;	//pointer to the physics world
 		ConstraintDemos m_constraintDemos; // class to create the constraint demos
+		Truck m_truck;
 	public:
 
 		/// <summary>
@@ -573,7 +576,7 @@ namespace ve {
 		/// </summary>
 		/// <param name="name">Name for the eventlistener</param>
 		/// <param name="phy">Pointer to physics world to be used</param>
-		VEEventListenerConstraintsGUI(std::string name, VPEWorld* phy) : VEEventListener{ name }, m_physics{ phy }, m_constraintDemos{ phy, onMove, onErase } {};
+		VEEventListenerConstraintsGUI(std::string name, VPEWorld* phy) : VEEventListener{ name }, m_physics{ phy }, m_constraintDemos{ phy, onMove, onErase }, m_truck{ phy, onMove, onErase } {};
 
 		///Destructor of class VEEventListenerConstraintsGUI
 		virtual ~VEEventListenerConstraintsGUI() {};
