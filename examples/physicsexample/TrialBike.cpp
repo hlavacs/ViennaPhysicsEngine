@@ -5,12 +5,16 @@
 
 using namespace vpe;
 
+
+
+//skace ali ocu da limitujem koliko dugo utice na njega da drzim dugme za skakanje
 namespace ve {
     //"../../media/models/trial-bike", "bike_body.obj"
+    //"../../media/models/trial-bike", "bike_body_box.obj"
     std::shared_ptr<VPEWorld::Body> TrialBike::createAndAddBody(glmvec3 scale, glmvec3 position, glmquat orientation, real inv_mass, bool gravity, real friction) {
         VESceneNode* model;
         VECHECKPOINTER(model = getSceneManagerPointer()->loadModel("Model" + std::to_string(m_physics->m_body_id), "../../media/models/trial-bike", "bike_body.obj", 0, getRoot()));
-        auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), model, &m_physics->g_cube, scale, position, orientation, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, inv_mass, m_physics->m_restitution, friction);
+        auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), model, &m_physics->g_bike_body, scale, position, orientation, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, inv_mass, m_physics->m_restitution, friction);
         body->m_on_move = m_onMove;
         body->m_on_erase = m_onErase;
         m_physics->addBody(body);
@@ -38,7 +42,7 @@ namespace ve {
         // "../../media/models/test/crate0", "cube.obj"
         // "../../media/models/trial-bike", "tire.obj"
         VECHECKPOINTER(model = getSceneManagerPointer()->loadModel("Model" + std::to_string(m_physics->m_body_id), "../../media/models/trial-bike", "handles_passive.obj", 0, getRoot()));
-        auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), model, &m_physics->g_cylinder, scale, position, orientation, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, inv_mass, m_physics->m_restitution, friction);
+        auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), model, &m_physics->g_handles_passive, scale, position, orientation, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, inv_mass, m_physics->m_restitution, friction);
         body->m_on_move = m_onMove;
         body->m_on_erase = m_onErase;
         m_physics->addBody(body);
@@ -52,7 +56,7 @@ namespace ve {
         // "../../media/models/test/crate0", "cube.obj"
         // "../../media/models/trial-bike", "tire.obj"
         VECHECKPOINTER(model = getSceneManagerPointer()->loadModel("Model" + std::to_string(m_physics->m_body_id), "../../media/models/trial-bike", "handles_active.obj", 0, getRoot()));
-        auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), model, &m_physics->g_cylinder, scale, position, orientation, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, inv_mass, m_physics->m_restitution, friction);
+        auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), model, &m_physics->g_handles_active, scale, position, orientation, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, inv_mass, m_physics->m_restitution, friction);
         body->m_on_move = m_onMove;
         body->m_on_erase = m_onErase;
         m_physics->addBody(body);
@@ -69,10 +73,10 @@ namespace ve {
 
         // bike geometry 
         const real wheelbase = 3.0_real;   // distance between axles
-        const real axleHeight = 1.0_real;   // height above ground
+        const real axleHeight = 1.33_real;   // height above ground
         const real invMassFrame = 1.0_real / 100.0_real;
-        const real invMassWheel = 1.0_real / 15.0_real;
-        const real wheelFriction = 1.2_real;
+        const real invMassWheel = 1.0_real / 100.0_real;
+        const real wheelFriction = 5.0_real;
 
         // hinge axis
         const glmvec3 hingeAxis{ 1.0_real, 0.0_real, 0.0_real };
@@ -82,12 +86,12 @@ namespace ve {
         const real maxMotorTorque = 80.0_real;
 
         // centre of the bike, between axles
-        glmvec3 centre = camPos + 2.0_real * fwd;
+        glmvec3 centre = camPos + 2.0_real * glm::normalize(fwd);
         centre[1] = axleHeight;
 
         // rear and front axle positions along the forward vector
-        glmvec3 rearPos = centre - 0.5_real * wheelbase * glm::normalize(fwd);
-        glmvec3 frontPos = centre + 0.5_real * wheelbase * glm::normalize(fwd);
+        glmvec3 rearPos = centre - 0.3_real * wheelbase * glm::normalize(fwd);
+        glmvec3 frontPos = centre + 0.37_real * wheelbase * glm::normalize(fwd);
 
         centre[1] = 2.0_real;
 
@@ -117,30 +121,37 @@ namespace ve {
         rearHinge->setBody1MotorEnabled(false);
 
 
+
         m_physics->addConstraint(rearHinge);
         //m_physics->addConstraint(frontHinge);
 
 
         // handle positions
-        glmvec3 handlePos = centre + glmvec3{ 0.0_real, 0.3_real, 0.9_real };
+        glmvec3 handlePos = centre + glmvec3{ 0.0_real, 0.4_real, 0.75_real };
         glmquat handleOri{ 1, 0, 0, 0 };
 
         // create passive handles
         auto handles = TrialBike::createAndAddHandlesPassive(glmvec3{ 1.0_real }, handlePos, handleOri, 0.1_real, false, 0.5_real);
 
-        const glmvec3 hingeAxis2{ 0.0_real, 1.0_real, 0.0_real };
-        // hinge joint
-        auto handleHingeJoint = std::make_shared<VPEWorld::HingeJoint>(frame, handles, handlePos, hingeAxis2);
 
-        // limit the rotation
-        handleHingeJoint->enableLimit(-pi2 / 4.0_real, pi2 / 4.0_real);
+        // y should be set for 1.0_real in 3d case
+        //const glmvec3 hingeAxis2{ 0.0_real, 1.0_real, 0.0_real };
+        //// hinge joint
+        //auto handleHingeJoint = std::make_shared<VPEWorld::HingeJoint>(frame, handles, handlePos, hingeAxis2);
 
+        //// limit the rotation
+        //handleHingeJoint->enableLimit(-pi2 / 4.0_real, pi2 / 4.0_real);
+
+        //m_physics->addConstraint(handleHingeJoint);
+
+
+        auto handleHingeJoint = std::make_shared<VPEWorld::FixedJoint>(frame, handles, handlePos);
         m_physics->addConstraint(handleHingeJoint);
 
 
 
         //SLIDING HANDLES
-        glmvec3 activeStartPos = handlePos - glmvec3{ 0.0_real, 0.55_real, -0.3_real };
+        glmvec3 activeStartPos = handlePos - glmvec3{ 0.0_real, 0.7_real, -0.25_real };
         auto handlesActive = TrialBike::createAndAddHandlesActive(
             glmvec3{ 1.0_real },
             activeStartPos,
@@ -174,6 +185,7 @@ namespace ve {
         );
         m_physics->addConstraint(frontSpinHinge);
 
+
     }
 
     void TrialBike::setEngine(bool on)
@@ -197,4 +209,18 @@ namespace ve {
         return glm::vec3(0.0f);
     }
 
+    void TrialBike::jump() {
+        if (!m_frame) return;
+
+        // upward force
+        VPEWorld::Force jumpForce;
+        jumpForce.m_forceW = glmvec3{ 0.0_real, 5000.0_real, 0.0_real };
+
+
+        m_frame->setForce(JUMP, jumpForce);
+
+        // timer activation
+        m_jumpActive = true;
+    }
 }
+

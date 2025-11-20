@@ -17,8 +17,12 @@ namespace ve {
 		std::shared_ptr<VPEWorld::HingeJoint> m_rearHinge = nullptr;
 		real m_targetOmega = 6.0_real;    
 		real m_maxMotorTorque = 80.0_real;   
-		std::shared_ptr<VPEWorld::Body> m_frame;
+		
 	public:
+		std::shared_ptr<VPEWorld::Body> m_frame;
+		bool m_jumpActive = false;
+		real m_jumpTimeRemaining = 0.5_real; 
+		static constexpr uint64_t JUMP = 9999;
 		TrialBike(VPEWorld* physics, VPEWorld::callback_move onMove, VPEWorld::callback_erase onErase) : m_physics{ physics }, m_onMove{ onMove }, m_onErase{ onErase } {}
 		~TrialBike() {}
 
@@ -44,6 +48,8 @@ namespace ve {
 		/// <param name="init_pos"></param>
 		/// <param name="num_cubes"></param>
 		/// <returns>Returns a pointer to the center cube's body</returns>
+		/// 
+		void jump();
 
 		void bikeTwoWheels();
 

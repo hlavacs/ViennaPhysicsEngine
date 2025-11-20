@@ -117,7 +117,15 @@ namespace ve {
 			auto sceneMgr = getSceneManagerPointer();
 			auto* cam = sceneMgr->getSceneNode("StandardCamera");
 
+			if (m_trialBike->m_jumpActive) {
+				m_trialBike->m_jumpTimeRemaining -= event.dt;
 
+				if (m_trialBike->m_jumpTimeRemaining <= 0.0_real) {
+					m_trialBike->m_frame->removeForce(9999);  // remove vertical force
+					m_trialBike->m_jumpActive = false;              // jump finished
+				}
+			}
+			//MAKE CAMERA LOOK AT BIKE FROM SIDE VIEW
 			if (m_trialBike) {
 				glm::vec3 bikePos = m_trialBike->getFramePosition();
 
@@ -243,6 +251,11 @@ namespace ve {
 					//std::cout << "STOP!";
 					m_trialBike->setEngine(false);  // stop engine
 				}
+			}
+			if (event.idata1 == GLFW_KEY_T) {
+				std::cout << "JUMP!";
+				m_trialBike->jump();
+
 			}
 
 			return false;
