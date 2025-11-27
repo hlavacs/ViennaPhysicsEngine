@@ -119,11 +119,6 @@ public:
                isVectorEqualTo(a, other.c) && isVectorEqualTo(b, other.a) && isVectorEqualTo(c, other.b);
     }
 
-    bool operator==(const Tetrahedra &other) const
-    {
-        return isTetrahedraEqualTo(other);
-    }
-
     friend std::ostream &operator<<(std::ostream &o, const Tetrahedra &t)
     {
         o << "Tetrahedra\n";

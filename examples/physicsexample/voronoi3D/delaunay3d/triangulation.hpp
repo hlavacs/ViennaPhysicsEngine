@@ -14,14 +14,18 @@
 #include "tetrahedra.hpp"
 #include "misc.hpp"
 
-inline std::vector<glmvec3> getInitRandomPoints(size_t amount)
+inline std::vector<glmvec3> getInitRandomPoints(size_t n)
 {
-
+    /*
+    TODO: Prevent duplicate points from generating
+    TODO: Prevent 4 points being on a sphere
+    TODO: Calculate points based on dimension of convex polyhedron
+    */
     std::default_random_engine rnd_gen{12345};
-    std::uniform_real_distribution<> rnd_unif{-0.5, 0.5};
+    std::uniform_real_distribution<> rnd_unif{-1, 1};
 
     std::vector<glmvec3> startings_points;
-    for (size_t idx = 0; idx < amount; ++idx)
+    for (size_t idx = 0; idx < n; ++idx)
     {
         real x = (real)rnd_unif(rnd_gen);
         real y = (real)rnd_unif(rnd_gen);
@@ -143,9 +147,9 @@ inline std::vector<Tetrahedra> BowyerWatson(std::vector<glmvec3> pointList)
     return triangulation;
 }
 
-inline std::vector<Tetrahedra> fracture_polytope(vpe::VPEWorld::Polytope *polytope, size_t amount)
+inline std::pair<std::vector<Tetrahedra>, std::vector<glmvec3>> fracture_polytope(vpe::VPEWorld::Polytope *polytope, size_t amount)
 {
     std::vector<glmvec3> pointList = getInitRandomPoints(amount);
     std::vector<Tetrahedra> tetrahedrons = BowyerWatson(pointList);
-    return tetrahedrons;
+    return {tetrahedrons, pointList};
 }

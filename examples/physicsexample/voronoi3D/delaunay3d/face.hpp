@@ -9,8 +9,8 @@
 struct Face
 {
 private:
-    glmvec3 a, b, c;
-    bool isBad = false;
+    glmvec3 a, b, c; 
+    bool isBad = false; 
 
 public:
     Face(glmvec3 a, glmvec3 b, glmvec3 c) : a{a}, b{b}, c{c} {}
@@ -29,27 +29,6 @@ public:
     void setBad(bool bad)
     {
         isBad = bad;
-    }
-
-    const real getArea() const
-    {
-        glmvec3 AB = b - a;
-        glmvec3 AC = c - a;
-
-        glmvec3 cross = glm::cross(AB, AC);
-        return real(glm::length(cross) * 0.5);
-    }
-
-    bool operator<(const Face &other) const
-    {
-        return this->getArea() < other.getArea();
-    }
-
-    bool operator==(const Face &other) const
-    {
-        return a == other.a && b == other.b && c == other.c ||
-               a == other.b && b == other.c && c == other.a ||
-               a == other.c && b == other.a && c == other.b;
     }
 
     bool isFaceEqualTo(const Face &other) const
