@@ -10,6 +10,7 @@
 #include "Edge.hpp"
 #include "Triangle.hpp"
 #include "Point.hpp"
+#include "VPE.hpp"
 
 namespace VD
 {
@@ -201,9 +202,25 @@ namespace VD
             /**Sort the voronoi vertices in counter clockwise order for later visualizing*/
             sort_vertices_ccw(voronoi_vertices);
             Voronoi voronoi = Voronoi(eachPoints, voronoi_vertices);
-            std::cout << voronoi;
             voronois.push_back(voronoi);
         }
         return voronois;
+    }
+
+    /**
+     * Clip Voronoi to bounding box
+     * TODO: Add bounding box parameters
+     */
+    inline void clipVoronoiToBoundingBox(std::vector<Voronoi> &voronois)
+    {
+        for (Voronoi &each_voronoi : voronois)
+        {
+            std::vector<glmvec2> newPolygon;
+            std::vector<glmvec2> boundingBox = {{1, 1}, {1, -1}, {-1, -1}, {-1, 1}};
+            std::vector<glmvec2> vertices = each_voronoi.getVec2Vertices();
+
+            geometry::SutherlandHodgman(vertices, boundingBox, newPolygon);
+            each_voronoi.setVec2Vertices(newPolygon);
+        }
     }
 }
