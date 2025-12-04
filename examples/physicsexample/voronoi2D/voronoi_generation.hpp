@@ -94,12 +94,12 @@ namespace VD
      */
     inline void sort_vertices_ccw(std::vector<Point> &unordered_vertices)
     {
+        // Remove duplicate values in vector
+        auto duplicates = std::unique(unordered_vertices.begin(), unordered_vertices.end());
+        unordered_vertices.erase(duplicates, unordered_vertices.end());
         Point center = getCenterPoint(unordered_vertices);
         std::sort(unordered_vertices.begin(), unordered_vertices.end(), [&center](Point &p1, Point &p2)
                   { return angle_comparison(p1, p2, center); });
-        // Remove duplicate values in vector
-        auto it = std::unique(unordered_vertices.begin(), unordered_vertices.end());
-        unordered_vertices.erase(it, unordered_vertices.end());
     }
     /**
      * Transform the delaunay triangles to voronoi diagram

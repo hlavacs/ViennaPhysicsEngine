@@ -39,6 +39,7 @@ namespace VD
         void setVec2Vertices(std::vector<glmvec2> vec2_vertices)
         {
             vertices.clear();
+            vec2_vertices.pop_back();
             for (auto each_vertice : vec2_vertices)
             {
                 Point p = Point(each_vertice.x, each_vertice.y);
