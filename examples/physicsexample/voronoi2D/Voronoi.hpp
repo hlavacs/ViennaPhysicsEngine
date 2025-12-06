@@ -13,18 +13,12 @@ namespace VD
     struct Voronoi
     {
     private:
-        Point center;
         std::vector<Point> vertices;
 
     public:
-        Voronoi(Point center, std::vector<Point> vertices) : center{center}, vertices{vertices} {}
+        Voronoi(std::vector<Point> vertices) : vertices{vertices} {}
         Voronoi() {}
 
-        Point getCenter()
-        {
-            return center;
-        }
-        
         std::vector<Point> getVertices()
         {
             return vertices;
@@ -55,7 +49,7 @@ namespace VD
 
         friend std::ostream &operator<<(std::ostream &o, const Voronoi &v)
         {
-            o << "Voronoi Diagram (" << v.center.getX() << v.center.getY() << ")\n";
+            o << "Voronoi Diagram \n";
             for (auto vertice : v.vertices)
             {
                 o << vertice << "\n";

@@ -201,7 +201,9 @@ namespace VD
             }
             /**Sort the voronoi vertices in counter clockwise order for later visualizing*/
             sort_vertices_ccw(voronoi_vertices);
-            Voronoi voronoi = Voronoi(eachPoints, voronoi_vertices);
+            /**translate polytope center of mass to origin */
+            centerToOrigin(voronoi_vertices);
+            Voronoi voronoi = Voronoi(voronoi_vertices);
             voronois.push_back(voronoi);
         }
         return voronois;

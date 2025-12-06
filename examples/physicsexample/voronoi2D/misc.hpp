@@ -47,4 +47,14 @@ namespace VD
 
         return Point(x / size, y / size);
     }
+
+    inline void centerToOrigin(std::vector<Point> &points)
+    {
+        Point average = getAveragePoint(points);
+
+        for (auto &each_point : points)
+        {
+            each_point -= each_point - average;
+        }
+    }
 }
