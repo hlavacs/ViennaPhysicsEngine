@@ -32,4 +32,19 @@ namespace VD
     {
         return equal_within_ulps(a.getX(), b.getX()) && equal_within_ulps(a.getY(), b.getY());
     }
+
+    inline Point getAveragePoint(std::vector<Point> points)
+    {
+        real x = 0.0_real;
+        real y = 0.0_real;
+
+        real size = real(points.size());
+        for (Point each_point : points)
+        {
+            x += each_point.getX();
+            y += each_point.getY();
+        }
+
+        return Point(x / size, y / size);
+    }
 }

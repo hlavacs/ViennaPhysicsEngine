@@ -33,6 +33,8 @@
 #include "VPEConstraintDemos.hpp"
 #include "voronoi2D/triangulation.hpp"
 #include "voronoi2D/voronoi_generation.hpp"
+#include "voronoi2D/writeToOBJ.hpp"
+#include "voronoi2D/transformToPolytopes.hpp"
 
 using namespace vpe;
 
@@ -812,6 +814,8 @@ namespace ve
 
 		std::default_random_engine rnd_gen{12345};			   // Random numbers
 		std::uniform_real_distribution<> rnd_unif{0.0f, 1.0f}; // Random numbers
+		std::vector<vpe::VPEWorld::Polytope> polytopes;
+		int index = 0;
 
 	public:
 		/// <summary>
@@ -821,22 +825,18 @@ namespace ve
 		/// <returns> False, so the key is not consumed. </returns>
 		bool onKeyboard(veEvent event)
 		{
-			if (event.idata1 == GLFW_KEY_P && event.idata3 == GLFW_PRESS)
+			if (event.idata1 == GLFW_KEY_V && event.idata3 == GLFW_PRESS)
 			{
 				glmvec3 positionCamera{getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3]};
-				glmvec3 dir{getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2]};
-				glmvec3 vel = (30.0_real + 5.0_real * (real)rnd_unif(rnd_gen)) * dir / glm::length(dir);
-				glmvec3 scale{1, 1, 1}; // = rnd_unif(rnd_gen) * 10;
-				real angle = (real)rnd_unif(rnd_gen) * 10 * 3 * (real)M_PI / 180.0_real;
-				glmvec3 orient{rnd_unif(rnd_gen), rnd_unif(rnd_gen), rnd_unif(rnd_gen)};
-				glmvec3 vrot{rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5};
-				VESceneNode *cube;
-				VECHECKPOINTER(cube = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/crate0", "cube.obj", 0, getRoot()));
-				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube, &m_physics->g_cube, scale, positionCamera + 2.0_real * dir, glm::rotate(angle, glm::normalize(orient)), vel, vrot, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
+				VESceneNode *cube0;
+				static real dy = 0.5_real;
+				VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction/polytopes", "polytope" + std::to_string(index) + ".obj", 0, getRoot()));
+				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &polytopes[index], glmvec3{1.0_real}, glmvec3{positionCamera.x, dy++, positionCamera.z + 4}, glmquat{1, 0, 0, 0}, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
 				body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
 				body->m_on_move = onMove;
 				body->m_on_erase = onErase;
 				m_physics->addBody(body);
+				index++;
 			}
 
 			return false;
@@ -849,22 +849,38 @@ namespace ve
 		VEEventListenerDestructionControls(std::string name, VPEWorld *physics)
 			: VEEventListener(name), m_physics{physics}
 		{
+			auto result = VD::fracture_polytope(&m_physics->g_cube, 12); // default 12
+			std::vector<VD::Voronoi> voronois = VD::transformToVoronoi(result.first, result.second);
+			std::vector<VD::Voronoi> clipped_voronoi = voronois;
+			VD::clipVoronoiToBoundingBox(clipped_voronoi);
 
-			auto result = VD::fracture_polytope(&m_physics->g_cube, 12);
-			for (auto each : result.second)
+			this->polytopes = VD::transformToPolytopes(clipped_voronoi);
+			VD::writeToOBJ(clipped_voronoi);
+
+			std::cout << "\n\n\n\nTEST POLYTOPES \n";
+			int index = 0;
+			for (auto eachpoly : polytopes)
 			{
-				std::cout << each << "\n";
-			}
+				std::cout << "POLYTOPE" << index++ << " \n";
+				std::cout << "Vertices \n";
+				for (auto v : eachpoly.m_vertices)
+				{
+					std::cout << v.m_positionL << "\n";
+				}
 
-			for (auto each : result.first)
-			{
-				std::cout << each << "\n";
-			}
+				std::cout << "Faces \n";
+				for (auto v : eachpoly.m_faces)
+				{
+					std::cout << "f ";
+					for (auto f : v.m_face_vertex_ptrs)
+					{
 
-			VD::transformToVoronoi(result.first, result.second);
-			std::cout << "TEST";
-			// this->polytopes = convertToPolytope(delaunay);
-			// writeToOBJ(this->polytopes);
+						std::cout << f->m_id << " ";
+					}
+					std::cout << "\n";
+				}
+				std::cout << "\n\n";
+			}
 		};
 
 		/// Destructor of class EventListenerCollision

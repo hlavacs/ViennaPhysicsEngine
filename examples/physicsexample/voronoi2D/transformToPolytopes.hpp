@@ -30,7 +30,7 @@ namespace VD
             {
                 vertices.push_back({each_vertice.getX(), each_vertice.getY(), 0.25_real});
             }
-            /** Add back edges */
+            /** Add back vertices */
             for (auto each_vertice : voronoi_vertices)
             {
                 vertices.push_back({each_vertice.getX(), each_vertice.getY(), -0.25_real});

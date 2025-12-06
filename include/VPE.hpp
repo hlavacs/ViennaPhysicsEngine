@@ -487,6 +487,21 @@ namespace vpe
 				return mass * glmmat3{{s.y * s.y + s.z * s.z, 0, 0}, {0, s.x * s.x + s.z * s.z, 0}, {0, 0, s.x * s.x + s.y * s.y}} / 12.0_real;
 			}};
 
+		inline static Polytope g_wall{
+			{{-1.0_real, -1.0_real, -0.25_real}, {-1.0_real, -1.0_real, 0.25_real}, {-1.0_real, 1.0_real, 0.25_real}, {-1.0_real, 1.0_real, -0.25_real}, {1.0_real, -1.0_real, 0.25_real}, {1.0_real, -1.0_real, -0.25_real}, {1.0_real, 1.0_real, -0.25_real}, {1.0_real, 1.0_real, 0.25_real}},
+			{{0, 1}, {1, 2}, {2, 3}, {3, 0}, {4, 5}, {5, 6}, {6, 7}, {7, 4}, {5, 0}, {1, 4}, {3, 6}, {7, 2}}, // edges
+			{
+				{{0, 1}, {1, 1}, {2, 1}, {3, 1}},		// face 0
+				{{4, 1}, {5, 1}, {6, 1}, {7, 1}},		// face 1
+				{{0, -1}, {8, -1}, {4, -1}, {9, -1}},	// face 2
+				{{2, -1}, {11, -1}, {6, -1}, {10, -1}}, // face 3
+				{{3, -1}, {10, 1}, {5, -1}, {8, 1}},	// face 4
+				{{1, -1}, {9, 1}, {7, -1}, {11, 1}}		// face 5
+			},
+			[](real mass, glmvec3 &s) { // callback for calculating the inertia tensor of this polytope
+				return mass * glmmat3{{s.y * s.y + s.z * s.z, 0, 0}, {0, s.x * s.x + s.z * s.z, 0}, {0, 0, s.x * s.x + s.y * s.y}} / 12.0_real;
+			}};
+
 		//--------------------------------------------------------------------------------------------------
 		// Physics engine stuff
 
@@ -1280,7 +1295,7 @@ namespace vpe
 				for (auto &body : m_bodies)
 				{
 					body.second->stepVelocity(m_sim_delta_time);
-				}											  // Integration step for velocity
+				} // Integration step for velocity
 				setupConstraints(m_sim_delta_time);			  // Pre-calculate values the constraints need during iteration
 				calculateImpulses(m_loops, m_sim_delta_time); // Calculate and apply impulses (also solve constraints here)
 
@@ -3788,6 +3803,7 @@ namespace geometry
 	// https://rosettacode.org/wiki/Sutherland-Hodgman_polygon_clipping#C.2B.2B
 	inline void SutherlandHodgman(auto &subjectPolygon, auto &clipPolygon, auto &newPolygon)
 	{
+
 		glmvec2 cp1, cp2, s, e;
 		std::vector<glmvec2> inputPolygon;
 		newPolygon = subjectPolygon;

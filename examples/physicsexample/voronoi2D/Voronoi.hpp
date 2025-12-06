@@ -20,6 +20,11 @@ namespace VD
         Voronoi(Point center, std::vector<Point> vertices) : center{center}, vertices{vertices} {}
         Voronoi() {}
 
+        Point getCenter()
+        {
+            return center;
+        }
+        
         std::vector<Point> getVertices()
         {
             return vertices;
