@@ -21,20 +21,21 @@ namespace VD
     /**
      * Returns a list of n 2D points
      */
-    inline std::set<Point> getInitRandomPoints(size_t n)
+    inline std::set<Point> getInitRandomPoints(size_t n, std::vector<real> boundary_values)
     {
         /*
         TODO: Prevent 4 points being on a sphere
         TODO: Calculate points based on dimension of convex polyhedron
         */
         std::default_random_engine rnd_gen{12345};
-        std::uniform_real_distribution<> rnd_unif{-1, 1};
+        std::uniform_real_distribution<> rnd_unif_x{boundary_values[0], boundary_values[1]};
+        std::uniform_real_distribution<> rnd_unif_y{boundary_values[2], boundary_values[3]};
 
         std::set<Point> startings_points;
         for (size_t idx = 0; idx < n; ++idx)
         {
-            real x = (real)rnd_unif(rnd_gen);
-            real y = (real)rnd_unif(rnd_gen);
+            real x = (real)rnd_unif_x(rnd_gen);
+            real y = (real)rnd_unif_y(rnd_gen);
 
             startings_points.insert(Point(x, y));
         }
@@ -72,11 +73,17 @@ namespace VD
                         Point(mid_x + deltaMax * scale * scale, mid_y - deltaMax));
     }
 
-    /* Checks if points are collinear*/
+    /* Slope Method to check if 3 points are collinear*/
     inline bool arePointsColinear(Edge e, Point c)
     {
-        // TODO
-        return false;
+        Point a = e.getA();
+        Point b = e.getB();
+        real slopeAB = (b.getY() - a.getY()) / (b.getX() - a.getX());
+        real slopeBC = (c.getY() - b.getY()) / (c.getX() - b.getX());
+
+        if (slopeAB == slopeBC)
+            std::cout << a << b << c << "\n";
+        return slopeAB == slopeBC;
     }
 
     /**
@@ -147,9 +154,9 @@ namespace VD
     /**
      * Construct delaunay triangles from a given set of points
      */
-    inline std::pair<std::vector<Triangle>, std::set<Point>> fracture_polytope(vpe::VPEWorld::Polytope *polytope, size_t amount)
+    inline std::pair<std::vector<Triangle>, std::set<Point>> fracture_polytope(std::vector<real> boundary_values, size_t amount)
     {
-        std::set<Point> pointList = getInitRandomPoints(amount);
+        std::set<Point> pointList = getInitRandomPoints(amount, boundary_values);
         std::vector<Triangle> triangles = BowyerWatson(pointList);
         return {triangles, pointList};
     }

@@ -90,16 +90,17 @@ namespace VD
         return angle1 < angle2;
     }
     /**
-     * Sort vertices in counter clockwise order
+     * Sort vertices in counter clockwise order by angle
      */
     inline void sort_vertices_ccw(std::vector<Point> &unordered_vertices)
     {
-        // Remove duplicate values in vector
-        auto duplicates = std::unique(unordered_vertices.begin(), unordered_vertices.end());
-        unordered_vertices.erase(duplicates, unordered_vertices.end());
         Point center = getCenterPoint(unordered_vertices);
         std::sort(unordered_vertices.begin(), unordered_vertices.end(), [&center](Point &p1, Point &p2)
                   { return angle_comparison(p1, p2, center); });
+
+        // Remove duplicate values in vector
+        auto duplicates = std::unique(unordered_vertices.begin(), unordered_vertices.end());
+        unordered_vertices.erase(duplicates, unordered_vertices.end());
     }
     /**
      * Transform the delaunay triangles to voronoi diagram
@@ -201,8 +202,7 @@ namespace VD
             }
             /**Sort the voronoi vertices in counter clockwise order for later visualizing*/
             sort_vertices_ccw(voronoi_vertices);
-            /**translate polytope center of mass to origin */
-            centerToOrigin(voronoi_vertices);
+
             Voronoi voronoi = Voronoi(voronoi_vertices);
             voronois.push_back(voronoi);
         }
@@ -213,12 +213,16 @@ namespace VD
      * Clip Voronoi to bounding box
      * TODO: Add bounding box parameters
      */
-    inline void clipVoronoiToBoundingBox(std::vector<Voronoi> &voronois)
+    inline void clipVoronoiToBoundingBox(std::vector<real> boundary_values, std::vector<Voronoi> &voronois)
     {
+        real min_x = boundary_values[0];
+        real max_x = boundary_values[1];
+        real min_y = boundary_values[2];
+        real max_y = boundary_values[3];
         for (Voronoi &each_voronoi : voronois)
         {
             std::vector<glmvec2> newPolygon;
-            std::vector<glmvec2> boundingBox = {{1, 1}, {1, -1}, {-1, -1}, {-1, 1}};
+            std::vector<glmvec2> boundingBox = {{max_x, max_y}, {max_x, min_y}, {min_x, min_y}, {min_x, max_y}};
             std::vector<glmvec2> vertices = each_voronoi.getVec2Vertices();
 
             geometry::SutherlandHodgman(vertices, boundingBox, newPolygon);

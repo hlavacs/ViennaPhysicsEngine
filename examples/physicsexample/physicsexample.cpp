@@ -836,7 +836,20 @@ namespace ve
 				body->m_on_move = onMove;
 				body->m_on_erase = onErase;
 				m_physics->addBody(body);
-				index++;
+				index < polytopes.size() - 1 ? index++ : index = 0;
+			}
+
+			if (event.idata1 == GLFW_KEY_X && event.idata3 == GLFW_PRESS)
+			{
+				glmvec3 positionCamera{getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3]};
+				VESceneNode *cube0;
+				static real dy = 5.5_real;
+				VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction/", "wall.obj", 0, getRoot()));
+				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_wall, glmvec3{1.0_real}, glmvec3{positionCamera.x, dy++, positionCamera.z + 4}, glmquat{1, 0, 0, 0}, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
+				body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
+				body->m_on_move = onMove;
+				body->m_on_erase = onErase;
+				m_physics->addBody(body);
 			}
 
 			return false;
@@ -849,38 +862,18 @@ namespace ve
 		VEEventListenerDestructionControls(std::string name, VPEWorld *physics)
 			: VEEventListener(name), m_physics{physics}
 		{
-			auto result = VD::fracture_polytope(&m_physics->g_cube, 12); // default 12
-			std::vector<VD::Voronoi> voronois = VD::transformToVoronoi(result.first, result.second);
-			std::vector<VD::Voronoi> clipped_voronoi = voronois;
-			VD::clipVoronoiToBoundingBox(clipped_voronoi);
 
+			std::vector<real> boundary_values = VD::getBoundaryValues(m_physics->g_wall.m_vertices);
+
+			auto result = VD::fracture_polytope(boundary_values, 12); // default 12
+
+			std::vector<VD::Voronoi> clipped_voronoi = VD::transformToVoronoi(result.first, result.second);
+
+			VD::clipVoronoiToBoundingBox(boundary_values, clipped_voronoi);
+
+			std::vector<VD::Point> translationVectors = VD::center_voronois(clipped_voronoi);
 			this->polytopes = VD::transformToPolytopes(clipped_voronoi);
 			VD::writeToOBJ(clipped_voronoi);
-
-			std::cout << "\n\n\n\nTEST POLYTOPES \n";
-			int index = 0;
-			for (auto eachpoly : polytopes)
-			{
-				std::cout << "POLYTOPE" << index++ << " \n";
-				std::cout << "Vertices \n";
-				for (auto v : eachpoly.m_vertices)
-				{
-					std::cout << v.m_positionL << "\n";
-				}
-
-				std::cout << "Faces \n";
-				for (auto v : eachpoly.m_faces)
-				{
-					std::cout << "f ";
-					for (auto f : v.m_face_vertex_ptrs)
-					{
-
-						std::cout << f->m_id << " ";
-					}
-					std::cout << "\n";
-				}
-				std::cout << "\n\n";
-			}
 		};
 
 		/// Destructor of class EventListenerCollision

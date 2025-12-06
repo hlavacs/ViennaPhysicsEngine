@@ -5,6 +5,7 @@
 
 #include "Point.hpp"
 #include "Edge.hpp"
+#include "misc.hpp"
 
 #include "VPE.hpp"
 
@@ -13,7 +14,7 @@ namespace VD
     struct Voronoi
     {
     private:
-        std::vector<Point> vertices;
+        std::vector<Point> vertices; /**TODO: Replace with glmvec2 */
 
     public:
         Voronoi(std::vector<Point> vertices) : vertices{vertices} {}
@@ -22,6 +23,11 @@ namespace VD
         std::vector<Point> getVertices()
         {
             return vertices;
+        }
+
+        void setVertices(std::vector<Point> vertices)
+        {
+            this->vertices = vertices;
         }
 
         std::vector<glmvec2> getVec2Vertices()
@@ -38,7 +44,6 @@ namespace VD
         void setVec2Vertices(std::vector<glmvec2> vec2_vertices)
         {
             vertices.clear();
-            vec2_vertices.pop_back();
             for (auto each_vertice : vec2_vertices)
             {
                 Point p = Point(each_vertice.x, each_vertice.y);
