@@ -5,7 +5,7 @@
 namespace VD
 {
     /**
-     * 2D Point 
+     * 2D Point
      */
     struct Point
     {
@@ -93,6 +93,9 @@ namespace VD
     };
 }
 
+/**
+ *  Hash function for set
+ */
 namespace std
 {
     template <>

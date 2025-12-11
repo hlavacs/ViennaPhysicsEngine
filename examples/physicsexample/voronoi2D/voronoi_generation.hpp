@@ -210,8 +210,7 @@ namespace VD
     }
 
     /**
-     * Clip Voronoi to bounding box
-     * TODO: Add bounding box parameters
+     * Clip Voronoi vertices to a bounding box
      */
     inline void clipVoronoiToBoundingBox(std::vector<real> boundary_values, std::vector<Voronoi> &voronois)
     {

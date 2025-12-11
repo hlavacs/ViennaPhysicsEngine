@@ -11,7 +11,7 @@ namespace VD
     struct Edge
     {
     private:
-        Point a, b;           /*start and end points*/
+        Point a, b;           /* start and end points */
         bool badEdge = false; /* boolean for bad edges in delaunay algorithm */
 
     public:

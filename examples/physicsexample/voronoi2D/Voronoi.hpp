@@ -11,10 +11,14 @@
 
 namespace VD
 {
+    /**
+     * Voronoi class
+     */
     struct Voronoi
     {
     private:
-        std::vector<Point> vertices; /**TODO: Replace with glmvec2 */
+        /**TODO: Replace with glmvec2 */
+        std::vector<Point> vertices; /** voronoi defined by vertices in counter clockwise order */
 
     public:
         Voronoi(std::vector<Point> vertices) : vertices{vertices} {}
@@ -30,6 +34,9 @@ namespace VD
             this->vertices = vertices;
         }
 
+        /**
+         * Convert into reversed vector of glm::vec2 values and returns it
+         */
         std::vector<glmvec2> getVec2Vertices()
         {
             std::vector<glmvec2> result = {};
@@ -41,6 +48,9 @@ namespace VD
             return result;
         }
 
+        /**
+         * Convert reversed glmvec2 vector and sets it as vertices 
+         */
         void setVec2Vertices(std::vector<glmvec2> vec2_vertices)
         {
             vertices.clear();

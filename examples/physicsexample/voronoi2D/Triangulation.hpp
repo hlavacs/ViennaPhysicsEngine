@@ -19,13 +19,12 @@
 namespace VD
 {
     /**
-     * Returns a list of n 2D points
+     * Returns a list of n amount of 2D points
      */
     inline std::set<Point> getInitRandomPoints(size_t n, std::vector<real> boundary_values)
     {
         /*
-        TODO: Prevent 4 points being on a sphere
-        TODO: Calculate points based on dimension of convex polyhedron
+        TODO: Prevent 4 points being on a circle
         */
         std::default_random_engine rnd_gen{12345};
         std::uniform_real_distribution<> rnd_unif_x{boundary_values[0], boundary_values[1]};
@@ -73,7 +72,9 @@ namespace VD
                         Point(mid_x + deltaMax * scale * scale, mid_y - deltaMax));
     }
 
-    /* Slope Method to check if 3 points are collinear*/
+    /**
+     *  Slope Method to check if 3 points are collinear
+     */
     inline bool arePointsColinear(Edge e, Point c)
     {
         Point a = e.getA();
@@ -99,6 +100,7 @@ namespace VD
         for (const Point &eachPoint : pointList)
         {
             std::vector<Edge> badTriangleEdges = {};
+            /** If point is in triangle, mark it and save it */
             for (Triangle &eachTriangle : triangulation)
             {
                 if (eachTriangle.isInCircumcircle(eachPoint))
@@ -130,6 +132,7 @@ namespace VD
                                                { return t.isBad(); }),
                                 triangulation.end());
 
+            /** Create new triangles from bad triangle edges */
             for (Edge eachEdge : badTriangleEdges)
             {
                 if (!arePointsColinear(eachEdge, eachPoint))

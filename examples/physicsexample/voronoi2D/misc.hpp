@@ -63,6 +63,9 @@ namespace VD
         }
     }
 
+    /**
+     * Translate voronoi by the average of their vertices and return this vector of translations
+     */
     inline std::vector<glmvec3> center_voronois(std::vector<Voronoi> &voronois)
     {
         std::vector<glmvec3> translationVector = {};
@@ -78,6 +81,9 @@ namespace VD
         return translationVector;
     }
 
+    /**
+     * Find minimum and maximum x/y values of given vertices
+     */
     inline std::vector<real> getBoundaryValues(std::vector<vpe::VPEWorld::Vertex> &poly_vertices)
     {
         real min_x = std::numeric_limits<real>::max();

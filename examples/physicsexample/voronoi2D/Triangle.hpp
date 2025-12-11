@@ -54,11 +54,12 @@ namespace VD
         {
             return badTriangle;
         }
-
+        
         void setBad(bool value)
         {
             badTriangle = value;
         }
+
         /**
          * Check if Triangle contains Point p
          */
@@ -66,8 +67,9 @@ namespace VD
         {
             return isVectorEqualTo(a, p) || isVectorEqualTo(b, p) || isVectorEqualTo(c, p);
         }
+
         /**
-         * Checks if Point is in the Circle defined by the points of the triangle
+         * Checks if Point d is in the circle defined by the points of the triangle
          */
         bool isInCircumcircle(Point d)
         {
@@ -86,7 +88,7 @@ namespace VD
             return (m11 * m22 * m33 + m12 * m23 * m31 + m13 * m21 * m32) - (m31 * m22 * m13 + m32 * m23 * m11 + m33 * m21 * m12) >= 0;
         }
         /*
-         * Calculates the center point of the circumcircle of the triangle
+         * Calculates the center point of the circumcircle of the triangle using determinant method
          */
         Point getCircumcircleCenter()
         {
@@ -104,7 +106,7 @@ namespace VD
         }
 
         /**
-         * Compares if two triangles are equal
+         * Compares two triangles, equal if all 3 points are the same
          */
         bool isTriangleEqualTo(const Triangle &other) const
         {
