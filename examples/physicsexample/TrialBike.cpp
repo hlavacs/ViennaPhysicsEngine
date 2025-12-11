@@ -64,6 +64,20 @@ namespace ve {
 
         return body;
     }
+    std::shared_ptr<VPEWorld::Body> TrialBike::createAndAddBiker(glmvec3 scale, glmvec3 position, glmquat orientation, real inv_mass, bool gravity, real friction) {
+        VESceneNode* model;
+        // "../../media/models/test/crate0", "cube.obj"
+        // "../../media/models/trial-bike", "tire.obj"
+        VECHECKPOINTER(model = getSceneManagerPointer()->loadModel("Model" + std::to_string(m_physics->m_body_id), "../../media/models/trial-bike", "biker.obj", 0, getRoot()));
+        auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), model, &m_physics->g_cube, scale, position, orientation, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, inv_mass, m_physics->m_restitution, friction);
+        body->m_on_move = m_onMove;
+        body->m_on_erase = m_onErase;
+        m_physics->addBody(body);
+        if (gravity) body->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
+
+        return body;
+    }
+
 
     void TrialBike::bikeTwoWheels()
     {
@@ -101,6 +115,23 @@ namespace ve {
         m_frame = frame;
         frame->setAngularFactor(glmvec3{ 1.0_real, 0.0_real, 0.0_real });
 
+
+        //BIKER
+        //position slightly above the bike frame
+        glmvec3 bikerPos = frame->m_positionW + glmvec3{ 0.0_real, 1.0_real, -0.4_real };
+        glmquat bikerOri{ 1, 0, 0, 0 };
+
+        // biker body
+        auto biker = createAndAddBiker(glmvec3{ 1.0_real }, bikerPos, bikerOri, invMassWheel, true, wheelFriction);
+
+        // attach biker to the frame
+        auto bikerJoint = std::make_shared<VPEWorld::FixedJoint>(
+            frame,
+            biker,
+            bikerPos   
+        );
+
+        m_physics->addConstraint(bikerJoint);
 
         glmquat wheelOri{ 1,0,0,0 };
 
