@@ -815,6 +815,7 @@ namespace ve
 		std::default_random_engine rnd_gen{12345};			   // Random numbers
 		std::uniform_real_distribution<> rnd_unif{0.0f, 1.0f}; // Random numbers
 		std::vector<vpe::VPEWorld::Polytope> polytopes;
+		std::vector<glmvec3> translationVectors;
 		int index = 0;
 
 	public:
@@ -825,25 +826,47 @@ namespace ve
 		/// <returns> False, so the key is not consumed. </returns>
 		bool onKeyboard(veEvent event)
 		{
-			if (event.idata1 == GLFW_KEY_V && event.idata3 == GLFW_PRESS)
+			glmvec3 positionCamera{getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3]};
+
+			if (event.idata1 == GLFW_KEY_3 && event.idata3 == GLFW_PRESS)
 			{
-				glmvec3 positionCamera{getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3]};
 				VESceneNode *cube0;
-				static real dy = 0.5_real;
+				glmvec3 dir{getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2]};
+				glmvec3 vel = (30.0_real + 5.0_real * (real)rnd_unif(rnd_gen)) * dir / glm::length(dir);
+				glmvec3 scale{1, 1, 1}; // = rnd_unif(rnd_gen) * 10;
+				real angle = (real)rnd_unif(rnd_gen) * 10 * 3 * (real)M_PI / 180.0_real;
+				glmvec3 orient{rnd_unif(rnd_gen), rnd_unif(rnd_gen), rnd_unif(rnd_gen)};
+				glmvec3 vrot{rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5};
+
 				VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction/polytopes", "polytope" + std::to_string(index) + ".obj", 0, getRoot()));
-				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &polytopes[index], glmvec3{1.0_real}, glmvec3{positionCamera.x, dy++, positionCamera.z + 4}, glmquat{1, 0, 0, 0}, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
+				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &polytopes[index], scale, positionCamera + 2.0_real * dir, glm::rotate(angle, glm::normalize(orient)), vel, vrot, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
+
 				body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
 				body->m_on_move = onMove;
 				body->m_on_erase = onErase;
 				m_physics->addBody(body);
 				index < polytopes.size() - 1 ? index++ : index = 0;
 			}
-
-			if (event.idata1 == GLFW_KEY_X && event.idata3 == GLFW_PRESS)
+			if (event.idata1 == GLFW_KEY_2 && event.idata3 == GLFW_PRESS)
 			{
-				glmvec3 positionCamera{getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3]};
+
+				for (int index = 0; index < polytopes.size(); ++index)
+				{
+					VESceneNode *cube0;
+					static real dy = 1.0_real;
+					VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction/polytopes", "polytope" + std::to_string(index) + ".obj", 0, getRoot()));
+					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &polytopes[index], glmvec3{1.0_real}, glmvec3{positionCamera.x, dy, positionCamera.z + 4} + translationVectors[index], glmquat{1, 0, 0, 0}, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
+					body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
+					body->m_on_move = onMove;
+					body->m_on_erase = onErase;
+					m_physics->addBody(body);
+				}
+			}
+
+			if (event.idata1 == GLFW_KEY_1 && event.idata3 == GLFW_PRESS)
+			{
 				VESceneNode *cube0;
-				static real dy = 5.5_real;
+				static real dy = 1.0_real;
 				VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction/", "wall.obj", 0, getRoot()));
 				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_wall, glmvec3{1.0_real}, glmvec3{positionCamera.x, dy++, positionCamera.z + 4}, glmquat{1, 0, 0, 0}, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
 				body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
@@ -864,14 +887,12 @@ namespace ve
 		{
 
 			std::vector<real> boundary_values = VD::getBoundaryValues(m_physics->g_wall.m_vertices);
-
 			auto result = VD::fracture_polytope(boundary_values, 12); // default 12
 
 			std::vector<VD::Voronoi> clipped_voronoi = VD::transformToVoronoi(result.first, result.second);
-
 			VD::clipVoronoiToBoundingBox(boundary_values, clipped_voronoi);
 
-			std::vector<VD::Point> translationVectors = VD::center_voronois(clipped_voronoi);
+			this->translationVectors = VD::center_voronois(clipped_voronoi);
 			this->polytopes = VD::transformToPolytopes(clipped_voronoi);
 			VD::writeToOBJ(clipped_voronoi);
 		};

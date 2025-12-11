@@ -81,8 +81,6 @@ namespace VD
         real slopeAB = (b.getY() - a.getY()) / (b.getX() - a.getX());
         real slopeBC = (c.getY() - b.getY()) / (c.getX() - b.getX());
 
-        if (slopeAB == slopeBC)
-            std::cout << a << b << c << "\n";
         return slopeAB == slopeBC;
     }
 

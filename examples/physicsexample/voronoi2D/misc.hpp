@@ -63,15 +63,15 @@ namespace VD
         }
     }
 
-    inline std::vector<Point> center_voronois(std::vector<Voronoi> &voronois)
+    inline std::vector<glmvec3> center_voronois(std::vector<Voronoi> &voronois)
     {
-        std::vector<Point> translationVector = {};
+        std::vector<glmvec3> translationVector = {};
         for (auto &each_voronoi : voronois)
         {
             std::vector<Point> voronoi_vertice = each_voronoi.getVertices();
             Point average = getAveragePoint(voronoi_vertice);
             translateVertices(voronoi_vertice, average);
-            translationVector.push_back(average);
+            translationVector.push_back({average.getX(), average.getY(), 0});
             each_voronoi.setVertices(voronoi_vertice);
         }
 
