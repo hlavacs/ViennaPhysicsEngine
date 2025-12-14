@@ -17,49 +17,33 @@ namespace VD
     struct Voronoi
     {
     private:
-        /**TODO: Replace with glmvec2 */
-        std::vector<Point> vertices; /** voronoi defined by vertices in counter clockwise order */
+        std::vector<glmvec2> vertices; /** voronoi defined by vertices in counter clockwise order */
 
     public:
-        Voronoi(std::vector<Point> vertices) : vertices{vertices} {}
+        Voronoi(std::vector<Point> vertices)
+        {
+            for (auto each_vertice : vertices)
+            {
+                this->vertices.push_back({each_vertice.getX(), each_vertice.getY()});
+            }
+        }
         Voronoi() {}
 
-        std::vector<Point> getVertices()
+        std::vector<glmvec2> getVertices()
         {
             return vertices;
         }
 
-        void setVertices(std::vector<Point> vertices)
+        std::vector<glmvec2> getReversedVertices()
+        {
+            std::vector<glmvec2> reversed_vertices = vertices;
+            std::reverse(reversed_vertices.begin(), reversed_vertices.end());
+            return reversed_vertices;
+        }
+
+        void setVertices(std::vector<glmvec2> vertices)
         {
             this->vertices = vertices;
-        }
-
-        /**
-         * Convert into reversed vector of glm::vec2 values and returns it
-         */
-        std::vector<glmvec2> getVec2Vertices()
-        {
-            std::vector<glmvec2> result = {};
-            for (auto each_vertice : vertices)
-            {
-                result.push_back(glmvec2(each_vertice.getX(), each_vertice.getY()));
-            }
-            std::reverse(result.begin(), result.end());
-            return result;
-        }
-
-        /**
-         * Convert reversed glmvec2 vector and sets it as vertices 
-         */
-        void setVec2Vertices(std::vector<glmvec2> vec2_vertices)
-        {
-            vertices.clear();
-            for (auto each_vertice : vec2_vertices)
-            {
-                Point p = Point(each_vertice.x, each_vertice.y);
-                vertices.push_back(p);
-            }
-            std::reverse(vertices.begin(), vertices.end());
         }
 
         friend std::ostream &operator<<(std::ostream &o, const Voronoi &v)

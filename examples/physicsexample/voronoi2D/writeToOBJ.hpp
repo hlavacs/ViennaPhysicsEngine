@@ -53,25 +53,25 @@ namespace VD
             writeHeader(file, polytope_index);
 
             /** Fetch voronoi vertices */
-            std::vector<Point> voronoi_vertices = eachVoronoi.getVertices();
+            std::vector<glmvec2> voronoi_vertices = eachVoronoi.getVertices();
             int vertices_size = int(voronoi_vertices.size());
-            Point center = getAveragePoint(voronoi_vertices);
+            glmvec2 center = getAveragePoint(voronoi_vertices);
 
             /** Add z dimension to vertices */
             /** Add Front vertices */
 
             for (auto each_vertice : voronoi_vertices)
             {
-                writeVertices(file, each_vertice.getX(), each_vertice.getY(), z_coords.second);
+                writeVertices(file, each_vertice.x, each_vertice.y, z_coords.second);
             }
             /** Add back vertices */
 
             for (auto each_vertice : voronoi_vertices)
             {
-                writeVertices(file, each_vertice.getX(), each_vertice.getY(), z_coords.first);
+                writeVertices(file, each_vertice.x, each_vertice.y, z_coords.first);
             }
-            writeVertices(file, center.getX(), center.getY(), z_coords.second);
-            writeVertices(file, center.getX(), center.getY(), z_coords.first);
+            writeVertices(file, center.x, center.y, z_coords.second);
+            writeVertices(file, center.x, center.y, z_coords.first);
             writeNewLine(file);
 
             /**Add faces */

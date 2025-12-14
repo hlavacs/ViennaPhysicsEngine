@@ -886,15 +886,15 @@ namespace ve
 			: VEEventListener(name), m_physics{physics}
 		{
 
-			std::vector<real> boundary_values = VD::getBoundaryValues(m_physics->g_wall.m_vertices);
+			std::vector<std::pair<real, real>> boundary_values = VD::getBoundaryValues(m_physics->g_wall.m_vertices);
 			auto result = VD::fracture_polytope(boundary_values, 12); // default 12
 
 			std::vector<VD::Voronoi> clipped_voronoi = VD::transformToVoronoi(result.first, result.second);
 			VD::clipVoronoiToBoundingBox(boundary_values, clipped_voronoi);
 
 			this->translationVectors = VD::center_voronois(clipped_voronoi);
-			this->polytopes = VD::transformToPolytopes(clipped_voronoi);
-			VD::writeToOBJ(clipped_voronoi);
+			this->polytopes = VD::transformToPolytopes(clipped_voronoi, boundary_values[2]);
+			VD::writeToOBJ(clipped_voronoi, boundary_values[2]);
 		};
 
 		/// Destructor of class EventListenerCollision

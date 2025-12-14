@@ -222,10 +222,11 @@ namespace VD
         {
             std::vector<glmvec2> newPolygon;
             std::vector<glmvec2> boundingBox = {{max_x, max_y}, {max_x, min_y}, {min_x, min_y}, {min_x, max_y}};
-            std::vector<glmvec2> vertices = each_voronoi.getVec2Vertices();
+            std::vector<glmvec2> vertices = each_voronoi.getReversedVertices();
 
             geometry::SutherlandHodgman(vertices, boundingBox, newPolygon);
-            each_voronoi.setVec2Vertices(newPolygon);
+            std::reverse(newPolygon.begin(), newPolygon.end());
+            each_voronoi.setVertices(newPolygon);
         }
     }
 }

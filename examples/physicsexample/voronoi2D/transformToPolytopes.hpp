@@ -16,7 +16,7 @@ namespace VD
         for (Voronoi &eachVoronoi : voronois)
         {
             /** Fetch voronoi vertices */
-            std::vector<Point> voronoi_vertices = eachVoronoi.getVertices();
+            std::vector<glmvec2> voronoi_vertices = eachVoronoi.getVertices();
             uint32_t vertices_size = uint32_t(voronoi_vertices.size());
 
             /** Polytope variables */
@@ -28,13 +28,13 @@ namespace VD
             /** Add Front vertices */
             for (auto each_vertice : voronoi_vertices)
             {
-                vertices.push_back({each_vertice.getX(), each_vertice.getY(), z_coords.second});
+                vertices.push_back({each_vertice.x, each_vertice.y, z_coords.second});
             }
             /** Add back vertices */
             for (auto each_vertice : voronoi_vertices)
             {
 
-                vertices.push_back({each_vertice.getX(), each_vertice.getY(), z_coords.first});
+                vertices.push_back({each_vertice.x, each_vertice.y, z_coords.first});
             }
 
             /**Add Front edges */

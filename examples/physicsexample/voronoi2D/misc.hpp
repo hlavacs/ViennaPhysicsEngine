@@ -37,25 +37,25 @@ namespace VD
     /**
      * Get average point of a list of points
      */
-    inline Point getAveragePoint(std::vector<Point> points)
+    inline glmvec2 getAveragePoint(std::vector<glmvec2> points)
     {
         real x = 0.0_real;
         real y = 0.0_real;
 
         real size = real(points.size());
-        for (Point each_point : points)
+        for (auto each_point : points)
         {
-            x += each_point.getX();
-            y += each_point.getY();
+            x += each_point.x;
+            y += each_point.y;
         }
 
-        return Point(x / size, y / size);
+        return {x / size, y / size};
     }
 
     /**
      * translate point by the average of the points
      */
-    inline void translateVertices(std::vector<Point> &points, Point translation)
+    inline void translateVertices(std::vector<glmvec2> &points, glmvec2 translation)
     {
         for (auto &each_point : points)
         {
@@ -71,10 +71,10 @@ namespace VD
         std::vector<glmvec3> translationVector = {};
         for (auto &each_voronoi : voronois)
         {
-            std::vector<Point> voronoi_vertice = each_voronoi.getVertices();
-            Point average = getAveragePoint(voronoi_vertice);
+            std::vector<glmvec2> voronoi_vertice = each_voronoi.getVertices();
+            glmvec2 average = getAveragePoint(voronoi_vertice);
             translateVertices(voronoi_vertice, average);
-            translationVector.push_back({average.getX(), average.getY(), 0});
+            translationVector.push_back({average.x, average.y, 0});
             each_voronoi.setVertices(voronoi_vertice);
         }
 
