@@ -21,14 +21,14 @@ namespace VD
     /**
      * Returns a list of n amount of 2D points
      */
-    inline std::set<Point> getInitRandomPoints(size_t n, std::vector<real> boundary_values)
+    inline std::set<Point> getInitRandomPoints(size_t n, std::vector<std::pair<real, real>> boundary_values)
     {
         /*
         TODO: Prevent 4 points being on a circle
         */
         std::default_random_engine rnd_gen{12345};
-        std::uniform_real_distribution<> rnd_unif_x{boundary_values[0], boundary_values[1]};
-        std::uniform_real_distribution<> rnd_unif_y{boundary_values[2], boundary_values[3]};
+        std::uniform_real_distribution<> rnd_unif_x{boundary_values[0].first, boundary_values[0].second};
+        std::uniform_real_distribution<> rnd_unif_y{boundary_values[1].first, boundary_values[1].second};
 
         std::set<Point> startings_points;
         for (size_t idx = 0; idx < n; ++idx)
@@ -155,7 +155,7 @@ namespace VD
     /**
      * Construct delaunay triangles from a given set of points
      */
-    inline std::pair<std::vector<Triangle>, std::set<Point>> fracture_polytope(std::vector<real> boundary_values, size_t amount)
+    inline std::pair<std::vector<Triangle>, std::set<Point>> fracture_polytope(std::vector<std::pair<real, real>> &boundary_values, size_t amount)
     {
         std::set<Point> pointList = getInitRandomPoints(amount, boundary_values);
         std::vector<Triangle> triangles = BowyerWatson(pointList);

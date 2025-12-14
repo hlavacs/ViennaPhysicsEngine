@@ -202,7 +202,6 @@ namespace VD
             }
             /**Sort the voronoi vertices in counter clockwise order for later visualizing*/
             sort_vertices_ccw(voronoi_vertices);
-
             Voronoi voronoi = Voronoi(voronoi_vertices);
             voronois.push_back(voronoi);
         }
@@ -212,12 +211,13 @@ namespace VD
     /**
      * Clip Voronoi vertices to a bounding box
      */
-    inline void clipVoronoiToBoundingBox(std::vector<real> boundary_values, std::vector<Voronoi> &voronois)
+    inline void clipVoronoiToBoundingBox(std::vector<std::pair<real, real>> &boundary_values, std::vector<Voronoi> &voronois)
     {
-        real min_x = boundary_values[0];
-        real max_x = boundary_values[1];
-        real min_y = boundary_values[2];
-        real max_y = boundary_values[3];
+        real min_x = boundary_values[0].first;
+        real max_x = boundary_values[0].second;
+        real min_y = boundary_values[1].first;
+        real max_y = boundary_values[1].second;
+
         for (Voronoi &each_voronoi : voronois)
         {
             std::vector<glmvec2> newPolygon;

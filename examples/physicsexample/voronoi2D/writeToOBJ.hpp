@@ -34,7 +34,7 @@ namespace VD
         file << "#\n\n";
     }
 
-    inline void writeToOBJ(std::vector<VD::Voronoi> &voronois)
+    inline void writeToOBJ(std::vector<VD::Voronoi> &voronois, std::pair<real, real> z_coords)
     {
         int polytope_index = 0;
         fs::path parent_path = fs::current_path().parent_path().parent_path();
@@ -62,16 +62,16 @@ namespace VD
 
             for (auto each_vertice : voronoi_vertices)
             {
-                writeVertices(file, each_vertice.getX(), each_vertice.getY(), 0.25_real);
+                writeVertices(file, each_vertice.getX(), each_vertice.getY(), z_coords.second);
             }
             /** Add back vertices */
 
             for (auto each_vertice : voronoi_vertices)
             {
-                writeVertices(file, each_vertice.getX(), each_vertice.getY(), -0.25_real);
+                writeVertices(file, each_vertice.getX(), each_vertice.getY(), z_coords.first);
             }
-            writeVertices(file, center.getX(), center.getY(), 0.25_real);
-            writeVertices(file, center.getX(), center.getY(), -0.25_real);
+            writeVertices(file, center.getX(), center.getY(), z_coords.second);
+            writeVertices(file, center.getX(), center.getY(), z_coords.first);
             writeNewLine(file);
 
             /**Add faces */

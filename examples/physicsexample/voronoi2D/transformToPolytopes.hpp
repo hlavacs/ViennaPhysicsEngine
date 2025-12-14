@@ -10,7 +10,7 @@
 namespace VD
 {
     /** Transform 2D Voronoi to 3D polytopes by extruding them into z-dimension */
-    std::vector<vpe::VPEWorld::Polytope> transformToPolytopes(std::vector<Voronoi> &voronois)
+    std::vector<vpe::VPEWorld::Polytope> transformToPolytopes(std::vector<Voronoi> &voronois, std::pair<real, real> z_coords)
     {
         std::vector<vpe::VPEWorld::Polytope> polytopes = {};
         for (Voronoi &eachVoronoi : voronois)
@@ -28,12 +28,13 @@ namespace VD
             /** Add Front vertices */
             for (auto each_vertice : voronoi_vertices)
             {
-                vertices.push_back({each_vertice.getX(), each_vertice.getY(), 0.25_real});
+                vertices.push_back({each_vertice.getX(), each_vertice.getY(), z_coords.second});
             }
             /** Add back vertices */
             for (auto each_vertice : voronoi_vertices)
             {
-                vertices.push_back({each_vertice.getX(), each_vertice.getY(), -0.25_real});
+
+                vertices.push_back({each_vertice.getX(), each_vertice.getY(), z_coords.first});
             }
 
             /**Add Front edges */

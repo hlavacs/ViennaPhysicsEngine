@@ -84,22 +84,27 @@ namespace VD
     /**
      * Find minimum and maximum x/y values of given vertices
      */
-    inline std::vector<real> getBoundaryValues(std::vector<vpe::VPEWorld::Vertex> &poly_vertices)
+    inline std::vector<std::pair<real, real>> getBoundaryValues(std::vector<vpe::VPEWorld::Vertex> &poly_vertices)
     {
         real min_x = std::numeric_limits<real>::max();
         real min_y = std::numeric_limits<real>::max();
+        real min_z = std::numeric_limits<real>::max();
 
         real max_x = std::numeric_limits<real>::min();
         real max_y = std::numeric_limits<real>::min();
+        real max_z = std::numeric_limits<real>::min();
+
         for (auto &each_vertice : poly_vertices)
         {
             min_x = std::min(min_x, each_vertice.m_positionL.x);
             min_y = std::min(min_y, each_vertice.m_positionL.y);
+            min_z = std::min(min_z, each_vertice.m_positionL.z);
 
             max_x = std::max(max_x, each_vertice.m_positionL.x);
             max_y = std::max(max_y, each_vertice.m_positionL.y);
+            max_z = std::max(max_z, each_vertice.m_positionL.z);
         }
 
-        return {min_x, max_x, min_y, max_y};
+        return {{min_x, max_x}, {min_y, max_y}, {min_z, max_z}};
     }
 }
