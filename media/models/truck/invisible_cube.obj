@@ -1,0 +1,31 @@
+# Invisible Cube Geometry OBJ File
+
+# Link to the material file
+mtllib invisible_cube.mtl
+
+# Define the 8 vertices of a unit cube (from -0.1 to +0.1 on each axis)
+v -0.1 -0.1 0.1
+v -0.1 0.1 0.1
+v 0.1 0.1 0.1
+v 0.1 -0.1 0.1
+v -0.1 -0.1 -0.1
+v -0.1 0.1 -0.1
+v 0.1 0.1 -0.1
+v 0.1 -0.1 -0.1
+
+# Specify the invisible material for the faces
+usemtl invisible_material
+
+# Define the 6 faces (quads) using the vertices (v1 v2 v3 v4)
+# Front face
+f 1 2 3 4
+# Back face
+f 8 7 6 5
+# Top face
+f 2 6 7 3
+# Bottom face
+f 5 1 4 8
+# Left face
+f 5 6 2 1
+# Right face
+f 4 3 7 8

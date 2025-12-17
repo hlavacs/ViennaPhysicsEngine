@@ -48,7 +48,7 @@ namespace ve {
 		glmquat orient = body->m_orientationLW;														// New orientation of the scende node
 		body->stepPosition(dt, pos, orient, false);													// Extrapolate
 		cube->setTransform(VPEWorld::Body::computeModel(pos, orient, body->m_scale));				// Set the scene node data
-	};
+		};
 
 	/// <summary>
 	/// This callback is called if the body is intentionally deleted. It is not called if the engine
@@ -58,7 +58,7 @@ namespace ve {
 		VESceneNode* node = static_cast<VESceneNode*>(body->m_owner);								// Owner is a pointer to a scene node
 		getSceneManagerPointer()->deleteSceneNodeAndChildren(
 			((VESceneNode*)body->m_owner)->getName());
-	};
+		};
 
 	/// <summary>
 	/// This is an example callback that is called if a body collides with another body.
@@ -68,7 +68,7 @@ namespace ve {
 	inline VPEWorld::callback_collide onCollide =
 		[](std::shared_ptr<VPEWorld::Body> body1, std::shared_ptr<VPEWorld::Body> body2) {
 		std::cout << "Collision " << body1->m_name << " " << body2->m_name << "\n";
-	};
+		};
 
 	//--------------------------------Begin-Cloth-Simulation-Stuff----------------------------------
 	// by Felix Neumann
@@ -80,11 +80,11 @@ namespace ve {
 	/// <param name="cloth"> Pointer to the cloth so that the owner can get the data. </param>
 	inline VPEWorld::callback_move_cloth onMoveCloth =
 		[](double dt, std::shared_ptr<VPEWorld::Cloth> cloth)
-	{
-		VEClothEntity* clothOwner = static_cast<VEClothEntity*>(cloth->m_owner);					// Owner is a pointer to a scene node
-		auto vertices = cloth->generateVertices();													// Vertices with updated position data
-		(static_cast<VEClothMesh*> (clothOwner->m_pMesh))->updateVertices(vertices);				// Update the vertices of the mesh
-	};
+		{
+			VEClothEntity* clothOwner = static_cast<VEClothEntity*>(cloth->m_owner);					// Owner is a pointer to a scene node
+			auto vertices = cloth->generateVertices();													// Vertices with updated position data
+			(static_cast<VEClothMesh*> (clothOwner->m_pMesh))->updateVertices(vertices);				// Update the vertices of the mesh
+		};
 
 	/// <summary>
 	/// Called by the cloth if it is erased.
@@ -95,7 +95,7 @@ namespace ve {
 		VESceneNode* node = static_cast<VESceneNode*>(cloth->m_owner);								// Owner is a pointer to a scene node
 		getSceneManagerPointer()->deleteSceneNodeAndChildren(										// Delete the owner and child node
 			((VESceneNode*)cloth->m_owner)->getName());												// associated with the cloth
-	};
+		};
 
 	//---------------------------------End-Cloth-Simulation-Stuff-----------------------------------
 
@@ -137,7 +137,15 @@ namespace ve {
 		std::default_random_engine rnd_gen{ 12345 };					//Random numbers
 		std::uniform_real_distribution<> rnd_unif{ 0.0f, 1.0f };		//Random numbers
 
+		bool m_followCameraActive = false;
+
 	public:
+
+		void onFrameStarted(veEvent event) override {
+			if (m_followCameraActive && m_truck) {
+				m_truck->followTruckCamera(event.dt);
+			}
+		}
 
 		/// <summary>
 		/// Callback for event key stroke. Depending on the key pressed, bodies are created.
@@ -206,15 +214,54 @@ namespace ve {
 				m_physics->addBody(body);
 			}
 
+			if (event.idata1 == GLFW_KEY_8) {
+				if (event.idata3 == GLFW_PRESS) m_truck->truckMoveForward();
+				else if (event.idata3 == GLFW_RELEASE) m_truck->truckRoll();
+			}
+			if (event.idata1 == GLFW_KEY_7) {
+				if (event.idata3 == GLFW_PRESS) m_truck->truckMoveLeft();
+				else if (event.idata3 == GLFW_RELEASE) m_truck->truckRoll();
+			}
+			if (event.idata1 == GLFW_KEY_9) {
+				if (event.idata3 == GLFW_PRESS) m_truck->truckMoveRight();
+				else if (event.idata3 == GLFW_RELEASE) m_truck->truckRoll();
+			}
+			if (event.idata1 == GLFW_KEY_0) {
+				if (event.idata3 == GLFW_PRESS) m_truck->truckMoveBackward();
+				else if (event.idata3 == GLFW_RELEASE) m_truck->truckRoll();
+			}
+			if (event.idata1 == GLFW_KEY_6) {
+				if (event.idata3 == GLFW_PRESS) m_truck->truckHandBrake();
+				else if (event.idata3 == GLFW_RELEASE) m_truck->truckRoll();
+			}
+
+			if (event.idata1 == GLFW_KEY_5 && event.idata3 == GLFW_PRESS) {
+				if (m_truck) {
+					if (!m_followCameraActive) {
+						m_followCameraActive = true;
+					}
+					else {
+						m_truck->toggleCameraMode();
+					}
+				}
+			}
+
+			if (event.idata1 == GLFW_KEY_4 && event.idata3 == GLFW_PRESS) {
+				if (m_truck) {
+					m_followCameraActive = false;
+				}
+			}
+
+
 			return false;
 		};
 
 		VPEWorld* m_physics;	//Pointer to the physics world
-
+		Truck* m_truck;			//Pointer to the truck
 	public:
 		/// Constructor of class EventListenerCollision
-		VEEventListenerPhysicsKeys(std::string name, VPEWorld* physics)
-			: VEEventListener(name), m_physics{physics} { };
+		VEEventListenerPhysicsKeys(std::string name, VPEWorld* physics, Truck* truck)
+			: VEEventListener(name), m_physics{physics}, m_truck{ truck } {};
 
 		///Destructor of class EventListenerCollision
 		virtual ~VEEventListenerPhysicsKeys() {};
@@ -409,7 +456,7 @@ namespace ve {
 				if (m_physics->m_body) { str << "Current Body " << m_physics->m_body->m_name; }
 				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
 
-				if (nk_button_label(ctx, "Pick body")) { 
+				if (nk_button_label(ctx, "Pick body")) {
 					glmvec3 pos{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->
 						getWorldTransform()[3] };
 					glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->
@@ -483,7 +530,7 @@ namespace ve {
 		void createRandomBodies(int n) {
 			for (int i = 0; i < n; ++i) {
 				glmvec3 pos =
-					{ rnd_unif(rnd_gen), 20 * rnd_unif(rnd_gen) + 10.0_real, rnd_unif(rnd_gen) };
+				{ rnd_unif(rnd_gen), 20 * rnd_unif(rnd_gen) + 10.0_real, rnd_unif(rnd_gen) };
 				glmvec3 vel = { rnd_unif(rnd_gen), rnd_unif(rnd_gen), rnd_unif(rnd_gen) };
 				glmvec3 scale{ 1,1,1 }; // = rnd_unif(rnd_gen) * 10;
 				real angle = (real)rnd_unif(rnd_gen) * 10 * 3 * (real)M_PI / 180.0_real;
@@ -538,37 +585,207 @@ namespace ve {
 			struct nk_context* ctx = pSubrender->getContext();
 
 			/* GUI */
-			if (nk_begin(ctx, "Constraints Panel", nk_rect(580, 20, 400, 160),
+			if (nk_begin(ctx, "Truck Panel", nk_rect(1500, 20, 390, 410),
 				NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
 				NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE))
 			{
-				std::stringstream str;
-				str << std::setprecision(5);
+				
 
 				nk_layout_row_dynamic(ctx, 30, 1);
-				str.str("Constraint Demos");
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+				if (nk_button_label(ctx, "Truck")) { m_truck->truck(); }
 
-				nk_layout_row_dynamic(ctx, 30, 4);
-				if (nk_button_label(ctx, "Ball-Socket")) { m_constraintDemos.ballSocketJoint(); }
-				if (nk_button_label(ctx, "Hinge")) { m_constraintDemos.hingeJoint(); }
-				if (nk_button_label(ctx, "Slider")) { m_constraintDemos.sliderJoint(); }
-				if (nk_button_label(ctx, "Fixed")) { m_constraintDemos.fixedJoint(); }
+				const int ROW_HEIGHT = 30;
+				const int LABEL_WIDTH = 250; // Wide label
+				const int BUTTON_WIDTH = 50;  // Narrow button
 
-				nk_layout_row_dynamic(ctx, 30, 5);
-				if (nk_button_label(ctx, "Bridge")) { m_constraintDemos.bridge(); }
-				if (nk_button_label(ctx, "Ragdoll")) { m_constraintDemos.ragdoll(); }
-				//if (nk_button_label(ctx, "Cannon")) { m_constraintDemos.sliderCannon(); }
-				if (nk_button_label(ctx, "Wheel")) { m_constraintDemos.wheel(); }
-				if (nk_button_label(ctx, "Truck")) { m_truck.truckFourWheels(); }
-				if (nk_button_label(ctx, "Chain")) { m_constraintDemos.hingeChain(); }
+				// --- Stiffness (Original, for reference) ---
+				nk_layout_row_begin(ctx, NK_STATIC, ROW_HEIGHT, 3);
+				nk_layout_row_push(ctx, LABEL_WIDTH);
+				{
+					std::stringstream stiffStr;
+					stiffStr << "Stiffness: " << m_truck->getSuspensionStiffness();
+					nk_label(ctx, stiffStr.str().c_str(), NK_TEXT_LEFT);
+				}
+				nk_layout_row_push(ctx, BUTTON_WIDTH);
+				{
+					if (nk_button_label(ctx, "-")) {
+						m_truck->decreaseStiffness();
+					}
+				}
+				nk_layout_row_push(ctx, BUTTON_WIDTH);
+				{
+					if (nk_button_label(ctx, "+")) {
+						m_truck->increaseStiffness();
+					}
+				}
+				nk_layout_row_end(ctx);
+
+				// --- Damping ---
+				nk_layout_row_begin(ctx, NK_STATIC, ROW_HEIGHT, 3);
+				nk_layout_row_push(ctx, LABEL_WIDTH);
+				{
+					std::stringstream dampStr;
+					dampStr << "Damping: " << m_truck->getSuspensionDamping();
+					nk_label(ctx, dampStr.str().c_str(), NK_TEXT_LEFT);
+				}
+				nk_layout_row_push(ctx, BUTTON_WIDTH);
+				{
+					if (nk_button_label(ctx, "-")) {
+						m_truck->decreaseDamping();
+					}
+				}
+				nk_layout_row_push(ctx, BUTTON_WIDTH);
+				{
+					if (nk_button_label(ctx, "+")) {
+						m_truck->increaseDamping();
+					}
+				}
+				nk_layout_row_end(ctx);
+
+				// --- Motor Speed ---
+				nk_layout_row_begin(ctx, NK_STATIC, ROW_HEIGHT, 3);
+				nk_layout_row_push(ctx, LABEL_WIDTH);
+				{
+					std::stringstream motorSpeedStr;
+					motorSpeedStr << "Fwd Speed: " << m_truck->getMotorSpeed();
+					nk_label(ctx, motorSpeedStr.str().c_str(), NK_TEXT_LEFT);
+				}
+				nk_layout_row_push(ctx, BUTTON_WIDTH);
+				{
+					if (nk_button_label(ctx, "-")) {
+						m_truck->decreaseMotorSpeed();
+					}
+				}
+				nk_layout_row_push(ctx, BUTTON_WIDTH);
+				{
+					if (nk_button_label(ctx, "+")) {
+						m_truck->increaseMotorSpeed();
+					}
+				}
+				nk_layout_row_end(ctx);
+
+				// --- Motor Force ---
+				nk_layout_row_begin(ctx, NK_STATIC, ROW_HEIGHT, 3);
+				nk_layout_row_push(ctx, LABEL_WIDTH);
+				{
+					std::stringstream motorForceStr;
+					motorForceStr << "Fwd Force: " << m_truck->getMotorForce();
+					nk_label(ctx, motorForceStr.str().c_str(), NK_TEXT_LEFT);
+				}
+				nk_layout_row_push(ctx, BUTTON_WIDTH);
+				{
+					if (nk_button_label(ctx, "-")) {
+						m_truck->decreaseMotorForce();
+					}
+				}
+				nk_layout_row_push(ctx, BUTTON_WIDTH);
+				{
+					if (nk_button_label(ctx, "+")) {
+						m_truck->increaseMotorForce();
+					}
+				}
+				nk_layout_row_end(ctx);
+
+				// --- Steer Angle ---
+				nk_layout_row_begin(ctx, NK_STATIC, ROW_HEIGHT, 3);
+				nk_layout_row_push(ctx, LABEL_WIDTH);
+				{
+					std::stringstream steerAngleStr;
+					steerAngleStr << "Steer Angle: " << m_truck->getSteerAngle();
+					nk_label(ctx, steerAngleStr.str().c_str(), NK_TEXT_LEFT);
+				}
+				nk_layout_row_push(ctx, BUTTON_WIDTH);
+				{
+					if (nk_button_label(ctx, "-")) {
+						m_truck->decreaseSteerAngle();
+					}
+				}
+				nk_layout_row_push(ctx, BUTTON_WIDTH);
+				{
+					if (nk_button_label(ctx, "+")) {
+						m_truck->increaseSteerAngle();
+					}
+				}
+				nk_layout_row_end(ctx);
+
+
+				// --- Friction ---
+				nk_layout_row_begin(ctx, NK_STATIC, ROW_HEIGHT, 3);
+				nk_layout_row_push(ctx, LABEL_WIDTH);
+				{
+					std::stringstream frictionStr;
+					frictionStr << "Friction: " << m_truck->getWheelFriction();
+					nk_label(ctx, frictionStr.str().c_str(), NK_TEXT_LEFT);
+				}
+				nk_layout_row_push(ctx, BUTTON_WIDTH);
+				{
+					if (nk_button_label(ctx, "-")) {
+						m_truck->decreaseWheelFriction();
+					}
+				}
+				nk_layout_row_push(ctx, BUTTON_WIDTH);
+				{
+					if (nk_button_label(ctx, "+")) {
+						m_truck->increaseWheelFriction();
+					}
+				}
+				nk_layout_row_end(ctx);
+
+				// --- Frame Mass ---
+				nk_layout_row_begin(ctx, NK_STATIC, ROW_HEIGHT, 3);
+				nk_layout_row_push(ctx, LABEL_WIDTH);
+				{
+					std::stringstream invMassStr;
+					invMassStr << "Frame Mass: " << m_truck->getMassFrame();
+					nk_label(ctx, invMassStr.str().c_str(), NK_TEXT_LEFT);
+				}
+				nk_layout_row_push(ctx, BUTTON_WIDTH);
+				{
+					if (nk_button_label(ctx, "-")) {
+						m_truck->decreaseMassFrame();
+					}
+				}
+				nk_layout_row_push(ctx, BUTTON_WIDTH);
+				{
+					if (nk_button_label(ctx, "+")) {
+						m_truck->increaseMassFrame();
+					}
+				}
+				nk_layout_row_end(ctx);
+
+				// --- Frame Wheel ---
+				nk_layout_row_begin(ctx, NK_STATIC, ROW_HEIGHT, 3);
+				nk_layout_row_push(ctx, LABEL_WIDTH);
+				{
+					std::stringstream invMassStr;
+					invMassStr << "Wheel Mass: " << m_truck->getMassWheel();
+					nk_label(ctx, invMassStr.str().c_str(), NK_TEXT_LEFT);
+				}
+				nk_layout_row_push(ctx, BUTTON_WIDTH);
+				{
+					if (nk_button_label(ctx, "-")) {
+						m_truck->decreaseMassWheel();
+					}
+				}
+				nk_layout_row_push(ctx, BUTTON_WIDTH);
+				{
+					if (nk_button_label(ctx, "+")) {
+						m_truck->increaseMassWheel();
+					}
+				}
+				nk_layout_row_end(ctx);
+	
+				nk_layout_row_dynamic(ctx, 30, 1);
+				if (nk_button_label(ctx, "Clear Bodies")) {
+					m_physics->clear();
+				}
 			}
 			nk_end(ctx);
 		}
 
 		VPEWorld* m_physics;	//pointer to the physics world
 		ConstraintDemos m_constraintDemos; // class to create the constraint demos
-		Truck m_truck;
+		Truck* m_truck;
 	public:
 
 		/// <summary>
@@ -576,7 +793,7 @@ namespace ve {
 		/// </summary>
 		/// <param name="name">Name for the eventlistener</param>
 		/// <param name="phy">Pointer to physics world to be used</param>
-		VEEventListenerConstraintsGUI(std::string name, VPEWorld* phy) : VEEventListener{ name }, m_physics{ phy }, m_constraintDemos{ phy, onMove, onErase }, m_truck{ phy, onMove, onErase } {};
+		VEEventListenerConstraintsGUI(std::string name, VPEWorld* phy, Truck* truck) : VEEventListener{ name }, m_physics{ phy }, m_constraintDemos{ phy, onMove, onErase }, m_truck{truck} {};
 
 		///Destructor of class VEEventListenerConstraintsGUI
 		virtual ~VEEventListenerConstraintsGUI() {};
@@ -649,9 +866,9 @@ namespace ve {
 				VESceneNode* pScene;																// Get the scene root 
 				VECHECKPOINTER(pScene =
 					getSceneManagerPointer()->createSceneNode("Level 1", getRoot()));
-				
+
 				VEClothEntity* clothEntity;															// Create a new cloth Entity and load the desired model
-				VECHECKPOINTER(clothEntity = 
+				VECHECKPOINTER(clothEntity =
 					getSceneManagerPointer()->loadClothModel(
 						"Cloth" + std::to_string(m_physics->m_cloths.size()),
 						"../../media/models/cloths/cloth0", "cloth.obj"));
@@ -695,6 +912,7 @@ namespace ve {
 	class MyVulkanEngine : public VEEngine {
 	public:
 
+		Truck m_truck;
 		VPEWorld m_physics;
 		VEEventListenerPhysics*	m_physics_listener;
 		VEEventListenerPhysicsKeys* m_physics_listener_keys;
@@ -703,7 +921,8 @@ namespace ve {
 		VEEventListenerClothControls* m_physics_listener_cloth;
 
 		MyVulkanEngine(veRendererType type = veRendererType::VE_RENDERER_TYPE_FORWARD,
-			bool debug = false) : VEEngine(type, debug) {};
+			bool debug = false) : VEEngine(type, debug), m_truck(&m_physics, onMove, onErase) {
+		};
 
 		/// Register an event listener to interact with the user
 		virtual void registerEventListeners() {
@@ -712,15 +931,15 @@ namespace ve {
 			registerEventListener(m_physics_listener = new VEEventListenerPhysics(
 				"Physics", &m_physics), { veEvent::VE_EVENT_FRAME_STARTED });
 			registerEventListener(m_physics_listener_keys = new VEEventListenerPhysicsKeys(
-				"Physics Keys", &m_physics), { veEvent::VE_EVENT_KEYBOARD });
+				"Physics Keys", &m_physics, &m_truck), { veEvent::VE_EVENT_KEYBOARD, veEvent::VE_EVENT_FRAME_STARTED });
 			registerEventListener(m_physics_listener_gui = new VEEventListenerPhysicsGUI(
 				"Physics GUI",&m_physics), { veEvent::VE_EVENT_DRAW_OVERLAY });
 			registerEventListener(m_physics_listener_constraints_gui = new VEEventListenerConstraintsGUI(
-				"Constraints GUI", &m_physics), { veEvent::VE_EVENT_DRAW_OVERLAY });
+				"Constraints GUI", &m_physics, &m_truck), { veEvent::VE_EVENT_DRAW_OVERLAY });
 			registerEventListener(m_physics_listener_cloth = new VEEventListenerClothControls(
 				"Cloth Controls", &m_physics), { veEvent::VE_EVENT_KEYBOARD });
 		};
-		
+
 
 		/// Load the first level into the game engine
 		/// The engine uses Y-UP, Left-handed
@@ -731,13 +950,13 @@ namespace ve {
 			VESceneNode *pScene;																	// Get Root Node
 			VECHECKPOINTER( pScene =
 				getSceneManagerPointer()->createSceneNode("Level 1", getRoot()) );
-	
+
 			// Scene models
 
 			VESceneNode *sp1;
 			VECHECKPOINTER( sp1 = 
 				getSceneManagerPointer()->createSkybox( "The Sky", "../../media/models/test/sky/cloudy",
-				{ "bluecloud_ft.jpg", "bluecloud_bk.jpg", "bluecloud_up.jpg", "bluecloud_dn.jpg",
+					{ "bluecloud_ft.jpg", "bluecloud_bk.jpg", "bluecloud_up.jpg", "bluecloud_dn.jpg",
 				"bluecloud_rt.jpg", "bluecloud_lf.jpg" }, pScene) );
 
 			VESceneNode *e4;
