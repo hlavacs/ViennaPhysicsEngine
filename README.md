@@ -22,6 +22,36 @@ VPE features are:
 - Many joint constraints: ball-socket, hinge with angle limits, motor, slider with limits, fixed
 - Combined models: bridge, drive train, rag doll
 
+# Truck Controls
+
+The truck is controlled using the numeric keys. The movement mechanics utilize a "roll" system: pressing a key applies active force, while releasing it allows the vehicle to coast.
+
+## Driving & Movement
+
+| Key | Action | Behavior |
+| :--- | :--- | :--- |
+| **8** | **Forward** | Accelerates the truck forward. |
+| **7** | **Turn Left** | Steers the truck to the left. |
+| **9** | **Turn Right** | Steers the truck to the right. |
+| **0** | **Reverse** | Accelerates the truck backward. |
+| **6** | **Handbrake** | Engages the brake to stop the truck quickly. |
+| *Release* | **Roll** | Releasing any movement key allows the truck to coast. |
+
+---
+
+## Camera Management
+
+The simulation features a dynamic camera system that can be tethered to the truck or released for free viewing.
+
+* **Key 5 (Enable/Toggle Follow):** * If the Follow Camera is **inactive**, this enables it.
+    * If the Follow Camera is **active**, this cycles through available camera modes (e.g., Chase, Cabin).
+* **Key 4 (Disable Follow):** * Disables the Follow Camera and returns to the default view.
+
+![](Screenshot_TRUCK.png "")
+
+
+---
+
 # Set up for Windows 11
 
 The whole engine is contained in VPE.hpp. The provided example program uses the Vienna Vulkan Engine BRANCH 1.1 for rendering and is thus currently restricted to Windows 11. If you want to compile the example, do the following steps:
