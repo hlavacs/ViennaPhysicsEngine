@@ -811,12 +811,60 @@ namespace ve
 
 	class VEEventListenerDestructionControls : public VEEventListener
 	{
-
 		std::default_random_engine rnd_gen{12345};			   // Random numbers
 		std::uniform_real_distribution<> rnd_unif{0.0f, 1.0f}; // Random numbers
 		std::vector<vpe::VPEWorld::Polytope> polytopes;
 		std::vector<glmvec3> translationVectors;
-		int index = 0;
+
+		real fracture_force_threshold = 1000.0_real; // Force threshold in which objects fracture
+		int poly_index = 0;
+
+		void fracture(glmvec3 position, glmquat orientation, glmvec3 velocity, glmvec3 angular_velocity)
+		{
+			for (int index = 0; index < polytopes.size(); ++index)
+			{
+				VESceneNode *cube0;
+				static real dy = 1.0_real;
+				VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction/polytopes", "polytope" + std::to_string(index) + ".obj", 0, getRoot()));
+				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &polytopes[index], glmvec3{1.0_real}, position + orientation * translationVectors[index], orientation, velocity, angular_velocity, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
+				body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
+				body->m_on_move = onMove;
+				body->m_on_erase = onErase;
+				m_physics->addBody(body);
+			}
+		}
+
+		VPEWorld::callback_collide onCollideFracture =
+			[this](std::shared_ptr<VPEWorld::Body> body1, std::shared_ptr<VPEWorld::Body> body2)
+		{
+			if (body1->m_name.find("Destructible") != std::string::npos)
+			{
+				real impulse = (1 / body1->m_mass_inv * glm::length(body1->m_linear_velocityW)) * (1 - body1->m_restitution);
+				if (impulse > fracture_force_threshold)
+				{
+					glmvec3 position = body1->m_positionW;
+					glmquat orientation = body1->m_orientationLW;
+					glmvec3 velocity = body1->m_linear_velocityW;
+					glmvec3 angular_velocity = body1->m_angular_velocityW;
+					m_physics->eraseBody(body1);
+					fracture(position, orientation, velocity, angular_velocity);
+				}
+			}
+
+			if (body2->m_name.find("Destructible") != std::string::npos)
+			{
+				real impulse = (1 / body2->m_mass_inv * glm::length(body2->m_linear_velocityW)) * (1 - body2->m_restitution);
+				if (impulse > fracture_force_threshold)
+				{
+					glmvec3 position = body2->m_positionW;
+					glmquat orientation = body2->m_orientationLW;
+					glmvec3 velocity = body2->m_linear_velocityW;
+					glmvec3 angular_velocity = body2->m_angular_velocityW;
+					m_physics->eraseBody(body2);
+					fracture(position, orientation, velocity, angular_velocity);
+				}
+			}
+		};
 
 	public:
 		/// <summary>
@@ -826,11 +874,11 @@ namespace ve
 		/// <returns> False, so the key is not consumed. </returns>
 		bool onKeyboard(veEvent event)
 		{
-			glmvec3 positionCamera{getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3]};
 
-			if (event.idata1 == GLFW_KEY_3 && event.idata3 == GLFW_PRESS)
+			if (event.idata1 == GLFW_KEY_1 && event.idata3 == GLFW_PRESS)
 			{
-				VESceneNode *cube0;
+				glmvec3 positionCamera{getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3]};
+
 				glmvec3 dir{getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2]};
 				glmvec3 vel = (30.0_real + 5.0_real * (real)rnd_unif(rnd_gen)) * dir / glm::length(dir);
 				glmvec3 scale{1, 1, 1}; // = rnd_unif(rnd_gen) * 10;
@@ -838,41 +886,32 @@ namespace ve
 				glmvec3 orient{rnd_unif(rnd_gen), rnd_unif(rnd_gen), rnd_unif(rnd_gen)};
 				glmvec3 vrot{rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5};
 
-				VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction/polytopes", "polytope" + std::to_string(index) + ".obj", 0, getRoot()));
-				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &polytopes[index], scale, positionCamera + 2.0_real * dir, glm::rotate(angle, glm::normalize(orient)), vel, vrot, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
-
+				VESceneNode *cube0;
+				VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("Destructible" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction/", "wall.obj", 0, getRoot()));
+				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Destructible" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_wall, scale, positionCamera + 2.0_real * dir, glm::rotate(angle, glm::normalize(orient)), vel, vrot, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
 				body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
 				body->m_on_move = onMove;
 				body->m_on_erase = onErase;
 				m_physics->addBody(body);
-				index < polytopes.size() - 1 ? index++ : index = 0;
+				m_physics->addCollider(body, onCollideFracture);
 			}
+
 			if (event.idata1 == GLFW_KEY_2 && event.idata3 == GLFW_PRESS)
 			{
-
-				for (int index = 0; index < polytopes.size(); ++index)
-				{
-					VESceneNode *cube0;
-					static real dy = 1.0_real;
-					VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction/polytopes", "polytope" + std::to_string(index) + ".obj", 0, getRoot()));
-					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &polytopes[index], glmvec3{1.0_real}, glmvec3{positionCamera.x, dy, positionCamera.z + 4} + translationVectors[index], glmquat{1, 0, 0, 0}, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
-					body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
-					body->m_on_move = onMove;
-					body->m_on_erase = onErase;
-					m_physics->addBody(body);
-				}
-			}
-
-			if (event.idata1 == GLFW_KEY_1 && event.idata3 == GLFW_PRESS)
-			{
+				glmvec3 positionCamera{getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3]};
 				VESceneNode *cube0;
 				static real dy = 1.0_real;
-				VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction/", "wall.obj", 0, getRoot()));
-				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_wall, glmvec3{1.0_real}, glmvec3{positionCamera.x, dy++, positionCamera.z + 4}, glmquat{1, 0, 0, 0}, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
+				static real dx = 0.0_real;
+				VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("Destructible" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction/", "wall.obj", 0, getRoot()));
+				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Destructible" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_wall, glmvec3{1.0_real}, glmvec3{dx, dy, 0}, glmquat{1, 0, 0, 0}, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
 				body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
 				body->m_on_move = onMove;
 				body->m_on_erase = onErase;
 				m_physics->addBody(body);
+				m_physics->addCollider(body, onCollideFracture);
+
+				dy += 1;
+				dx += 5;
 			}
 
 			return false;
