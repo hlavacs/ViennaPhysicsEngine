@@ -22,7 +22,7 @@ VPE features are:
 - Many joint constraints: ball-socket, hinge with angle limits, motor, slider with limits, fixed
 - Combined models: bridge, drive train, rag doll
 
-# Truck Controls
+# Truck
 
 The truck is controlled using the numeric keys. The movement mechanics utilize a "roll" system: pressing a key applies active force, while releasing it allows the vehicle to coast.
 
@@ -47,8 +47,11 @@ The simulation features a dynamic camera system that can be tethered to the truc
     * If the Follow Camera is **active**, this cycles through available camera modes (e.g., Chase, Cabin).
 * **Key 4 (Disable Follow):** * Disables the Follow Camera and returns to the default view.
 
+## Screenshot & Video
 ![](Screenshot_TRUCK.png "")
 
+
+[![Video](https://img.youtube.com/vi/gSQhalMPbqQ/0.jpg)](https://www.youtube.com/watch?v=gSQhalMPbqQ "")
 
 ---
 
