@@ -6,55 +6,129 @@
 using namespace vpe;
 
 namespace ve {
-	/// <summary>
-	/// Class that implements a few demos for constraints
-	/// I put all the code in here to not clutter main.cpp and the keybinds too much
-	/// </summary>
-	class TrialBike {
-		VPEWorld* m_physics;
-		VPEWorld::callback_move m_onMove;
-		VPEWorld::callback_erase m_onErase;
-		std::shared_ptr<VPEWorld::HingeJoint> m_rearHinge = nullptr;
-		real m_targetOmega = 6.0_real;    
-		real m_maxMotorTorque = 80.0_real;   
-		
-	public:
-		std::shared_ptr<VPEWorld::Body> m_frame;
-		bool m_jumpActive = false;
-		real m_jumpTimeRemaining = 0.5_real; 
-		static constexpr uint64_t JUMP = 9999;
-		TrialBike(VPEWorld* physics, VPEWorld::callback_move onMove, VPEWorld::callback_erase onErase) : m_physics{ physics }, m_onMove{ onMove }, m_onErase{ onErase } {}
-		~TrialBike() {}
+    class TrialBike {
+    public:
+        struct BikeSpawnContext {
+            glmvec3 camPos{};
+            glmvec3 fwd{};
+            glmvec3 fwdN{};
+            glmvec3 centre{};
+            glmvec3 rearPos{};
+            glmvec3 frontPos{};
+        };
 
-		/// <summary>
-		/// Creates a cube object with the given paramteres, adds it to physics world and returns the pointer to the VPEWorld::Body created
-		/// </summary>
-		/// <param name="scale"></param>
-		/// <param name="position"></param>
-		/// <param name="orientation"></param>
-		/// <param name="inv_mass"></param>
-		/// <param name="gravity"></param>
-		/// <param name="friction"></param>
-		/// <returns></returns>
-		std::shared_ptr<VPEWorld::Body> createAndAddBody(glmvec3 scale, glmvec3 position, glmquat orientation, real inv_mass, bool gravity, real friction = 1.0_real);
-		std::shared_ptr<VPEWorld::Body> createAndAddWheel(glmvec3 scale, glmvec3 position, glmquat orientation, real inv_mass, bool gravity, real friction = 1.0_real);
-		std::shared_ptr<VPEWorld::Body> createAndAddHandlesPassive(glmvec3 scale, glmvec3 position, glmquat orientation, real inv_mass, bool gravity, real friction = 1.0_real);
-		glm::vec3 getFramePosition() const;
-		std::shared_ptr<VPEWorld::Body> createAndAddHandlesActive(glmvec3 scale, glmvec3 position, glmquat orientation, real inv_mass, bool gravity, real friction = 1.0_real);
-		std::shared_ptr<VPEWorld::Body> createAndAddBiker(glmvec3 scale, glmvec3 position, glmquat orientation, real inv_mass, bool gravity, real friction = 1.0_real);
-		void setEngine(bool on);
-		/// <summary>
-		/// Creates a wheel-like structure with one center cube at init_pos and num_cubes rotated equally around it
-		/// </summary>
-		/// <param name="init_pos"></param>
-		/// <param name="num_cubes"></param>
-		/// <returns>Returns a pointer to the center cube's body</returns>
-		/// 
-		void jump();
+        struct BikeParams {
+            real wheelbase = 3.0_real;
+            real axleHeight = 1.33_real;
+            real invMassFrame = 1.0_real / 100.0_real;
+            real invMassWheel = 1.0_real / 300.0_real;
+            real wheelFriction = 5.0_real;
 
-		void bikeTwoWheels();
+            glmvec3 hingeAxis{ 1.0_real, 0.0_real, 0.0_real };
 
-	};
+        };
+
+        // jump state 
+        bool m_jumpActive = false;
+        real m_jumpTimeRemaining = 0.5_real;
+
+        // bike state
+        std::shared_ptr<VPEWorld::Body> m_frame{};
+        std::shared_ptr<VPEWorld::HingeJoint> m_rearHinge{};
+
+        TrialBike(VPEWorld* physics, VPEWorld::callback_move onMove, VPEWorld::callback_erase onErase)
+            : m_physics{ physics }, m_onMove{ onMove }, m_onErase{ onErase } {
+        }
+
+        ~TrialBike() = default;
+
+
+        void assembleBike();
+        void setEngine(bool on);
+        void jump();
+        void applyFrontSuspensionSpring();
+        glm::vec3 getFramePosition() const;
+
+    private:
+
+        static constexpr uint64_t JUMP_FORCE_ID = 9999;
+        static constexpr const char* bikeDir = "../../media/models/trial-bike";
+        static constexpr const char* crateDir = "../../media/models/test/crate0";
+        static constexpr uint32_t springForceA = 7878;
+        static constexpr uint32_t springForceB = 7879;
+
+        BikeParams makeBikeParams() const;
+        BikeSpawnContext computeBikeSpawnContext(const BikeParams& p) const;
+
+        std::shared_ptr<VPEWorld::Body> createAndAddObject(
+            const std::string& modelDir,
+            const std::string& modelFile,
+            VPEWorld::Polytope* collider,
+            glmvec3 scale,
+            glmvec3 position,
+            glmquat orientation,
+            real inv_mass,
+            bool gravity,
+            real friction = 1.0_real
+        );
+
+        std::shared_ptr<VPEWorld::Body> createFrame(const BikeSpawnContext& ctx, const BikeParams& p);
+
+        void createBiker(
+            const std::shared_ptr<VPEWorld::Body>& frame,
+            const BikeParams& p,
+            std::shared_ptr<VPEWorld::Body>& outBottom,
+            std::shared_ptr<VPEWorld::Body>& outTop
+        );
+
+        void createWheels(
+            const BikeSpawnContext& ctx,
+            const BikeParams& p,
+            std::shared_ptr<VPEWorld::Body>& outRearWheel,
+            std::shared_ptr<VPEWorld::Body>& outFrontWheel
+        );
+
+        std::shared_ptr<VPEWorld::HingeJoint> attachRearWheelHinge(
+            const std::shared_ptr<VPEWorld::Body>& frame,
+            const std::shared_ptr<VPEWorld::Body>& rearWheel,
+            const BikeSpawnContext& ctx,
+            const BikeParams& p
+        );
+
+        std::shared_ptr<VPEWorld::Body> createPassiveHandles(
+            const std::shared_ptr<VPEWorld::Body>& frame,
+            const BikeSpawnContext& ctx
+        );
+
+        std::shared_ptr<VPEWorld::Body> createActiveHandlesAndSlider(
+            const std::shared_ptr<VPEWorld::Body>& handlesPassive,
+            const std::shared_ptr<VPEWorld::Body>& frontWheel,
+            const BikeSpawnContext& ctx,
+            const BikeParams& p
+        );
+
+        void createObstacles(const BikeSpawnContext& ctx);
+
+    private:
+        VPEWorld* m_physics = nullptr;
+        VPEWorld::callback_move m_onMove{};
+        VPEWorld::callback_erase m_onErase{};
+        
+        //motor
+        real m_targetOmega = 6.0_real;
+        real m_maxMotorTorque = 80.0_real;
+
+        // front suspension / handles
+        std::shared_ptr<VPEWorld::SliderJoint> m_handleSlider{};
+        std::shared_ptr<VPEWorld::Body> m_handles{};
+        std::shared_ptr<VPEWorld::Body> m_handlesActive{};
+
+        glmvec3 m_sliderLocalA{};
+        glmvec3 m_sliderLocalB{};
+        glmvec3 m_sliderAxisLocalA{};
+
+    };
+
 }
 
 

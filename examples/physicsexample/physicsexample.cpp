@@ -112,7 +112,7 @@ namespace ve {
 		void onFrameStarted(veEvent event) {
 			m_physics->tick(event.dt);
 
-
+			m_trialBike->applyFrontSuspensionSpring();
 			//making the camera sideways, facing the bike and following it so it is always in the center of the screen
 			auto sceneMgr = getSceneManagerPointer();
 			auto* cam = sceneMgr->getSceneNode("StandardCamera");
@@ -253,7 +253,7 @@ namespace ve {
 				}
 			}
 			if (event.idata1 == GLFW_KEY_T) {
-				std::cout << "JUMP!";
+				//std::cout << "JUMP!";
 				m_trialBike->jump();
 
 			}
@@ -615,7 +615,7 @@ namespace ve {
 				if (nk_button_label(ctx, "Cannon")) { m_constraintDemos.sliderCannon(); }
 				
 				//if (nk_button_label(ctx, "Wheel")) { m_constraintDemos.wheel(); }
-				if (nk_button_label(ctx, "Wheel")) { m_trialBike.bikeTwoWheels(); }
+				if (nk_button_label(ctx, "Wheel")) { m_trialBike.assembleBike(); }
 				if (nk_button_label(ctx, "Chain")) { m_constraintDemos.hingeChain(); }
 			}
 			nk_end(ctx);
@@ -701,7 +701,7 @@ namespace ve {
 			pE4->setParam( glm::vec4(1000.0f, 1000.0f, 0.0f, 0.0f) );
 
 
-			m_trialBike.bikeTwoWheels();
+			m_trialBike.assembleBike();
 
 
 			getSceneManagerPointer()->getSceneNode("StandardCameraParent")->setPosition({0,1,-4});
