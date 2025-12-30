@@ -825,7 +825,7 @@ namespace ve
 			{
 				VESceneNode *cube0;
 				static real dy = 1.0_real;
-				VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction/polytopes", "polytope" + std::to_string(index) + ".obj", 0, getRoot()));
+				VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction/wall", "polytope" + std::to_string(index) + ".obj", 0, getRoot()));
 				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &polytopes[index], glmvec3{1.0_real}, position + orientation * translationVectors[index], orientation, velocity, angular_velocity, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
 				body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
 				body->m_on_move = onMove;
@@ -887,7 +887,7 @@ namespace ve
 				glmvec3 vrot{rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5};
 
 				VESceneNode *cube0;
-				VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("Destructible" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction/", "wall.obj", 0, getRoot()));
+				VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("Destructible" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction/wall", "wall.obj", 0, getRoot()));
 				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Destructible" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_wall, scale, positionCamera + 2.0_real * dir, glm::rotate(angle, glm::normalize(orient)), vel, vrot, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
 				body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
 				body->m_on_move = onMove;
@@ -902,7 +902,7 @@ namespace ve
 				VESceneNode *cube0;
 				static real dy = 1.0_real;
 				static real dx = 0.0_real;
-				VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("Destructible" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction/", "wall.obj", 0, getRoot()));
+				VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("Destructible" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction/wall", "wall.obj", 0, getRoot()));
 				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Destructible" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_wall, glmvec3{1.0_real}, glmvec3{dx, dy, 0}, glmquat{1, 0, 0, 0}, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
 				body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
 				body->m_on_move = onMove;
@@ -933,7 +933,7 @@ namespace ve
 
 			this->translationVectors = VD::center_voronois(clipped_voronoi);
 			this->polytopes = VD::transformToPolytopes(clipped_voronoi, boundary_values[2]);
-			VD::writeToOBJ(clipped_voronoi, boundary_values[2]);
+			VD::writeToOBJ("wall", clipped_voronoi, boundary_values[2]);
 		};
 
 		/// Destructor of class EventListenerCollision
