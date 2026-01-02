@@ -65,7 +65,7 @@ namespace VD
 
         return Triangle({mid_x, mid_y + deltaMax * scale},
                         {mid_x - deltaMax * scale, mid_y - deltaMax},
-                        {mid_x + deltaMax * scale * scale, mid_y - deltaMax});
+                        {mid_x + deltaMax * scale, mid_y - deltaMax});
     }
 
     /**

@@ -101,6 +101,7 @@ namespace VD
 
             for (const auto &[edge, triangle] : edgeTriangleMap)
             {
+
                 /** If only 1 triangle contains this edge, it means that the edge is unbounded. Create artificial boundary for voronoi diagram for clipping later*/
                 if (triangle.size() == 1)
                 {
@@ -114,8 +115,8 @@ namespace VD
 
                         glmvec2 DC = C - D;
 
-                        glmvec2 P1 = C + glm::normalize(DC) * 3.0_real;
-                        glmvec2 P2 = C - glm::normalize(DC) * 3.0_real;
+                        glmvec2 P1 = C + glm::normalize(DC) * 10.0_real;
+                        glmvec2 P2 = C - glm::normalize(DC) * 10.0_real;
 
                         /**Check orientation of edge, should go away from the voronoi */
                         glm::length(P1) < glm::length(P2) ? unbounded_edges.push_back(Edge(C, P2)) : unbounded_edges.push_back(Edge(C, P1));
@@ -129,8 +130,9 @@ namespace VD
                         glmvec2 D = intersectionOnLineFromPoint(A, B, C);
 
                         glmvec2 DC = C - D;
-                        glmvec2 P1 = C + glm::normalize(DC) * 3.0_real;
-                        glmvec2 P2 = C - glm::normalize(DC) * 3.0_real;
+                        glmvec2 P1 = C + glm::normalize(DC) * 10.0_real;
+                        glmvec2 P2 = C - glm::normalize(DC) * 10.0_real;
+
                         /**Check orientation of edge, should go away from the voronoi */
                         glm::length(P1) < glm::length(P2) ? unbounded_edges.push_back(Edge(C, P2)) : unbounded_edges.push_back(Edge(C, P1));
 
@@ -157,6 +159,11 @@ namespace VD
                     voronoi_vertices.push_back(triangle[0].getCircumcircleCenter());
                     voronoi_vertices.push_back(triangle[1].getCircumcircleCenter());
                 }
+                if (edgeTriangleMap.size() == 2)
+                {
+                    /**Edge case if only one triangle exist, connect the center of circumcircle with the constructed edges */
+                    voronoi_vertices.push_back(triangle[0].getCircumcircleCenter());
+                }
             }
             /**Sort the voronoi vertices in counter clockwise order for later visualizing*/
             sort_vertices_ccw(voronoi_vertices);
@@ -176,7 +183,7 @@ namespace VD
 
         for (Voronoi &each_voronoi : voronois)
         {
-            std::vector<glmvec2> newPolygon;
+            std::vector<glmvec2> newPolygon = {};
             std::vector<glmvec2> vertices = each_voronoi.getReversedVertices();
 
             geometry::SutherlandHodgman(vertices, boundingBox, newPolygon);
