@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Point.hpp"
 #include "misc.hpp"
 
 namespace VD
@@ -11,23 +10,23 @@ namespace VD
     struct Edge
     {
     private:
-        Point a, b;           /* start and end points */
+        glmvec2 a, b;
         bool badEdge = false; /* boolean for bad edges in delaunay algorithm */
 
     public:
-        Edge(Point a, Point b) : a{a}, b{b} {}
+        Edge(glmvec2 a, glmvec2 b) : a{a}, b{b} {}
 
-        Point getA() const
+        glmvec2 getA() const
         {
             return a;
         }
 
-        Point getB() const
+        glmvec2 getB() const
         {
             return b;
         }
 
-        bool isBad()
+        bool isBad() const
         {
             return badEdge;
         }
@@ -62,10 +61,9 @@ namespace std
     {
         std::size_t operator()(const VD::Edge &e) const
         {
-            std::hash<VD::Point> hasher;
-            size_t h0 = std::hash<size_t>{}(hasher(e.getA()));
-            size_t h1 = std::hash<size_t>()(hasher(e.getB())) + 0x9e3779b9 + (h0 << 6) + (h0 >> 2);
-            return h1;
+            size_t seed = std::hash<glmvec2>{}(e.getA());
+            hash_combine(seed, e.getB());
+            return seed;
         }
     };
 }

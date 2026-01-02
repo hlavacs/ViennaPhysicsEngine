@@ -33,13 +33,13 @@ namespace VD
         file << "\n";
     }
 
-    inline void writeHeader(std::ofstream &file, int &index)
+    inline void writeHeader(std::ofstream &file, const std::string &name, int &index)
     {
-        file << "# polytope" + std::to_string(index) + ".obj\n";
+        file << "# " + name + std::to_string(index) + ".obj\n";
         file << "#\n\n";
-        file << "mtllib wall.mtl\n";
-        file << "o wall\n";
-        file << "usemtl wall\n\n";
+        file << "mtllib " + name + ".mtl\n";
+        file << "o " + name + "\n";
+        file << "usemtl " + name + "\n\n";
     }
 
     inline void writeTexture(std::ofstream &file)
@@ -55,15 +55,15 @@ namespace VD
         file << std::setprecision(6) << std::fixed << "vn " << x << " " << y << " " << z << "\n";
     }
 
-    inline void writeToOBJ(std::string name, std::vector<VD::Voronoi> &voronois, std::pair<real, real> z_coords)
+    inline void writeToOBJ(const std::string &name, const std::vector<VD::Voronoi> &voronois, const std::pair<real, real> &z_coords)
     {
         int polytope_index = 0;
         fs::path parent_path = fs::current_path().parent_path().parent_path();
         fs::path path = fs::path(parent_path.string() + "\\media\\models\\test\\destruction\\" + name + "\\");
 
-        for (Voronoi &eachVoronoi : voronois)
+        for (const Voronoi &eachVoronoi : voronois)
         {
-            std::string filename = path.string() + "polytope" + std::to_string(polytope_index) + ".obj";
+            std::string filename = path.string() + name + std::to_string(polytope_index) + ".obj";
             std::ofstream file(filename);
 
             if (!file.is_open())
@@ -71,7 +71,7 @@ namespace VD
                 std::cerr << "Error: Could not open the file " << filename << std::endl;
                 return;
             }
-            writeHeader(file, polytope_index);
+            writeHeader(file, name, polytope_index);
 
             /** Fetch voronoi vertices */
             std::vector<glmvec2> voronoi_vertices = eachVoronoi.getVertices();
@@ -167,7 +167,7 @@ namespace VD
                 }
             }
             ++normal_index;
-            
+
             /**Side Faces */
             for (int index = 0; index < vertices_size; ++index)
             {

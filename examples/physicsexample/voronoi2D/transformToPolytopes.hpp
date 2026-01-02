@@ -5,15 +5,13 @@
 
 #include "Voronoi.hpp"
 #include "VPE.hpp"
-#include "Point.hpp"
 
 namespace VD
 {
     /** Transform 2D Voronoi to 3D polytopes by extruding them into z-dimension */
-    std::vector<vpe::VPEWorld::Polytope> transformToPolytopes(std::vector<Voronoi> &voronois, std::pair<real, real> z_coords)
+    void transformToPolytopes(std::vector<vpe::VPEWorld::Polytope> &polytopes, const std::vector<Voronoi> &voronois, const PolytopeInfo &z_coords)
     {
-        std::vector<vpe::VPEWorld::Polytope> polytopes = {};
-        for (Voronoi &eachVoronoi : voronois)
+        for (const Voronoi &eachVoronoi : voronois)
         {
             /** Fetch voronoi vertices */
             std::vector<glmvec2> voronoi_vertices = eachVoronoi.getVertices();
@@ -26,15 +24,14 @@ namespace VD
 
             /** Add z dimension to vertices */
             /** Add Front vertices */
-            for (auto each_vertice : voronoi_vertices)
+            for (const auto &each_vertice : voronoi_vertices)
             {
-                vertices.push_back({each_vertice.x, each_vertice.y, z_coords.second});
+                vertices.push_back({each_vertice.x, each_vertice.y, z_coords.max_x});
             }
             /** Add back vertices */
-            for (auto each_vertice : voronoi_vertices)
+            for (const auto &each_vertice : voronoi_vertices)
             {
-
-                vertices.push_back({each_vertice.x, each_vertice.y, z_coords.first});
+                vertices.push_back({each_vertice.x, each_vertice.y, z_coords.min_z});
             }
 
             /**Add Front edges */
@@ -109,6 +106,5 @@ namespace VD
             polytopes.push_back(std::move(polytope));
         }
         // return std::move(polytopes);
-        return polytopes;
     }
 }

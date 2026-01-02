@@ -3,17 +3,7 @@
 #include <iostream>
 #include "VPE.hpp"
 
-#include "Point.hpp"
 #include "Voronoi.hpp"
-
-namespace std
-{
-    inline ostream &operator<<(ostream &os, const glmvec4 &vec)
-    {
-        os << "(" << vec.x << ',' << vec.y << ',' << vec.z << ',' << vec.w << ")"; // output quaternion
-        return os;
-    }
-}
 
 namespace VD
 {
@@ -29,21 +19,21 @@ namespace VD
     /**
      * Equal Comparison between Vectors/Points
      */
-    inline bool isVectorEqualTo(const Point &a, const Point &b)
+    inline bool isVectorEqualTo(const glmvec2 &a, const glmvec2 &b)
     {
-        return equal_within_ulps(a.getX(), b.getX()) && equal_within_ulps(a.getY(), b.getY());
+        return equal_within_ulps(a.x, b.x) && equal_within_ulps(a.y, b.y);
     }
 
     /**
      * Get average point of a list of points
      */
-    inline glmvec2 getAveragePoint(std::vector<glmvec2> points)
+    inline glmvec2 getAveragePoint(const std::vector<glmvec2> &points)
     {
         real x = 0.0_real;
         real y = 0.0_real;
 
         real size = real(points.size());
-        for (auto each_point : points)
+        for (const auto &each_point : points)
         {
             x += each_point.x;
             y += each_point.y;
@@ -55,7 +45,7 @@ namespace VD
     /**
      * translate point by the average of the points
      */
-    inline void translateVertices(std::vector<glmvec2> &points, glmvec2 translation)
+    inline void translateVertices(std::vector<glmvec2> &points, const glmvec2 &translation)
     {
         for (auto &each_point : points)
         {
@@ -82,10 +72,47 @@ namespace VD
     }
 
     /**
+     * Compare angles between two point around the center point
+     */
+    inline static bool angle_comparison(const glmvec2 &p1, const glmvec2 &p2, const glmvec2 &center)
+    {
+        double angle1 = std::atan2(p1.y - center.y, p1.x - center.x);
+        double angle2 = std::atan2(p2.y - center.y, p2.x - center.x);
+        return angle1 < angle2;
+    }
+    /**
+     * Sort vertices in counter clockwise order by angle
+     */
+    inline void sort_vertices_ccw(std::vector<glmvec2> &unordered_vertices)
+    {
+        glmvec2 center = getAveragePoint(unordered_vertices);
+        std::sort(unordered_vertices.begin(), unordered_vertices.end(), [&center](const glmvec2 &p1, const glmvec2 &p2)
+                  { return angle_comparison(p1, p2, center); });
+
+        // Remove duplicate values in vector
+        auto duplicates = std::unique(unordered_vertices.begin(), unordered_vertices.end());
+        unordered_vertices.erase(duplicates, unordered_vertices.end());
+    }
+
+    struct PolytopeInfo
+    {
+        std::vector<glmvec2> vertices;
+        real min_x;
+        real max_x;
+        real min_y;
+        real max_y;
+        real min_z;
+        real max_z;
+
+        PolytopeInfo(std::vector<glmvec2> vertices, real min_x, real max_x, real min_y, real max_y, real min_z, real max_z)
+            : vertices{vertices}, min_x{min_x}, max_x{max_x}, min_y{min_y}, max_y{max_y}, min_z{min_z}, max_z{max_z} {}
+    };
+    /**
      * Find minimum and maximum x/y values of given vertices
      */
-    inline std::vector<std::pair<real, real>> getBoundaryValues(std::vector<vpe::VPEWorld::Vertex> &poly_vertices)
+    inline PolytopeInfo getBoundaryValues(const std::vector<vpe::VPEWorld::Vertex> &poly_vertices)
     {
+        std::vector<glmvec2> front_polytope_face = {};
         real min_x = std::numeric_limits<real>::max();
         real min_y = std::numeric_limits<real>::max();
         real min_z = std::numeric_limits<real>::max();
@@ -94,7 +121,7 @@ namespace VD
         real max_y = std::numeric_limits<real>::min();
         real max_z = std::numeric_limits<real>::min();
 
-        for (auto &each_vertice : poly_vertices)
+        for (const auto &each_vertice : poly_vertices)
         {
             min_x = std::min(min_x, each_vertice.m_positionL.x);
             min_y = std::min(min_y, each_vertice.m_positionL.y);
@@ -105,6 +132,14 @@ namespace VD
             max_z = std::max(max_z, each_vertice.m_positionL.z);
         }
 
-        return {{min_x, max_x}, {min_y, max_y}, {min_z, max_z}};
+        for (const auto &each_vertice : poly_vertices)
+        {
+            if (each_vertice.m_positionL.z == max_z)
+            {
+                front_polytope_face.push_back({each_vertice.m_positionL.x, each_vertice.m_positionL.y});
+            }
+        }
+
+        return PolytopeInfo(front_polytope_face, min_x, max_x, min_y, max_y, min_z, max_z);
     }
 }

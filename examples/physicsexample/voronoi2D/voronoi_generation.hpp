@@ -9,127 +9,84 @@
 #include "Voronoi.hpp"
 #include "Edge.hpp"
 #include "Triangle.hpp"
-#include "Point.hpp"
 #include "VPE.hpp"
+#include "misc.hpp"
 
 namespace VD
 {
-    using Vector = Point;
     /**
      * Calculate the intersection of a perpendicular line from point c on the line segment of AB
      */
-    inline Point intersectionOnLineFromPoint(Point A, Point B, Point C)
+    inline glmvec2 intersectionOnLineFromPoint(const glmvec2 &A, const glmvec2 &B, const glmvec2 &C)
     {
-        Vector NAB = (B - A).normalized();
-        Vector AC = C - A;
-        real cos_theta = NAB.dot(AC);
-        Vector AD_length = NAB * cos_theta;
-        Point D = A + AD_length;
-
+        glmvec2 NAB = glm::normalize(B - A);
+        glmvec2 AC = C - A;
+        real cos_theta = glm::dot(NAB, AC);
+        glmvec2 AD_length = NAB * cos_theta;
+        glmvec2 D = A + AD_length;
         return D;
     }
     /**
      * Check if points a,b and c are in clockwise order
      */
-    inline bool counterclockwise_order(Point A, Point B, Point C)
+    inline bool counterclockwise_order(const glmvec2 &A, const glmvec2 &B, const glmvec2 &C)
     {
-        return (C.getY() - A.getY()) * (B.getX() - A.getX()) > (B.getY() - A.getY()) * (C.getX() - A.getX());
+        return (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x);
     }
 
     /**
      * Check if line segements intersect
      */
-    inline bool checkIntersection(Edge e1, Edge e2)
+    inline bool checkIntersection(const Edge &e1, const Edge &e2)
     {
-        Point A = e1.getA();
-        Point B = e1.getB();
+        glmvec2 A = e1.getA();
+        glmvec2 B = e1.getB();
 
-        Point C = e2.getA();
-        Point D = e2.getB();
+        glmvec2 C = e2.getA();
+        glmvec2 D = e2.getB();
 
         return counterclockwise_order(A, C, D) != counterclockwise_order(B, C, D) && counterclockwise_order(A, B, C) != counterclockwise_order(A, B, D);
     }
     /**
      * get intersection point of Two line segments AB and CD
      */
-    inline Point getIntersection(Point A, Point B, Point C, Point D)
+    inline glmvec2 getIntersection(const glmvec2 &A, const glmvec2 &B, const glmvec2 &C, const glmvec2 &D)
     {
-        Vector AC = C - A;
-        Vector CD = D - C;
-        Vector AB = B - A;
-
-        real t = AC.cross(CD) / AB.cross(CD);
-        Point I = A + AB * t;
+        glmvec2 AC = C - A;
+        glmvec2 CD = D - C;
+        glmvec2 AB = B - A;
+        real t = (AC.x * CD.y - CD.x * AC.y) / (AB.x * CD.y - CD.x * AB.y);
+        glmvec2 I = A + AB * t;
         return I;
     }
-    /**
-     * Get center point from list of points
-     */
-    inline Point getCenterPoint(std::vector<Point> &vertices)
-    {
-        real mean_x = 0;
-        real mean_y = 0;
-        for (Point each_vertice : vertices)
-        {
-            mean_x += each_vertice.getX();
-            mean_y += each_vertice.getY();
-        }
 
-        mean_x /= vertices.size();
-        mean_y /= vertices.size();
-
-        return Point(mean_x, mean_y);
-    }
-    /**
-     * Compare angles between two point around the center point
-     */
-    inline static bool angle_comparison(Point p1, Point p2, Point center)
-    {
-        double angle1 = std::atan2(p1.getY() - center.getY(), p1.getX() - center.getX());
-        double angle2 = std::atan2(p2.getY() - center.getY(), p2.getX() - center.getX());
-        return angle1 < angle2;
-    }
-    /**
-     * Sort vertices in counter clockwise order by angle
-     */
-    inline void sort_vertices_ccw(std::vector<Point> &unordered_vertices)
-    {
-        Point center = getCenterPoint(unordered_vertices);
-        std::sort(unordered_vertices.begin(), unordered_vertices.end(), [&center](Point &p1, Point &p2)
-                  { return angle_comparison(p1, p2, center); });
-
-        // Remove duplicate values in vector
-        auto duplicates = std::unique(unordered_vertices.begin(), unordered_vertices.end());
-        unordered_vertices.erase(duplicates, unordered_vertices.end());
-    }
     /**
      * Transform the delaunay triangles to voronoi diagram
      */
-    inline std::vector<Voronoi> transformToVoronoi(std::vector<Triangle> delaunayTriangles, std::set<Point> starting_points)
+    inline std::vector<Voronoi> transformToVoronoi(const std::vector<Triangle> &delaunayTriangles, const std::set<glmvec2> &starting_points)
     {
         std::vector<Voronoi> voronois = {};
         /* Iterate through every starting points/voronoi center */
-        for (Point eachPoints : starting_points)
+        for (const auto &eachPoints : starting_points)
         {
             /**Save triangles that contain current point */
             std::vector<Triangle> relevantTriangles = {};
             /** keep Track on which edge belongs to which triangle*/
             std::unordered_map<Edge, std::vector<Triangle>> edgeTriangleMap;
-            for (Triangle eachTriangle : delaunayTriangles)
+            for (const Triangle &eachTriangle : delaunayTriangles)
             {
-
                 if (eachTriangle.containsPoint(eachPoints))
                 {
                     relevantTriangles.push_back(eachTriangle);
                     /** Only leave the two other points to make edges to them*/
-                    std::vector<Point> trianglePoints = eachTriangle.getPoints();
-                    trianglePoints.erase(std::remove_if(trianglePoints.begin(), trianglePoints.end(), [&eachPoints](Point &trianglePoint)
+                    std::vector<glmvec2> trianglePoints = eachTriangle.getPoints();
+                    trianglePoints.erase(std::remove_if(trianglePoints.begin(), trianglePoints.end(), [&eachPoints](const glmvec2 &trianglePoint)
                                                         { return isVectorEqualTo(eachPoints, trianglePoint); }),
                                          trianglePoints.end());
                     /**
                      * Construct Edges from current Point to the other points and save corresponding triangle
                      */
-                    for (Point eachPoint : trianglePoints)
+                    for (const auto &eachPoint : trianglePoints)
                     {
                         edgeTriangleMap[Edge(eachPoints, eachPoint)].push_back(eachTriangle);
                     }
@@ -139,10 +96,10 @@ namespace VD
             /**
              * Keep track of vertices and unbounded edges
              */
-            std::vector<Point> voronoi_vertices = {};
+            std::vector<glmvec2> voronoi_vertices = {};
             std::vector<Edge> unbounded_edges = {};
 
-            for (auto [edge, triangle] : edgeTriangleMap)
+            for (const auto &[edge, triangle] : edgeTriangleMap)
             {
                 /** If only 1 triangle contains this edge, it means that the edge is unbounded. Create artificial boundary for voronoi diagram for clipping later*/
                 if (triangle.size() == 1)
@@ -150,31 +107,32 @@ namespace VD
                     if (unbounded_edges.size() == 0)
                     {
                         /**Construct the voronoi edge from the perpendicular line segment from the delaunay edge to the circumcircle center */
-                        Point A = edge.getA();
-                        Point B = edge.getB();
-                        Point C = triangle[0].getCircumcircleCenter();
-                        Point D = intersectionOnLineFromPoint(A, B, C);
+                        glmvec2 A = edge.getA();
+                        glmvec2 B = edge.getB();
+                        glmvec2 C = triangle[0].getCircumcircleCenter();
+                        glmvec2 D = intersectionOnLineFromPoint(A, B, C);
 
-                        Vector DC = C - D;
-                        Point P1 = C + DC.normalized() * 3;
-                        Point P2 = C - DC.normalized() * 3;
+                        glmvec2 DC = C - D;
+
+                        glmvec2 P1 = C + glm::normalize(DC) * 3.0_real;
+                        glmvec2 P2 = C - glm::normalize(DC) * 3.0_real;
 
                         /**Check orientation of edge, should go away from the voronoi */
-                        P1.length() < P2.length() ? unbounded_edges.push_back(Edge(C, P2)) : unbounded_edges.push_back(Edge(C, P1));
+                        glm::length(P1) < glm::length(P2) ? unbounded_edges.push_back(Edge(C, P2)) : unbounded_edges.push_back(Edge(C, P1));
                     }
                     else
                     {
                         /**Construct the voronoi edge from the perpendicular line segment from the delaunay edge to the circumcircle center */
-                        Point A = edge.getA();
-                        Point B = edge.getB();
-                        Point C = triangle[0].getCircumcircleCenter();
-                        Vector D = intersectionOnLineFromPoint(A, B, C);
+                        glmvec2 A = edge.getA();
+                        glmvec2 B = edge.getB();
+                        glmvec2 C = triangle[0].getCircumcircleCenter();
+                        glmvec2 D = intersectionOnLineFromPoint(A, B, C);
 
-                        Vector DC = C - D;
-                        Point P1 = C + DC.normalized() * 3;
-                        Point P2 = C - DC.normalized() * 3;
+                        glmvec2 DC = C - D;
+                        glmvec2 P1 = C + glm::normalize(DC) * 3.0_real;
+                        glmvec2 P2 = C - glm::normalize(DC) * 3.0_real;
                         /**Check orientation of edge, should go away from the voronoi */
-                        P1.length() < P2.length() ? unbounded_edges.push_back(Edge(C, P2)) : unbounded_edges.push_back(Edge(C, P1));
+                        glm::length(P1) < glm::length(P2) ? unbounded_edges.push_back(Edge(C, P2)) : unbounded_edges.push_back(Edge(C, P1));
 
                         Edge e1 = unbounded_edges[0];
                         Edge e2 = unbounded_edges[1];
@@ -182,7 +140,7 @@ namespace VD
                         if (checkIntersection(e1, e2))
                         {
                             /**If intersection ocurrs save the intersection point a voronoi vertice */
-                            Point I = getIntersection(e1.getA(), e1.getB(), e2.getA(), e2.getB());
+                            glmvec2 I = getIntersection(e1.getA(), e1.getB(), e2.getA(), e2.getB());
                             voronoi_vertices.push_back(I);
                         }
                         else
@@ -207,21 +165,18 @@ namespace VD
         }
         return voronois;
     }
-
     /**
      * Clip Voronoi vertices to a bounding box
      */
-    inline void clipVoronoiToBoundingBox(std::vector<std::pair<real, real>> &boundary_values, std::vector<Voronoi> &voronois)
+    inline void clipVoronoiToBoundingBox(const std::vector<glmvec2> &boundary_values, std::vector<Voronoi> &voronois)
     {
-        real min_x = boundary_values[0].first;
-        real max_x = boundary_values[0].second;
-        real min_y = boundary_values[1].first;
-        real max_y = boundary_values[1].second;
+        std::vector<glmvec2> boundingBox = boundary_values;
+        sort_vertices_ccw(boundingBox);
+        std::reverse(boundingBox.begin(), boundingBox.end());
 
         for (Voronoi &each_voronoi : voronois)
         {
             std::vector<glmvec2> newPolygon;
-            std::vector<glmvec2> boundingBox = {{max_x, max_y}, {max_x, min_y}, {min_x, min_y}, {min_x, max_y}};
             std::vector<glmvec2> vertices = each_voronoi.getReversedVertices();
 
             geometry::SutherlandHodgman(vertices, boundingBox, newPolygon);

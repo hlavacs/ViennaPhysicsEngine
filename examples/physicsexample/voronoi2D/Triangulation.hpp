@@ -12,7 +12,7 @@
 #include "VPE.hpp"
 
 #include "Edge.hpp"
-#include "Point.hpp"
+
 #include "Triangle.hpp"
 #include "misc.hpp"
 
@@ -21,22 +21,18 @@ namespace VD
     /**
      * Returns a list of n amount of 2D points
      */
-    inline std::set<Point> getInitRandomPoints(size_t n, std::vector<std::pair<real, real>> boundary_values)
+    inline std::set<glmvec2> getInitRandomPoints(const size_t &n, const PolytopeInfo &boundary_values)
     {
-        /*
-        TODO: Prevent 4 points being on a circle
-        */
         std::default_random_engine rnd_gen{12345};
-        std::uniform_real_distribution<> rnd_unif_x{boundary_values[0].first, boundary_values[0].second};
-        std::uniform_real_distribution<> rnd_unif_y{boundary_values[1].first, boundary_values[1].second};
+        std::uniform_real_distribution<> rnd_unif_x{boundary_values.min_x, boundary_values.max_x};
+        std::uniform_real_distribution<> rnd_unif_y{boundary_values.min_y, boundary_values.max_y};
 
-        std::set<Point> startings_points;
-        for (size_t idx = 0; idx < n; ++idx)
+        std::set<glmvec2> startings_points = {};
+        while (startings_points.size() < n)
         {
             real x = (real)rnd_unif_x(rnd_gen);
             real y = (real)rnd_unif_y(rnd_gen);
-
-            startings_points.insert(Point(x, y));
+            startings_points.insert({x, y});
         }
 
         return startings_points;
@@ -44,7 +40,7 @@ namespace VD
     /**
      * Forms a Triangle that encloses all given points
      */
-    inline Triangle getSuperTriangle(const std::set<Point> &points)
+    inline Triangle getSuperTriangle(const std::set<glmvec2> &points)
     {
         real min_x = std::numeric_limits<real>::max();
         real min_y = std::numeric_limits<real>::max();
@@ -52,13 +48,13 @@ namespace VD
         real max_x = std::numeric_limits<real>::min();
         real max_y = std::numeric_limits<real>::min();
 
-        for (const Point &forEachPoint : points)
+        for (const auto &forEachPoint : points)
         {
-            min_x = std::min(min_x, forEachPoint.getX());
-            min_y = std::min(min_y, forEachPoint.getY());
+            min_x = std::min(min_x, forEachPoint.x);
+            min_y = std::min(min_y, forEachPoint.y);
 
-            max_x = std::max(max_x, forEachPoint.getX());
-            max_y = std::max(max_y, forEachPoint.getY());
+            max_x = std::max(max_x, forEachPoint.x);
+            max_y = std::max(max_y, forEachPoint.y);
         }
 
         real mid_x = (min_x + max_x) / 2.0_real;
@@ -67,28 +63,27 @@ namespace VD
         real deltaMax = std::max({max_x - min_x, max_y - min_y});
         real scale = 10;
 
-        return Triangle(Point(mid_x, mid_y + deltaMax * scale),
-                        Point(mid_x - deltaMax * scale, mid_y - deltaMax),
-                        Point(mid_x + deltaMax * scale * scale, mid_y - deltaMax));
+        return Triangle({mid_x, mid_y + deltaMax * scale},
+                        {mid_x - deltaMax * scale, mid_y - deltaMax},
+                        {mid_x + deltaMax * scale * scale, mid_y - deltaMax});
     }
 
     /**
      *  Slope Method to check if 3 points are collinear
      */
-    inline bool arePointsColinear(Edge e, Point c)
+    inline bool arePointsColinear(const Edge &e, const glmvec2 &c)
     {
-        Point a = e.getA();
-        Point b = e.getB();
-        real slopeAB = (b.getY() - a.getY()) / (b.getX() - a.getX());
-        real slopeBC = (c.getY() - b.getY()) / (c.getX() - b.getX());
-
+        glmvec2 a = e.getA();
+        glmvec2 b = e.getB();
+        real slopeAB = (b.y - a.y) / (b.x - a.x);
+        real slopeBC = (c.y - b.y) / (c.x - b.x);
         return slopeAB == slopeBC;
     }
 
     /**
      * Bowyer-Watson Algorithm to construct delaunay triangles from a given set of points
      */
-    inline std::vector<Triangle> BowyerWatson(std::set<Point> pointList)
+    inline std::vector<Triangle> BowyerWatson(const std::set<glmvec2> &pointList)
     {
         /**Start with empty triangles */
         std::vector<Triangle> triangulation = {};
@@ -97,7 +92,7 @@ namespace VD
         triangulation.push_back(superTriangle);
 
         /** For each point */
-        for (const Point &eachPoint : pointList)
+        for (const glmvec2 &eachPoint : pointList)
         {
             std::vector<Edge> badTriangleEdges = {};
             /** If point is in triangle, mark it and save it */
@@ -124,16 +119,16 @@ namespace VD
                 }
             }
             /** Remove bad edges */
-            badTriangleEdges.erase(std::remove_if(badTriangleEdges.begin(), badTriangleEdges.end(), [](Edge &edge)
+            badTriangleEdges.erase(std::remove_if(badTriangleEdges.begin(), badTriangleEdges.end(), [](const Edge &edge)
                                                   { return edge.isBad(); }),
                                    badTriangleEdges.end());
             /** Remove bad triangles*/
-            triangulation.erase(std::remove_if(triangulation.begin(), triangulation.end(), [](Triangle &t)
+            triangulation.erase(std::remove_if(triangulation.begin(), triangulation.end(), [](const Triangle &t)
                                                { return t.isBad(); }),
                                 triangulation.end());
 
             /** Create new triangles from bad triangle edges */
-            for (Edge eachEdge : badTriangleEdges)
+            for (const Edge &eachEdge : badTriangleEdges)
             {
                 if (!arePointsColinear(eachEdge, eachPoint))
                 {
@@ -142,8 +137,8 @@ namespace VD
             }
         }
         /** Remove all triangles containing vertices of the super triangle */
-        std::vector<Point> vertices = superTriangle.getPoints();
-        triangulation.erase(std::remove_if(triangulation.begin(), triangulation.end(), [vertices](Triangle &t)
+        std::vector<glmvec2> vertices = superTriangle.getPoints();
+        triangulation.erase(std::remove_if(triangulation.begin(), triangulation.end(), [vertices](const Triangle &t)
                                            { return t.containsPoint(vertices[0]) ||
                                                     t.containsPoint(vertices[1]) ||
                                                     t.containsPoint(vertices[2]); }),
@@ -155,9 +150,9 @@ namespace VD
     /**
      * Construct delaunay triangles from a given set of points
      */
-    inline std::pair<std::vector<Triangle>, std::set<Point>> fracture_polytope(std::vector<std::pair<real, real>> &boundary_values, size_t amount)
+    inline std::pair<std::vector<Triangle>, std::set<glmvec2>> fracture_polytope(const PolytopeInfo &boundary_values, const size_t &amount)
     {
-        std::set<Point> pointList = getInitRandomPoints(amount, boundary_values);
+        std::set<glmvec2> pointList = getInitRandomPoints(amount, boundary_values);
         std::vector<Triangle> triangles = BowyerWatson(pointList);
         return {triangles, pointList};
     }
