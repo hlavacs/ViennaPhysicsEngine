@@ -13,26 +13,6 @@ namespace VD
 {
     namespace fs = std::filesystem;
 
-    inline void writeVertices(std::ofstream &file, real x, real y, real z)
-    {
-        file << std::setprecision(6) << std::fixed << "v " << x << " " << y << " " << z << "\n";
-    }
-
-    inline void writeFace(std::ofstream &file, int x, int y, int z)
-    {
-        file << "f " << x << "/1 " << y << "/2 " << z << "/4" << "\n";
-    }
-
-    inline void writeFace(std::ofstream &file, int x, int y, int z, int normal_index)
-    {
-        file << "f " << x << "/1/" << normal_index << " " << y << "/2/" << normal_index << " " << z << "/4/" << normal_index << "\n";
-    }
-
-    inline void writeNewLine(std::ofstream &file)
-    {
-        file << "\n";
-    }
-
     inline void writeHeader(std::ofstream &file, const std::string &name, int &index)
     {
         file << "# " + name + std::to_string(index) + ".obj\n";
@@ -40,6 +20,11 @@ namespace VD
         file << "mtllib " + name + ".mtl\n";
         file << "o " + name + "\n";
         file << "usemtl " + name + "\n\n";
+    }
+
+    inline void writeVertices(std::ofstream &file, real x, real y, real z)
+    {
+        file << std::setprecision(6) << std::fixed << "v " << x << " " << y << " " << z << "\n";
     }
 
     inline void writeTexture(std::ofstream &file)
@@ -55,11 +40,21 @@ namespace VD
         file << std::setprecision(6) << std::fixed << "vn " << x << " " << y << " " << z << "\n";
     }
 
+    inline void writeFace(std::ofstream &file, int x, int y, int z, int normal_index)
+    {
+        file << "f " << x << "/1/" << normal_index << " " << y << "/2/" << normal_index << " " << z << "/4/" << normal_index << "\n";
+    }
+
+    inline void writeNewLine(std::ofstream &file)
+    {
+        file << "\n";
+    }
+
     inline void writeToOBJ(const std::string &name, const std::vector<VD::Voronoi> &voronois, const std::pair<real, real> &z_coords)
     {
         int polytope_index = 0;
         fs::path parent_path = fs::current_path().parent_path().parent_path();
-        fs::path path = fs::path(parent_path.string() + "\\media\\models\\test\\destruction\\" + name + "\\");
+        fs::path path = fs::path(parent_path.string() + "\\media\\models\\test\\destruction\\");
 
         for (const Voronoi &eachVoronoi : voronois)
         {
@@ -103,6 +98,7 @@ namespace VD
             writeVertices(file, center.x, center.y, z_coords.second);
             writeVertices(file, center.x, center.y, z_coords.first);
             writeNewLine(file);
+
             writeTexture(file);
             writeNewLine(file);
 

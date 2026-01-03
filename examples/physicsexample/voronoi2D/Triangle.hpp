@@ -118,7 +118,7 @@ namespace VD
         friend std::ostream &operator<<(std::ostream &o, const Triangle &t)
         {
             o << "Triangle\n";
-            for (auto &eachPoint : t.getPoints())
+            for (const auto &eachPoint : t.getPoints())
             {
                 o << eachPoint << "\n";
             }
