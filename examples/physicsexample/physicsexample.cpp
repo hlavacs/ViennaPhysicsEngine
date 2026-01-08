@@ -35,6 +35,7 @@
 #include "voronoi2D/voronoi_generation.hpp"
 #include "voronoi2D/writeToOBJ.hpp"
 #include "voronoi2D/transformToPolytopes.hpp"
+#include "voronoi2D/Voronoi.hpp"
 #include "voronoi2D/House.hpp"
 
 using namespace vpe;
@@ -913,7 +914,7 @@ namespace ve
 				{
 					VESceneNode *cube0;
 					VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("Wall" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction", "wall.obj", 0, getRoot()));
-					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Wall" + std::to_string(m_physics->m_bodies.size()), cube0, &VD::wall, glmvec3{1, 1, 1}, VD::front_positions[i], glmquat{1, 0, 0, 0}, glmvec3{0, 0, 0}, glmvec3{0, 0, 0}, 1.0_real / 1000.0_real, m_physics->m_restitution, m_physics->m_friction);
+					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Wall" + std::to_string(m_physics->m_bodies.size()), cube0, &VD::wall, glmvec3{1, 1, 1}, VD::front_positions[i], glmquat{1, 0, 0, 0}, glmvec3{0, 0, 0}, glmvec3{0, 0, 0}, 1.0_real / 500.0_real, m_physics->m_restitution, m_physics->m_friction);
 					body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
 					body->m_on_move = onMove;
 					body->m_on_erase = onErase;
@@ -925,7 +926,7 @@ namespace ve
 				{
 					VESceneNode *cube0;
 					VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("Wall" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction", "wall.obj", 0, getRoot()));
-					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Wall" + std::to_string(m_physics->m_bodies.size()), cube0, &VD::wall, glmvec3{1, 1, 1}, VD::side_positions[i], glmquat{0.707, 0, 0.707, 0}, glmvec3{0, 0, 0}, glmvec3{0, 0, 0}, 1.0_real / 1000.0_real, m_physics->m_restitution, m_physics->m_friction);
+					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Wall" + std::to_string(m_physics->m_bodies.size()), cube0, &VD::wall, glmvec3{1, 1, 1}, VD::side_positions[i], glmquat{0.707, 0, 0.707, 0}, glmvec3{0, 0, 0}, glmvec3{0, 0, 0}, 1.0_real / 500.0_real, m_physics->m_restitution, m_physics->m_friction);
 					body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
 					body->m_on_move = onMove;
 					body->m_on_erase = onErase;
@@ -937,7 +938,7 @@ namespace ve
 				{
 					VESceneNode *cube0;
 					VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("Attic" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction", "attic.obj", 0, getRoot()));
-					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Attic" + std::to_string(m_physics->m_bodies.size()), cube0, &VD::attic, glmvec3{1, 1, 1}, glmvec3{-3.25 + i * 1.375, 3.48, 0}, glmquat{0.707, 0, 0.707, 0}, glmvec3{0, 0, 0}, glmvec3{0, 0, 0}, 1.0_real / 1000.0_real, m_physics->m_restitution, m_physics->m_friction);
+					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Attic" + std::to_string(m_physics->m_bodies.size()), cube0, &VD::attic, glmvec3{1, 1, 1}, glmvec3{-3.25 + i * 1.375, 3.48, 0}, glmquat{0.707, 0, 0.707, 0}, glmvec3{0, 0, 0}, glmvec3{0, 0, 0}, 1.0_real / 500.0_real, m_physics->m_restitution, m_physics->m_friction);
 					body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
 					body->m_on_move = onMove;
 					body->m_on_erase = onErase;
@@ -949,7 +950,7 @@ namespace ve
 				{
 					VESceneNode *cube0;
 					VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("Roof" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction", "roof.obj", 0, getRoot()));
-					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Roof" + std::to_string(m_physics->m_bodies.size()), cube0, &VD::roof, glmvec3{1, 1, 1}, glmvec3{-2.25 + 3.5 * i, 3.83, -1.31}, glmquat{0.866, 0.5, 0, 0}, glmvec3{0, 0, 0}, glmvec3{0, 0, 0}, 1.0_real / 1000.0_real, m_physics->m_restitution, m_physics->m_friction);
+					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Roof" + std::to_string(m_physics->m_bodies.size()), cube0, &VD::roof, glmvec3{1, 1, 1}, glmvec3{-2.25 + 3.5 * i, 3.83, -1.31}, glmquat{0.866, 0.5, 0, 0}, glmvec3{0, 0, 0}, glmvec3{0, 0, 0}, 1.0_real / 500.0_real, m_physics->m_restitution, m_physics->m_friction);
 					body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
 					body->m_on_move = onMove;
 					body->m_on_erase = onErase;
@@ -961,7 +962,7 @@ namespace ve
 				{
 					VESceneNode *cube0;
 					VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("Roof" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction", "roof.obj", 0, getRoot()));
-					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Roof" + std::to_string(m_physics->m_bodies.size()), cube0, &VD::roof, glmvec3{1, 1, 1}, glmvec3{-2.25 + 3.5 * i, 3.83, 1.31}, glmquat{-0.866, 0.5, 0, 0}, glmvec3{0, 0, 0}, glmvec3{0, 0, 0}, 1.0_real / 1000.0_real, m_physics->m_restitution, m_physics->m_friction);
+					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Roof" + std::to_string(m_physics->m_bodies.size()), cube0, &VD::roof, glmvec3{1, 1, 1}, glmvec3{-2.25 + 3.5 * i, 3.83, 1.31}, glmquat{-0.866, 0.5, 0, 0}, glmvec3{0, 0, 0}, glmvec3{0, 0, 0}, 1.0_real / 500.0_real, m_physics->m_restitution, m_physics->m_friction);
 					body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
 					body->m_on_move = onMove;
 					body->m_on_erase = onErase;
@@ -993,7 +994,7 @@ namespace ve
 
 			// Attic
 			boundary_values = VD::getBoundaryValues(VD::attic.m_vertices);
-			result = VD::fracture_polytope(boundary_values, 5);
+			result = VD::fracture_polytope(boundary_values, 12);
 
 			clipped_voronoi = VD::transformToVoronoi(result.first, result.second);
 			VD::clipVoronoiToBoundingBox(boundary_values.vertices, clipped_voronoi);

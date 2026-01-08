@@ -190,5 +190,9 @@ namespace VD
             std::reverse(newPolygon.begin(), newPolygon.end());
             each_voronoi.setVertices(newPolygon);
         }
+
+        voronois.erase(std::remove_if(voronois.begin(), voronois.end(), [](const Voronoi &v)
+                                      { return v.getVertices().size() == 0; }),
+                       voronois.end());
     }
 }
