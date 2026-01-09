@@ -813,7 +813,7 @@ namespace ve
 
 	class VEEventListenerDestructionControls : public VEEventListener
 	{
-		real fracture_force_threshold = 2500.0_real; // Force threshold after objects fracture
+		real fracture_force_threshold = 1500.0_real; // Force threshold after objects fracture
 		std::vector<vpe::VPEWorld::Polytope> wall_poly = {};
 		std::vector<glmvec3> wall_tl = {};
 
@@ -885,7 +885,6 @@ namespace ve
 				real impulse2 = (1 / body2->m_mass_inv * glm::length(body2->m_linear_velocityW));
 				if (impulse2 > fracture_force_threshold)
 				{
-
 					std::string name = body1->m_name;
 					glmvec3 position = body1->m_positionW;
 					glmquat orientation = body1->m_orientationLW;
@@ -908,13 +907,11 @@ namespace ve
 
 			if (event.idata1 == GLFW_KEY_1 && event.idata3 == GLFW_PRESS)
 			{
-				glmvec3 positionCamera{getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3]};
-
-				for (int i = 0; i < VD::front_positions.size(); ++i)
+				for (int i = 0; i < VD::wall_positions.size(); ++i)
 				{
 					VESceneNode *cube0;
 					VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("Wall" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction", "wall.obj", 0, getRoot()));
-					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Wall" + std::to_string(m_physics->m_bodies.size()), cube0, &VD::wall, glmvec3{1, 1, 1}, VD::front_positions[i], glmquat{1, 0, 0, 0}, glmvec3{0, 0, 0}, glmvec3{0, 0, 0}, 1.0_real / 500.0_real, m_physics->m_restitution, m_physics->m_friction);
+					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Wall" + std::to_string(m_physics->m_bodies.size()), cube0, &VD::wall, glmvec3{1, 1, 1}, VD::wall_positions[i], VD::wall_rotations[i % 2], glmvec3{0, 0, 0}, glmvec3{0, 0, 0}, 1.0_real / 500.0_real, m_physics->m_restitution, m_physics->m_friction);
 					body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
 					body->m_on_move = onMove;
 					body->m_on_erase = onErase;
@@ -922,23 +919,11 @@ namespace ve
 					m_physics->addCollider(body, onCollideFracture);
 				}
 
-				for (int i = 0; i < VD::side_positions.size(); ++i)
-				{
-					VESceneNode *cube0;
-					VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("Wall" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction", "wall.obj", 0, getRoot()));
-					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Wall" + std::to_string(m_physics->m_bodies.size()), cube0, &VD::wall, glmvec3{1, 1, 1}, VD::side_positions[i], glmquat{0.707, 0, 0.707, 0}, glmvec3{0, 0, 0}, glmvec3{0, 0, 0}, 1.0_real / 500.0_real, m_physics->m_restitution, m_physics->m_friction);
-					body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
-					body->m_on_move = onMove;
-					body->m_on_erase = onErase;
-					m_physics->addBody(body);
-					m_physics->addCollider(body, onCollideFracture);
-				}
-
-				for (int i = 0; i < 5; ++i)
+				for (int i = 0; i < VD::attic_positions.size(); ++i)
 				{
 					VESceneNode *cube0;
 					VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("Attic" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction", "attic.obj", 0, getRoot()));
-					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Attic" + std::to_string(m_physics->m_bodies.size()), cube0, &VD::attic, glmvec3{1, 1, 1}, glmvec3{-3.25 + i * 1.375, 3.48, 0}, glmquat{0.707, 0, 0.707, 0}, glmvec3{0, 0, 0}, glmvec3{0, 0, 0}, 1.0_real / 500.0_real, m_physics->m_restitution, m_physics->m_friction);
+					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Attic" + std::to_string(m_physics->m_bodies.size()), cube0, &VD::attic, glmvec3{1, 1, 1}, VD::attic_positions[i], glmquat{0.707, 0, 0.707, 0}, glmvec3{0, 0, 0}, glmvec3{0, 0, 0}, 1.0_real / 500.0_real, m_physics->m_restitution, m_physics->m_friction);
 					body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
 					body->m_on_move = onMove;
 					body->m_on_erase = onErase;
@@ -946,23 +931,11 @@ namespace ve
 					m_physics->addCollider(body, onCollideFracture);
 				}
 
-				for (int i = 0; i < 2; ++i)
+				for (int i = 0; i < VD::roof_positions.size(); ++i)
 				{
 					VESceneNode *cube0;
 					VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("Roof" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction", "roof.obj", 0, getRoot()));
-					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Roof" + std::to_string(m_physics->m_bodies.size()), cube0, &VD::roof, glmvec3{1, 1, 1}, glmvec3{-2.25 + 3.5 * i, 3.83, -1.31}, glmquat{0.866, 0.5, 0, 0}, glmvec3{0, 0, 0}, glmvec3{0, 0, 0}, 1.0_real / 500.0_real, m_physics->m_restitution, m_physics->m_friction);
-					body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
-					body->m_on_move = onMove;
-					body->m_on_erase = onErase;
-					m_physics->addBody(body);
-					m_physics->addCollider(body, onCollideFracture);
-				}
-
-				for (int i = 0; i < 2; ++i)
-				{
-					VESceneNode *cube0;
-					VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("Roof" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction", "roof.obj", 0, getRoot()));
-					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Roof" + std::to_string(m_physics->m_bodies.size()), cube0, &VD::roof, glmvec3{1, 1, 1}, glmvec3{-2.25 + 3.5 * i, 3.83, 1.31}, glmquat{-0.866, 0.5, 0, 0}, glmvec3{0, 0, 0}, glmvec3{0, 0, 0}, 1.0_real / 500.0_real, m_physics->m_restitution, m_physics->m_friction);
+					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Roof" + std::to_string(m_physics->m_bodies.size()), cube0, &VD::roof, glmvec3{1, 1, 1}, VD::roof_positions[i], VD::roof_rotations[i % 2], glmvec3{0, 0, 0}, glmvec3{0, 0, 0}, 1.0_real / 500.0_real, m_physics->m_restitution, m_physics->m_friction);
 					body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
 					body->m_on_move = onMove;
 					body->m_on_erase = onErase;
@@ -988,30 +961,30 @@ namespace ve
 			std::vector<VD::Voronoi> clipped_voronoi = VD::transformToVoronoi(result.first, result.second);
 			VD::clipVoronoiToBoundingBox(boundary_values.vertices, clipped_voronoi);
 
-			this->wall_tl = VD::center_voronois(clipped_voronoi);
-			VD::transformToPolytopes(this->wall_poly, clipped_voronoi, boundary_values);
+			wall_tl = VD::center_voronois(clipped_voronoi);
+			VD::transformToPolytopes(wall_poly, clipped_voronoi, boundary_values);
 			VD::writeToOBJ("wall", clipped_voronoi, {boundary_values.min_z, boundary_values.max_z});
 
 			// Attic
 			boundary_values = VD::getBoundaryValues(VD::attic.m_vertices);
-			result = VD::fracture_polytope(boundary_values, 12);
+			result = VD::fracture_polytope(boundary_values, 5);
 
 			clipped_voronoi = VD::transformToVoronoi(result.first, result.second);
 			VD::clipVoronoiToBoundingBox(boundary_values.vertices, clipped_voronoi);
-			this->attic_tl = VD::center_voronois(clipped_voronoi);
+			attic_tl = VD::center_voronois(clipped_voronoi);
 
-			VD::transformToPolytopes(this->attic_poly, clipped_voronoi, boundary_values);
+			VD::transformToPolytopes(attic_poly, clipped_voronoi, boundary_values);
 			VD::writeToOBJ("attic", clipped_voronoi, {boundary_values.min_z, boundary_values.max_z});
 
 			// Roof
 			boundary_values = VD::getBoundaryValues(VD::roof.m_vertices);
-			result = VD::fracture_polytope(boundary_values, 12);
+			result = VD::fracture_polytope(boundary_values, 10);
 
 			clipped_voronoi = VD::transformToVoronoi(result.first, result.second);
 			VD::clipVoronoiToBoundingBox(boundary_values.vertices, clipped_voronoi);
-			this->roof_tl = VD::center_voronois(clipped_voronoi);
+			roof_tl = VD::center_voronois(clipped_voronoi);
 
-			VD::transformToPolytopes(this->roof_poly, clipped_voronoi, boundary_values);
+			VD::transformToPolytopes(roof_poly, clipped_voronoi, boundary_values);
 			VD::writeToOBJ("roof", clipped_voronoi, {boundary_values.min_z, boundary_values.max_z});
 		};
 
