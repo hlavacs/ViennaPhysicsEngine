@@ -904,7 +904,6 @@ namespace ve
 		/// <returns> False, so the key is not consumed. </returns>
 		bool onKeyboard(veEvent event)
 		{
-
 			if (event.idata1 == GLFW_KEY_1 && event.idata3 == GLFW_PRESS)
 			{
 				for (int i = 0; i < VD::wall_positions.size(); ++i)
@@ -955,37 +954,37 @@ namespace ve
 			: VEEventListener(name), m_physics{physics}
 		{
 			// Walls
-			auto boundary_values = VD::getBoundaryValues(VD::wall.m_vertices);
-			auto result = VD::fracture_polytope(boundary_values, 4);
+			auto polytope_info = VD::getPolytopeInfo(VD::wall.m_vertices);
+			auto result = VD::fracture_polytope(polytope_info.min_x, polytope_info.max_x, polytope_info.min_y, polytope_info.max_y, 4);
 
 			std::vector<VD::Voronoi> clipped_voronoi = VD::transformToVoronoi(result.first, result.second);
-			VD::clipVoronoiToBoundingBox(boundary_values.vertices, clipped_voronoi);
+			VD::clipVoronoiToBoundingBox(polytope_info.vertices, clipped_voronoi);
 
 			wall_tl = VD::center_voronois(clipped_voronoi);
-			VD::transformToPolytopes(wall_poly, clipped_voronoi, boundary_values);
-			VD::writeToOBJ("wall", clipped_voronoi, {boundary_values.min_z, boundary_values.max_z});
+			VD::transformToPolytopes(wall_poly, clipped_voronoi, polytope_info.min_z, polytope_info.max_z);
+			VD::writeToOBJ("wall", clipped_voronoi, polytope_info.min_z, polytope_info.max_z);
 
 			// Attic
-			boundary_values = VD::getBoundaryValues(VD::attic.m_vertices);
-			result = VD::fracture_polytope(boundary_values, 5);
+			polytope_info = VD::getPolytopeInfo(VD::attic.m_vertices);
+			result = VD::fracture_polytope(polytope_info.min_x, polytope_info.max_x, polytope_info.min_y, polytope_info.max_y, 5);
 
 			clipped_voronoi = VD::transformToVoronoi(result.first, result.second);
-			VD::clipVoronoiToBoundingBox(boundary_values.vertices, clipped_voronoi);
+			VD::clipVoronoiToBoundingBox(polytope_info.vertices, clipped_voronoi);
 			attic_tl = VD::center_voronois(clipped_voronoi);
 
-			VD::transformToPolytopes(attic_poly, clipped_voronoi, boundary_values);
-			VD::writeToOBJ("attic", clipped_voronoi, {boundary_values.min_z, boundary_values.max_z});
+			VD::transformToPolytopes(attic_poly, clipped_voronoi, polytope_info.min_z, polytope_info.max_z);
+			VD::writeToOBJ("attic", clipped_voronoi, polytope_info.min_z, polytope_info.max_z);
 
 			// Roof
-			boundary_values = VD::getBoundaryValues(VD::roof.m_vertices);
-			result = VD::fracture_polytope(boundary_values, 10);
+			polytope_info = VD::getPolytopeInfo(VD::roof.m_vertices);
+			result = VD::fracture_polytope(polytope_info.min_x, polytope_info.max_x, polytope_info.min_y, polytope_info.max_y, 10);
 
 			clipped_voronoi = VD::transformToVoronoi(result.first, result.second);
-			VD::clipVoronoiToBoundingBox(boundary_values.vertices, clipped_voronoi);
+			VD::clipVoronoiToBoundingBox(polytope_info.vertices, clipped_voronoi);
 			roof_tl = VD::center_voronois(clipped_voronoi);
 
-			VD::transformToPolytopes(roof_poly, clipped_voronoi, boundary_values);
-			VD::writeToOBJ("roof", clipped_voronoi, {boundary_values.min_z, boundary_values.max_z});
+			VD::transformToPolytopes(roof_poly, clipped_voronoi, polytope_info.min_z, polytope_info.max_z);
+			VD::writeToOBJ("roof", clipped_voronoi, polytope_info.min_z, polytope_info.max_z);
 		};
 
 		/// Destructor of class EventListenerCollision

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <chrono>
-#include <thread>
+#include <iostream>
+#include <vector>
 
 #include "Voronoi.hpp"
 #include "VPE.hpp"
@@ -9,7 +9,7 @@
 namespace VD
 {
     /** Transform 2D Voronoi to 3D polytopes by extruding them into z-dimension */
-    void transformToPolytopes(std::vector<vpe::VPEWorld::Polytope> &polytopes, const std::vector<Voronoi> &voronois, const PolytopeInfo &info)
+    void transformToPolytopes(std::vector<vpe::VPEWorld::Polytope> &polytopes, const std::vector<Voronoi> &voronois, const real &min_z, const real &max_z)
     {
         for (const Voronoi &eachVoronoi : voronois)
         {
@@ -26,12 +26,12 @@ namespace VD
             /** Add Front vertices */
             for (const auto &each_vertice : voronoi_vertices)
             {
-                vertices.push_back({each_vertice.x, each_vertice.y, info.max_z});
+                vertices.push_back({each_vertice.x, each_vertice.y, max_z});
             }
             /** Add back vertices */
             for (const auto &each_vertice : voronoi_vertices)
             {
-                vertices.push_back({each_vertice.x, each_vertice.y, info.min_z});
+                vertices.push_back({each_vertice.x, each_vertice.y, min_z});
             }
 
             /**Add Front edges */

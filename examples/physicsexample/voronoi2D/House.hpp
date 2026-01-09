@@ -1,6 +1,9 @@
 #pragma once
 
+#include <vector>
+
 #include "VPE.hpp"
+
 namespace VD
 {
 

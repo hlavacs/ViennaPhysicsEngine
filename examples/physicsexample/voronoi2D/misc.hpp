@@ -38,7 +38,7 @@ namespace VD
     /**
      * Find minimum and maximum x/y values of given vertices
      */
-    inline PolytopeInfo getBoundaryValues(const std::vector<vpe::VPEWorld::Vertex> &poly_vertices)
+    inline PolytopeInfo getPolytopeInfo(const std::vector<vpe::VPEWorld::Vertex> &poly_vertices)
     {
         std::vector<glmvec2> front_polytope_face = {};
         real min_x = std::numeric_limits<real>::max();

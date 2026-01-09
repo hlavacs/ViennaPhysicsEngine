@@ -3,9 +3,6 @@
 #include <iostream>
 #include <vector>
 
-#include "Edge.hpp"
-#include "misc.hpp"
-
 #include "VPE.hpp"
 
 namespace VD

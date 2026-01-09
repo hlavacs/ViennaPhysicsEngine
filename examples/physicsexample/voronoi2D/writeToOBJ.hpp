@@ -50,7 +50,7 @@ namespace VD
         file << "\n";
     }
 
-    inline void writeToOBJ(const std::string &name, const std::vector<VD::Voronoi> &voronois, const std::pair<real, real> &z_coords)
+    inline void writeToOBJ(const std::string &name, const std::vector<VD::Voronoi> &voronois, const real &min_z, const real &max_z)
     {
         int polytope_index = 0;
         fs::path parent_path = fs::current_path().parent_path().parent_path();
@@ -82,21 +82,21 @@ namespace VD
             /** Add Front vertices */
             for (auto each_vertice : voronoi_vertices)
             {
-                faces.push_back({each_vertice.x, each_vertice.y, z_coords.second});
-                writeVertices(file, each_vertice.x, each_vertice.y, z_coords.second);
+                faces.push_back({each_vertice.x, each_vertice.y, max_z});
+                writeVertices(file, each_vertice.x, each_vertice.y, max_z);
             }
             /** Add back vertices */
             for (auto each_vertice : voronoi_vertices)
             {
-                faces.push_back({each_vertice.x, each_vertice.y, z_coords.first});
-                writeVertices(file, each_vertice.x, each_vertice.y, z_coords.first);
+                faces.push_back({each_vertice.x, each_vertice.y, min_z});
+                writeVertices(file, each_vertice.x, each_vertice.y, min_z);
             }
 
-            faces.push_back({center.x, center.y, z_coords.second});
-            faces.push_back({center.x, center.y, z_coords.first});
+            faces.push_back({center.x, center.y, max_z});
+            faces.push_back({center.x, center.y, min_z});
 
-            writeVertices(file, center.x, center.y, z_coords.second);
-            writeVertices(file, center.x, center.y, z_coords.first);
+            writeVertices(file, center.x, center.y, max_z);
+            writeVertices(file, center.x, center.y, min_z);
             writeNewLine(file);
 
             writeTexture(file);

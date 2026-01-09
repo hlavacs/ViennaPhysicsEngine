@@ -3,16 +3,9 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
-#include <algorithm>
-#include <cstddef>
-#include <iomanip>
-#include <limits>
-#include <type_traits>
 
 #include "VPE.hpp"
-
 #include "Edge.hpp"
-
 #include "Triangle.hpp"
 #include "misc.hpp"
 
@@ -21,14 +14,14 @@ namespace VD
     /**
      * Returns a list of n amount of 2D points
      */
-    inline std::set<glmvec2> getInitRandomPoints(const size_t &n, const PolytopeInfo &boundary_values)
+    inline std::set<glmvec2> getInitRandomPoints(const real &min_x, const real &max_x, const real &min_y, const real &max_y, const size_t &amount)
     {
         std::default_random_engine rnd_gen{12345};
-        std::uniform_real_distribution<> rnd_unif_x{boundary_values.min_x, boundary_values.max_x};
-        std::uniform_real_distribution<> rnd_unif_y{boundary_values.min_y, boundary_values.max_y};
+        std::uniform_real_distribution<> rnd_unif_x{min_x, max_x};
+        std::uniform_real_distribution<> rnd_unif_y{min_y, max_y};
 
         std::set<glmvec2> startings_points = {};
-        while (startings_points.size() < n)
+        while (startings_points.size() < amount)
         {
             real x = (real)rnd_unif_x(rnd_gen);
             real y = (real)rnd_unif_y(rnd_gen);
@@ -150,9 +143,9 @@ namespace VD
     /**
      * Construct delaunay triangles from a given set of points
      */
-    inline std::pair<std::vector<Triangle>, std::set<glmvec2>> fracture_polytope(const PolytopeInfo &boundary_values, const size_t &amount)
+    inline std::pair<std::vector<Triangle>, std::set<glmvec2>> fracture_polytope(const real &min_x, const real &max_x, const real &min_y, const real &max_y, const size_t &amount)
     {
-        std::set<glmvec2> pointList = getInitRandomPoints(amount, boundary_values);
+        std::set<glmvec2> pointList = getInitRandomPoints(min_x, max_x, min_y, max_y, amount);
         std::vector<Triangle> triangles = BowyerWatson(pointList);
         return {triangles, pointList};
     }
