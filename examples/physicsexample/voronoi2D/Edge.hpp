@@ -4,14 +4,14 @@
 
 namespace VD
 {
-    /**
-     * Edge class for Voronoi/Delaunay Triangle
-     */
+    /// <summary>
+    /// Edge class for delaunay triangulation/voronois
+    /// </summary>
     struct Edge
     {
     private:
-        glmvec2 a, b;
-        bool badEdge = false; /* boolean for bad edges in delaunay algorithm */
+        glmvec2 a, b;         // end points of edge
+        bool badEdge = false; // boolean for bad edges in delaunay algorithm
 
     public:
         Edge(glmvec2 a, glmvec2 b) : a{a}, b{b} {}
@@ -51,9 +51,10 @@ namespace VD
         }
     };
 }
-/**
- *  Hash function for map,sets
- */
+
+/// <summary>
+/// Hash function for edge class
+/// </summary>
 namespace std
 {
     template <>

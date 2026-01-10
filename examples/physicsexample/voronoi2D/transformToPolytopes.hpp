@@ -8,7 +8,13 @@
 
 namespace VD
 {
-    /** Transform 2D Voronoi to 3D polytopes by extruding them into z-dimension */
+    /// <summary>
+    /// Transform 2D Voronoi to 3D polytopes by extruding them into z-dimension.
+    /// </summary>
+    /// <param name="polytopes"> vector in which polytopes are saved in .</param>
+    /// <param name="voronois"> 2D Voronoi .</param>
+    /// <param name="min_z"> negative z dimension of polytope.</param>
+    /// <param name="max_z"> positive z dimension of polytope.</param>
     void transformToPolytopes(std::vector<vpe::VPEWorld::Polytope> &polytopes, const std::vector<Voronoi> &voronois, const real &min_z, const real &max_z)
     {
         for (const Voronoi &eachVoronoi : voronois)

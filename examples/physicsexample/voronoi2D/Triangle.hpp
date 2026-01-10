@@ -9,9 +9,9 @@
 
 namespace VD
 {
-    /**
-     * Delaunay Triangle structure
-     */
+    /// <summary>
+    /// Delaunay Triangle structure.
+    /// </summary>
     struct Triangle
     {
     private:
@@ -60,17 +60,19 @@ namespace VD
             badTriangle = value;
         }
 
-        /**
-         * Check if Triangle contains glmvec2 p
-         */
+        /// <summary>
+        /// Checks if point is a corner point of triangle.
+        /// <returns> Return true if points is a corner point .</returns>
         bool containsPoint(glmvec2 p) const
         {
             return isVectorEqualTo(a, p) || isVectorEqualTo(b, p) || isVectorEqualTo(c, p);
         }
 
-        /**
-         * Checks if glmvec2 d is in the circle defined by the points of the triangle
-         */
+        /// <summary>
+        /// Checks if point is within circumcircle defined by the triangle.
+        /// </summary>
+        /// <param name="d"> point for which this is checked </param>
+        /// <returns> Return true if it is within circumcircle.</returns>
         bool isInCircumcircle(glmvec2 d) const
         {
             real m11 = a.x - d.x;
@@ -87,9 +89,11 @@ namespace VD
 
             return (m11 * m22 * m33 + m12 * m23 * m31 + m13 * m21 * m32) - (m31 * m22 * m13 + m32 * m23 * m11 + m33 * m21 * m12) >= 0;
         }
-        /*
-         * Calculates the center point of the circumcircle of the triangle using determinant method
-         */
+
+        /// <summary>
+        /// Calculates the center point of the circumcircle of the triangle using determinant method
+        /// </summary>
+        /// <returns> Return center point of circumcircle defined by triangle.</returns>
         glmvec2 getCircumcircleCenter() const
         {
             real m11 = a.x * a.x + a.y * a.y;
@@ -105,9 +109,11 @@ namespace VD
             return glmvec2(x_0, y_0);
         }
 
-        /**
-         * Compares two triangles, equal if all 3 points are the same
-         */
+        /// <summary>
+        /// Compares two triangles, equal if all 3 points are the same.
+        /// </summary>
+        /// <param name="other"> other triangle that this triangle is compared to </param>
+        /// <returns> Return true if corner triangle points are the same.</returns>
         bool isTriangleEqualTo(const Triangle &other) const
         {
             return isVectorEqualTo(a, other.a) && isVectorEqualTo(b, other.b) && isVectorEqualTo(c, other.c) ||

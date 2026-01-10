@@ -11,9 +11,16 @@
 
 namespace VD
 {
-    /**
-     * Returns a list of n amount of 2D points
-     */
+
+    /// <summary>
+    /// Generate points within the xy dimensions.
+    /// </summary>
+    /// <param name="min_x"> minimum x </param>
+    /// <param name="min_x"> maximum x </param>
+    /// <param name="min_y"> minimum y </param>
+    /// <param name="max_y"> maximum y </param>
+    /// <param name="amount"> amount of points generated </param>
+    /// <returns> Return vector of 2D points.</returns>
     inline std::set<glmvec2> getInitRandomPoints(const real &min_x, const real &max_x, const real &min_y, const real &max_y, const size_t &amount)
     {
         std::default_random_engine rnd_gen{12345};
@@ -30,9 +37,12 @@ namespace VD
 
         return startings_points;
     }
-    /**
-     * Forms a Triangle that encloses all given points
-     */
+
+    /// <summary>
+    /// Forms a Triangle that encloses all given points.
+    /// </summary>
+    /// <param name="points"> seed points </param>
+    /// <returns> Return super triangle.</returns>
     inline Triangle getSuperTriangle(const std::set<glmvec2> &points)
     {
         real min_x = std::numeric_limits<real>::max();
@@ -61,9 +71,12 @@ namespace VD
                         {mid_x + deltaMax * scale, mid_y - deltaMax});
     }
 
-    /**
-     *  Slope Method to check if 3 points are collinear
-     */
+    /// <summary>
+    /// Slope Method to check if 3 points are collinear.
+    /// </summary>
+    /// <param name="e"> Edge with two points </param>
+    /// <param name="c"> third point </param>
+    /// <returns> Return true if points are collinear.</returns>
     inline bool arePointsColinear(const Edge &e, const glmvec2 &c)
     {
         glmvec2 a = e.getA();
@@ -73,9 +86,11 @@ namespace VD
         return slopeAB == slopeBC;
     }
 
-    /**
-     * Bowyer-Watson Algorithm to construct delaunay triangles from a given set of points
-     */
+    /// <summary>
+    /// Bowyer-Watson Algorithm to construct delaunay triangles from a given set of points.
+    /// </summary>
+    /// <param name="pointList"> seed points for triangulation </param>
+    /// <returns> Return delaunay triangles from given points.</returns>
     inline std::vector<Triangle> BowyerWatson(const std::set<glmvec2> &pointList)
     {
         /**Start with empty triangles */
@@ -140,10 +155,16 @@ namespace VD
         return triangulation;
     }
 
-    /**
-     * Construct delaunay triangles from a given set of points
-     */
-    inline std::pair<std::vector<Triangle>, std::set<glmvec2>> fracture_polytope(const real &min_x, const real &max_x, const real &min_y, const real &max_y, const size_t &amount)
+    /// <summary>
+    /// Construct delaunay triangles from a given set of points.
+    /// </summary>
+    /// <param name="min_x"> minimum x dimension </param>
+    /// <param name="max_x"> maximum x dimension </param>
+    /// <param name="min_y"> minimum y dimension </param>
+    /// <param name="max_y"> maximum y dimension </param>
+    /// <param name="amount"> amount of seed points for triangulation </param>
+    /// <returns> Return delaunay triangles and seed points.</returns>
+    inline std::pair<std::vector<Triangle>, std::set<glmvec2>> triangulate_polytope(const real &min_x, const real &max_x, const real &min_y, const real &max_y, const size_t &amount)
     {
         std::set<glmvec2> pointList = getInitRandomPoints(min_x, max_x, min_y, max_y, amount);
         std::vector<Triangle> triangles = BowyerWatson(pointList);

@@ -50,6 +50,9 @@ namespace VD
         file << "\n";
     }
 
+    /// <summary>
+    /// Write OBJ file from voronois
+    /// </summary>
     inline void writeToOBJ(const std::string &name, const std::vector<VD::Voronoi> &voronois, const real &min_z, const real &max_z)
     {
         int polytope_index = 0;

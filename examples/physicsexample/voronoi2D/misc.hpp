@@ -5,23 +5,27 @@
 
 namespace VD
 {
-    /**
-     * Comparison accounting for floating point precision errors
-     */
+    /// <summary>
+    /// Comparison between two float numbers accounting for floating point precision errors
+    /// </summary>
     inline bool equal_within_ulps(real x, real y)
     {
         return std::fabs(x - y) < std::numeric_limits<real>::min() ||
                std::fabs(x - y) <= std::numeric_limits<real>::epsilon() * std::max(std::fabs(x), std::fabs(y));
     }
 
-    /**
-     * Equal Comparison between Vectors/Points
-     */
+    /// <summary>
+    /// Comparison between two vectors
+    /// </summary>
+    /// <returns> Return true if both vectors are equal.</returns>
     inline bool isVectorEqualTo(const glmvec2 &a, const glmvec2 &b)
     {
         return equal_within_ulps(a.x, b.x) && equal_within_ulps(a.y, b.y);
     }
 
+    /// <summary>
+    /// Data structure containing polytope vertices and bounding box information
+    /// </summary>
     struct PolytopeInfo
     {
         std::vector<glmvec2> vertices;
@@ -35,9 +39,12 @@ namespace VD
         PolytopeInfo(std::vector<glmvec2> vertices, real min_x, real max_x, real min_y, real max_y, real min_z, real max_z)
             : vertices{vertices}, min_x{min_x}, max_x{max_x}, min_y{min_y}, max_y{max_y}, min_z{min_z}, max_z{max_z} {}
     };
-    /**
-     * Find minimum and maximum x/y values of given vertices
-     */
+
+    /// <summary>
+    /// Calculates the bounding box of the polytope and 2d convex face parallel to xy-plane in the furthest z-direction.
+    /// </summary>
+    /// <param name="poly_vertices"> 3D polytope vertices </param>
+    /// <returns> Return face vertices and bounding box dimensions.</returns>
     inline PolytopeInfo getPolytopeInfo(const std::vector<vpe::VPEWorld::Vertex> &poly_vertices)
     {
         std::vector<glmvec2> front_polytope_face = {};

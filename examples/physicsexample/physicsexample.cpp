@@ -823,6 +823,14 @@ namespace ve
 		std::vector<vpe::VPEWorld::Polytope> roof_poly = {};
 		std::vector<glmvec3> roof_tl = {};
 
+		/// <summary>
+		/// Spawns the fractured polytopes with the properties of the orginal polytopes
+		/// </summary>
+		/// <param name="name"> polytope name, used to check which polytopes to spawn</param>
+		/// <param name="position"> position of original polytope.</param>
+		/// <param name="orientation"> orientation of original polytope.</param>
+		/// <param name="velocity"> velocity of original polytope.</param>
+		/// <param name="angular_velocity"> angular_velocity of original polytope.</param>
 		void fracture(std::string name, glmvec3 position, glmquat orientation, glmvec3 velocity, glmvec3 angular_velocity)
 		{
 			if (name.find("Wall") != std::string::npos)
@@ -866,6 +874,12 @@ namespace ve
 			}
 		}
 
+		/// <summary>
+		/// This is a callback that is called if a body collides with another body.
+		/// It checks the impulse of the two bodies, if it goes past a certain threshold erase first body and replace it with its fractured polytopes.
+		/// </summary>
+		/// <param name="body1"> body for which collider is set, body that fractures after threshold.</param>
+		/// <param name="cloth"> other colliding body.</param>
 		VPEWorld::callback_collide onCollideFracture =
 			[this](std::shared_ptr<VPEWorld::Body> body1, std::shared_ptr<VPEWorld::Body> body2)
 		{
@@ -898,7 +912,7 @@ namespace ve
 
 	public:
 		/// <summary>
-		/// Callback for event key stroke. Depending on the key pressed, bodies are created.
+		/// Spawns house consisting of different polytope types.
 		/// </summary>
 		/// <param name="event"> The keyboard event. </param>
 		/// <returns> False, so the key is not consumed. </returns>
@@ -955,31 +969,31 @@ namespace ve
 		{
 			// Walls
 			auto polytope_info = VD::getPolytopeInfo(VD::wall.m_vertices);
-			auto result = VD::fracture_polytope(polytope_info.min_x, polytope_info.max_x, polytope_info.min_y, polytope_info.max_y, 4);
+			auto triangulation = VD::triangulate_polytope(polytope_info.min_x, polytope_info.max_x, polytope_info.min_y, polytope_info.max_y, 4);
 
-			std::vector<VD::Voronoi> clipped_voronoi = VD::transformToVoronoi(result.first, result.second);
+			std::vector<VD::Voronoi> clipped_voronoi = VD::transformToVoronoi(triangulation.first, triangulation.second);
 			VD::clipVoronoiToBoundingBox(polytope_info.vertices, clipped_voronoi);
 
 			wall_tl = VD::center_voronois(clipped_voronoi);
 			VD::transformToPolytopes(wall_poly, clipped_voronoi, polytope_info.min_z, polytope_info.max_z);
 			VD::writeToOBJ("wall", clipped_voronoi, polytope_info.min_z, polytope_info.max_z);
 
-			// Attic
+			// // Attic
 			polytope_info = VD::getPolytopeInfo(VD::attic.m_vertices);
-			result = VD::fracture_polytope(polytope_info.min_x, polytope_info.max_x, polytope_info.min_y, polytope_info.max_y, 5);
+			triangulation = VD::triangulate_polytope(polytope_info.min_x, polytope_info.max_x, polytope_info.min_y, polytope_info.max_y, 5);
 
-			clipped_voronoi = VD::transformToVoronoi(result.first, result.second);
+			clipped_voronoi = VD::transformToVoronoi(triangulation.first, triangulation.second);
 			VD::clipVoronoiToBoundingBox(polytope_info.vertices, clipped_voronoi);
 			attic_tl = VD::center_voronois(clipped_voronoi);
 
 			VD::transformToPolytopes(attic_poly, clipped_voronoi, polytope_info.min_z, polytope_info.max_z);
 			VD::writeToOBJ("attic", clipped_voronoi, polytope_info.min_z, polytope_info.max_z);
 
-			// Roof
+			// // Roof
 			polytope_info = VD::getPolytopeInfo(VD::roof.m_vertices);
-			result = VD::fracture_polytope(polytope_info.min_x, polytope_info.max_x, polytope_info.min_y, polytope_info.max_y, 10);
+			triangulation = VD::triangulate_polytope(polytope_info.min_x, polytope_info.max_x, polytope_info.min_y, polytope_info.max_y, 10);
 
-			clipped_voronoi = VD::transformToVoronoi(result.first, result.second);
+			clipped_voronoi = VD::transformToVoronoi(triangulation.first, triangulation.second);
 			VD::clipVoronoiToBoundingBox(polytope_info.vertices, clipped_voronoi);
 			roof_tl = VD::center_voronois(clipped_voronoi);
 

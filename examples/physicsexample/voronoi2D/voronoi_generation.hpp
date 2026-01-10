@@ -14,9 +14,13 @@
 
 namespace VD
 {
-    /**
-     * Calculate the intersection of a perpendicular line from point c on the line segment of AB
-     */
+    /// <summary>
+    /// Calculate the intersection of a perpendicular line from point c on the line segment of AB.
+    /// </summary>
+    /// <param name="A"> Starting points of line segment </param>
+    /// <param name="B"> End points of line segment </param>
+    /// <param name="C"> Point from which intersection line starts </param>
+    /// <returns> Intersection point.</returns>
     inline glmvec2 intersectionOnLineFromPoint(const glmvec2 &A, const glmvec2 &B, const glmvec2 &C)
     {
         glmvec2 NAB = glm::normalize(B - A);
@@ -26,17 +30,18 @@ namespace VD
         glmvec2 D = A + AD_length;
         return D;
     }
-    /**
-     * Check if points a,b and c are in clockwise order
-     */
+
+    /// <summary>
+    /// Check if points a,b and c are in clockwise order.
+    /// </summary>
     inline bool counterclockwise_order(const glmvec2 &A, const glmvec2 &B, const glmvec2 &C)
     {
         return (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x);
     }
 
-    /**
-     * Check if line segements intersect
-     */
+    /// <summary>
+    /// Check if the two edges intersect.
+    /// </summary>
     inline bool checkIntersection(const Edge &e1, const Edge &e2)
     {
         glmvec2 A = e1.getA();
@@ -47,9 +52,15 @@ namespace VD
 
         return counterclockwise_order(A, C, D) != counterclockwise_order(B, C, D) && counterclockwise_order(A, B, C) != counterclockwise_order(A, B, D);
     }
-    /**
-     * get intersection point of Two line segments AB and CD
-     */
+
+    /// <summary>
+    /// get intersection point of two line segments AB and CD
+    /// </summary>
+    /// <param name="A"> Starting points of first line segment </param>
+    /// <param name="B"> End points of first line segment </param>
+    /// <param name="A"> Starting points of second line segment </param>
+    /// <param name="B"> End points of line second segment </param>
+    /// <returns> Intersection point.</returns>
     inline glmvec2 getIntersection(const glmvec2 &A, const glmvec2 &B, const glmvec2 &C, const glmvec2 &D)
     {
         glmvec2 AC = C - A;
@@ -60,14 +71,14 @@ namespace VD
         return I;
     }
 
-    /**
-     * Transform the delaunay triangles to voronoi diagram
-     */
-    inline std::vector<Voronoi> transformToVoronoi(const std::vector<Triangle> &delaunayTriangles, const std::set<glmvec2> &starting_points)
+    /// <summary>
+    /// Transform the delaunay triangles to voronoi diagram
+    /// </summary>
+    inline std::vector<Voronoi> transformToVoronoi(const std::vector<Triangle> &delaunayTriangles, const std::set<glmvec2> &seed_points)
     {
         std::vector<Voronoi> voronois = {};
         /* Iterate through every starting points/voronoi center */
-        for (const auto &eachPoints : starting_points)
+        for (const auto &eachPoints : seed_points)
         {
             /**Save triangles that contain current point */
             std::vector<Triangle> relevantTriangles = {};
@@ -172,9 +183,13 @@ namespace VD
         }
         return voronois;
     }
-    /**
-     * Clip Voronoi vertices to a bounding box
-     */
+
+
+    /// <summary>
+    /// Clip Voronoi vertices to a convex face
+    /// </summary>
+    /// <param name="boundary_values"> vertices from which voronois are clipped from </param>
+    /// <param name="voronois"> original voronois </param>
     inline void clipVoronoiToBoundingBox(const std::vector<glmvec2> &boundary_values, std::vector<Voronoi> &voronois)
     {
         std::vector<glmvec2> boundingBox = boundary_values;

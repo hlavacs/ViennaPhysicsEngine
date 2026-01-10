@@ -7,9 +7,9 @@
 
 namespace VD
 {
-    /**
-     * Voronoi class
-     */
+    /// <summary>
+    /// Voronoi diagram class
+    /// </summary>
     struct Voronoi
     {
     private:
@@ -24,6 +24,9 @@ namespace VD
             return vertices;
         }
 
+        /// <summary>
+        /// Get vertices in reverse order
+        /// </summary>
         std::vector<glmvec2> getReversedVertices() const
         {
             std::vector<glmvec2> reversed_vertices = vertices;
@@ -48,9 +51,9 @@ namespace VD
         }
     };
 
-    /**
-     * Get average point of a list of points
-     */
+    /// <summary>
+    /// Get average point of a list of points
+    /// </summary>
     inline glmvec2 getAveragePoint(const std::vector<glmvec2> &points)
     {
         real x = 0.0_real;
@@ -66,9 +69,9 @@ namespace VD
         return {x / size, y / size};
     }
 
-    /**
-     * translate point by the average of the points
-     */
+    /// <summary>
+    /// translate point by the average of the points
+    /// </summary>
     inline void translateVertices(std::vector<glmvec2> &points, const glmvec2 &translation)
     {
         for (auto &each_point : points)
@@ -77,9 +80,9 @@ namespace VD
         }
     }
 
-    /**
-     * Translate voronoi by the average of their vertices and return this vector of translations
-     */
+    /// <summary>
+    /// Translate voronoi by the average of their vertices and return this vector of translations.
+    /// </summary>
     inline std::vector<glmvec3> center_voronois(std::vector<Voronoi> &voronois)
     {
         std::vector<glmvec3> translationVector = {};
@@ -95,18 +98,19 @@ namespace VD
         return translationVector;
     }
 
-    /**
-     * Compare angles between two point around the center point
-     */
+    /// <summary>
+    /// Compare angles between two point around the center point.
+    /// </summary>
     inline static bool angle_comparison(const glmvec2 &p1, const glmvec2 &p2, const glmvec2 &center)
     {
         double angle1 = std::atan2(p1.y - center.y, p1.x - center.x);
         double angle2 = std::atan2(p2.y - center.y, p2.x - center.x);
         return angle1 < angle2;
     }
-    /**
-     * Sort vertices in counter clockwise order by angle
-     */
+
+    /// <summary>
+    /// Sort vertices in counter clockwise order by angle
+    /// </summary>
     inline void sort_vertices_ccw(std::vector<glmvec2> &unordered_vertices)
     {
         glmvec2 center = getAveragePoint(unordered_vertices);
