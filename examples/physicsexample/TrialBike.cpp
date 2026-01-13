@@ -317,59 +317,196 @@ namespace ve {
     {
         const glmvec3 fwdN = ctx.fwdN;
         const glmvec3 up{ 0.0_real, 1.0_real, 0.0_real };
-        const glmvec3 rightN = glm::normalize(glm::cross(up, fwdN)); 
-
-        // layout
-        const int  numCubes = 6;
-        const real spacing = 1.2_real;
-        const real startDist = 6.0_real;
-        const real cubeSize = 1.0_real;
+        const glmvec3 rightN = glm::normalize(glm::cross(up, fwdN));
 
         const glmquat cubeOri{ 1,0,0,0 };
 
-        // first cube 
-        glmvec3 firstCubePos = ctx.centre + startDist * fwdN;
-        firstCubePos.y = 0.5_real * cubeSize;
-
-        // ramp placement 
+        const real cubeSize = 1.0_real;
         const real rampScale = 1.0_real;
-        const real halfCubeFwd = 0.5_real * cubeSize;
-        const real halfRampFwd = 0.25_real * rampScale;
 
-        glmvec3 rampPos = firstCubePos - (halfCubeFwd + halfRampFwd) * fwdN; 
-        rampPos.y = 0.25_real * rampScale;                                  
+        auto spawnCube = [&](glmvec3 posW, real size = 1.0_real, real baseY = 0.0_real)
+            {
+                posW.y = baseY + 0.5_real;
 
-        const glmquat rampOri = glm::angleAxis(glm::radians(180.0_real), up);
+                createAndAddObject(
+                    crateDir,
+                    "cube.obj",
+                    &m_physics->g_cube,
+                    glmvec3{ size },
+                    posW,
+                    cubeOri,
+                    1.0_real / 10000.0_real,
+                    false,
+                    1.0_real
+                );
+            };
 
-        createAndAddObject(
-            bikeDir,
-            "ramp.obj",
-            &m_physics->g_ramp,
-            glmvec3{ rampScale },
-            rampPos,
-            rampOri,
-            1.0_real / 1000000.0_real,
-            false,
-            1.2_real
-        );
+        auto spawnRamp = [&](glmvec3 posW, glmquat oriW, real scale = 1.0_real, real friction = 1.2_real, real baseY = 0.0_real)
+            {
+                posW.y = baseY + 0.5_real;
 
-        // cubes
-        for (int i = 0; i < numCubes; ++i)
+                createAndAddObject(
+                    bikeDir,
+                    "ramp.obj",
+                    &m_physics->g_ramp,
+                    glmvec3{ scale },
+                    posW,
+                    oriW,
+                    1.0_real / 10000.0_real,
+                    false,
+                    friction
+                );
+            };
+
+
+        auto rampDownOri = [&]() { return glm::quat{ 1,0,0,0 }; };
+        auto rampUpOri = [&]() { return glm::angleAxis(glm::radians(180.0_real), up); };
+
+        // start in front of the bike
+        const real startDist = 6.0_real;
+        glmvec3 start = ctx.centre + startDist * fwdN;
+        start.y = 0.0_real;
+
+        switch (m_trackType)
         {
-            glmvec3 pos = ctx.centre + (startDist + i * spacing) * fwdN;
-            pos.y = 0.5_real * cubeSize;
+        case ObstacleTrackType::BumpyRoad:
+        {
+            const int segments = 6;
 
-            createAndAddObject(
-                crateDir,
-                "cube.obj",
-                &m_physics->g_cube,
-                glmvec3{ cubeSize },
-                pos,
-                cubeOri,
-                1.0_real / 1000000.0_real,
-                false,
-                1.0_real
-            );
+            real cursor = 0.0_real;
+
+            for (int i = 0; i < segments; ++i)
+            {
+                // ramp up
+                glmvec3 rampPosA = start + cursor * fwdN;
+                spawnRamp(rampPosA, rampUpOri(), 1.0_real);
+                cursor += cubeSize;
+
+                // cube
+                glmvec3 cubePos = start + cursor * fwdN;
+                spawnCube(cubePos, cubeSize);
+                cursor += cubeSize;
+
+                // ramp down
+                glmvec3 rampPosC = start + cursor * fwdN;
+                spawnRamp(rampPosC, rampDownOri(), 1.0_real);
+                cursor += cubeSize + 1.6_real;
+            }
+            break;
+        }
+
+        case ObstacleTrackType::TallHill: {
+            auto spawnCube = [&](glmvec3 posW, real baseY)
+                {
+                    posW.y = baseY + 0.5_real; 
+
+                    createAndAddObject(
+                        crateDir, "cube.obj", &m_physics->g_cube,
+                        glmvec3{ 1.0_real }, posW, cubeOri,
+                        1.0_real / 10000.0_real, false, 1.0_real
+                    );
+                };
+
+            auto spawnRamp = [&](glmvec3 posW, glmquat oriW, real friction, real baseY)
+                {
+                    posW.y = baseY + 0.5_real; 
+
+                    createAndAddObject(
+                        bikeDir, "ramp.obj", &m_physics->g_ramp,
+                        glmvec3{ 1.0_real }, posW, oriW,
+                        1.0_real / 10000.0_real, false, friction
+                    );
+                };
+            real cursor = 0.0_real;
+            std::vector<real> hillHeights = { 2.0_real, 3.0_real};
+
+            for (size_t hillIndex = 0; hillIndex < hillHeights.size(); ++hillIndex) {
+                int maxHeight = static_cast<int>(hillHeights[hillIndex]);
+
+                // CLIMBING PHASE
+                for (int h = 0; h < maxHeight; ++h) {
+                    glm::vec3 p = start + cursor * fwdN;
+
+                    // stack cubes 
+                    for (int i = 0; i < h; ++i) {
+                        spawnCube(p, (real)i);
+                    }
+                    // ramp on the top
+                    spawnRamp(p, rampUpOri(), 1.2_real, (real)h);
+
+                    cursor += cubeSize;
+                }
+
+                // THE PEAK 
+                {
+                    glm::vec3 p = start + cursor * fwdN;
+                    for (int i = 0; i < maxHeight; ++i) {
+                        spawnCube(p, (real)i);
+                    }
+                    cursor += cubeSize;
+                }
+
+                // DESCENT PHASE 
+                for (int h = maxHeight - 1; h >= 0; --h) {
+                    glm::vec3 p = start + cursor * fwdN;
+
+                    // stack cubes 
+                    for (int i = 0; i < h; ++i) {
+                        spawnCube(p, (real)i);
+                    }
+                    // ramp on the top
+                    spawnRamp(p, rampDownOri(), 1.2_real, (real)h);
+
+                    cursor += cubeSize;
+                }
+
+                cursor += 4.0_real;
+            }
+            break;
+        }
+
+        case ObstacleTrackType::SteppedDrops:
+        {
+            auto spawnCube = [&](glmvec3 posW, real baseY) {
+                posW.y = baseY + 0.5_real;
+                createAndAddObject(
+                    crateDir, "cube.obj", &m_physics->g_cube,
+                    glmvec3{ 1.0_real }, posW, cubeOri,
+                    1.0_real / 10000.0_real, false, 1.0_real
+                );
+                };
+
+            auto spawnRamp = [&](glmvec3 posW, glmquat oriW, real friction, real baseY) {
+                posW.y = baseY + 0.5_real;
+                createAndAddObject(
+                    bikeDir, "ramp.obj", &m_physics->g_ramp,
+                    glmvec3{ 1.0_real }, posW, oriW,
+                    1.0_real / 10000.0_real, false, friction
+                );
+                };
+
+            real cursor = 0.0_real;
+            std::vector<real> dropHeights = { 1.0_real, 2.0_real, 3.0_real };
+
+            for (size_t i = 0; i < dropHeights.size(); ++i) {
+                int maxHeight = static_cast<int>(dropHeights[i]);
+
+                // CLIMBING PHASE 
+                for (int h = 0; h < maxHeight; ++h) {
+                    glm::vec3 p = start + cursor * fwdN;
+                    for (int level = 0; level < h; ++level) {
+                        spawnCube(p, (real)level);
+                    }
+                    spawnRamp(p, rampUpOri(), 1.2_real, (real)h);
+                    cursor += cubeSize;
+                }
+                cursor += 6.0_real;
+            }
+            break;
+        }
+
+        default:
+            break;
         }
     }
 
@@ -377,11 +514,11 @@ namespace ve {
     void TrialBike::assembleBike()
     {
         const BikeParams p = makeBikeParams();
-        const BikeSpawnContext ctx = computeBikeSpawnContext(p);
+        m_cachedCtx = computeBikeSpawnContext(p);
 
 
         // create frame
-        auto frame = createFrame(ctx, p);
+        auto frame = createFrame(m_cachedCtx, p);
 
         // create biker
         std::shared_ptr<VPEWorld::Body> biker_bottom;
@@ -392,18 +529,18 @@ namespace ve {
         // wheels
         std::shared_ptr<VPEWorld::Body> rearWheel;
         std::shared_ptr<VPEWorld::Body> frontWheel;
-        createWheels(ctx, p, rearWheel, frontWheel);
+        createWheels(m_cachedCtx, p, rearWheel, frontWheel);
 
         // rear hinge driving
-        auto rearHinge = attachRearWheelHinge(frame, rearWheel, ctx, p);
+        auto rearHinge = attachRearWheelHinge(frame, rearWheel, m_cachedCtx, p);
 
         // handles passive & fixed to frame
-        auto handles = createPassiveHandles(frame, ctx);
+        auto handles = createPassiveHandles(frame, m_cachedCtx);
 
         // active handles, slider, front wheel spin hinge
-        auto handlesActive = createActiveHandlesAndSlider(handles, frontWheel, ctx, p);
+        auto handlesActive = createActiveHandlesAndSlider(handles, frontWheel, m_cachedCtx, p);
 
-        createObstacles(ctx);
+        //createObstacles(ctx, m_trackType);
 
     }
 
@@ -440,7 +577,7 @@ namespace ve {
         const glm::vec3 pA = m_handles->m_positionW + (m_handles->m_orientationLW * m_sliderLocalA);
         const glm::vec3 pB = m_handlesActive->m_positionW + (m_handlesActive->m_orientationLW * m_sliderLocalB);
 
-        // displacement along axis
+        // displacement along axis, how far the suspension is compressed/extended
         const real x = glm::dot(pB - pA, axisW);
 
         // point velocities along axis

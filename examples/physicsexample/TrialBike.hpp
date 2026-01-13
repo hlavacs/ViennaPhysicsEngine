@@ -28,6 +28,12 @@ namespace ve {
 
         };
 
+        enum class ObstacleTrackType {
+            BumpyRoad = 0,     
+            TallHill = 1,      
+            SteppedDrops = 2   
+        };
+
         // jump state 
         bool m_jumpActive = false;
         real m_jumpTimeRemaining = 0.5_real;
@@ -35,6 +41,7 @@ namespace ve {
         // bike state
         std::shared_ptr<VPEWorld::Body> m_frame{};
         std::shared_ptr<VPEWorld::HingeJoint> m_rearHinge{};
+        BikeSpawnContext m_cachedCtx{};
 
         TrialBike(VPEWorld* physics, VPEWorld::callback_move onMove, VPEWorld::callback_erase onErase)
             : m_physics{ physics }, m_onMove{ onMove }, m_onErase{ onErase } {
@@ -48,6 +55,8 @@ namespace ve {
         void jump();
         void applyFrontSuspensionSpring();
         glm::vec3 getFramePosition() const;
+        void setObstacleTrackType(ObstacleTrackType t) { m_trackType = t; }
+        void createObstacles(const BikeSpawnContext& ctx);
 
     private:
 
@@ -107,7 +116,8 @@ namespace ve {
             const BikeParams& p
         );
 
-        void createObstacles(const BikeSpawnContext& ctx);
+        
+        
 
     private:
         VPEWorld* m_physics = nullptr;
@@ -126,6 +136,9 @@ namespace ve {
         glmvec3 m_sliderLocalA{};
         glmvec3 m_sliderLocalB{};
         glmvec3 m_sliderAxisLocalA{};
+
+        //obstacles
+        ObstacleTrackType m_trackType = ObstacleTrackType::SteppedDrops;
 
     };
 

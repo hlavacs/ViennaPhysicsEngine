@@ -1,4 +1,4 @@
-/**
+﻿/**
 * The Vienna Vulkan Engine
 *
 * (c) bei Helmut Hlavacs, University of Vienna, 2022
@@ -291,243 +291,243 @@ namespace ve {
 			if (pSubrender == nullptr)
 				return;
 
-			struct nk_context* ctx = pSubrender->getContext();
+			//struct nk_context* ctx = pSubrender->getContext();
 
-			/* GUI */
-			if (nk_begin(ctx, "Physics Panel", nk_rect(20, 20, 550, 990),
-				NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
-				NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE))
-			{
-				std::stringstream str;
-				str << std::setprecision(5);
+			///* GUI */
+			//if (nk_begin(ctx, "Physics Panel", nk_rect(20, 20, 550, 990),
+			//	NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
+			//	NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE))
+			//{
+			//	std::stringstream str;
+			//	str << std::setprecision(5);
 
-				nk_layout_row_dynamic(ctx, 60, 2);
-				if (nk_option_label(ctx, "Solver A", m_physics->m_solver == 0))
-					m_physics->m_solver = 0;
-				if (nk_option_label(ctx, "Solver B", m_physics->m_solver == 1))
-					m_physics->m_solver = 1;
+			//	nk_layout_row_dynamic(ctx, 60, 2);
+			//	if (nk_option_label(ctx, "Solver A", m_physics->m_solver == 0))
+			//		m_physics->m_solver = 0;
+			//	if (nk_option_label(ctx, "Solver B", m_physics->m_solver == 1))
+			//		m_physics->m_solver = 1;
 
-				str << "Sim Freq " << m_physics->m_sim_frequency;
-				nk_layout_row_dynamic(ctx, 30, 4);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "-10")) {
-					m_physics->m_sim_frequency = std::max(10.0_real,
-						(real)m_physics->m_sim_frequency - 10.0_real);
-					m_physics->m_sim_delta_time = 1.0_real / m_physics->m_sim_frequency;
-				}
-				if (nk_button_label(ctx, "+10")) {
-					m_physics->m_sim_frequency += 10;
-					m_physics->m_sim_delta_time = 1.0_real / m_physics->m_sim_frequency;
-				}
-				if (nk_button_label(ctx, "Next time slot")) {
-					m_physics->m_current_time += m_physics->m_sim_delta_time;
-				}
+			//	str << "Sim Freq " << m_physics->m_sim_frequency;
+			//	nk_layout_row_dynamic(ctx, 30, 4);
+			//	nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+			//	if (nk_button_label(ctx, "-10")) {
+			//		m_physics->m_sim_frequency = std::max(10.0_real,
+			//			(real)m_physics->m_sim_frequency - 10.0_real);
+			//		m_physics->m_sim_delta_time = 1.0_real / m_physics->m_sim_frequency;
+			//	}
+			//	if (nk_button_label(ctx, "+10")) {
+			//		m_physics->m_sim_frequency += 10;
+			//		m_physics->m_sim_delta_time = 1.0_real / m_physics->m_sim_frequency;
+			//	}
+			//	if (nk_button_label(ctx, "Next time slot")) {
+			//		m_physics->m_current_time += m_physics->m_sim_delta_time;
+			//	}
 
-				nk_layout_row_dynamic(ctx, 30, 2);
-				if (nk_option_label(ctx, "Realtime",
-					m_physics->m_mode == VPEWorld::simulation_mode_t::SIMULATION_MODE_REALTIME))
-					m_physics->m_mode = VPEWorld::simulation_mode_t::SIMULATION_MODE_REALTIME;
-				if (nk_option_label(ctx, "Debug",
-					m_physics->m_mode == VPEWorld::simulation_mode_t::SIMULATION_MODE_DEBUG))
-					m_physics->m_mode = VPEWorld::simulation_mode_t::SIMULATION_MODE_DEBUG;
+			//	nk_layout_row_dynamic(ctx, 30, 2);
+			//	if (nk_option_label(ctx, "Realtime",
+			//		m_physics->m_mode == VPEWorld::simulation_mode_t::SIMULATION_MODE_REALTIME))
+			//		m_physics->m_mode = VPEWorld::simulation_mode_t::SIMULATION_MODE_REALTIME;
+			//	if (nk_option_label(ctx, "Debug",
+			//		m_physics->m_mode == VPEWorld::simulation_mode_t::SIMULATION_MODE_DEBUG))
+			//		m_physics->m_mode = VPEWorld::simulation_mode_t::SIMULATION_MODE_DEBUG;
 
-				nk_layout_row_begin(ctx, NK_STATIC, 30, 2);
-				nk_layout_row_push(ctx, 60);
-				nk_label(ctx, "Time (s)", NK_TEXT_LEFT);
-				str.str("");
-				str << m_physics->m_current_time;
-				nk_layout_row_push(ctx, 60);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				nk_layout_row_end(ctx);
+			//	nk_layout_row_begin(ctx, NK_STATIC, 30, 2);
+			//	nk_layout_row_push(ctx, 60);
+			//	nk_label(ctx, "Time (s)", NK_TEXT_LEFT);
+			//	str.str("");
+			//	str << m_physics->m_current_time;
+			//	nk_layout_row_push(ctx, 60);
+			//	nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+			//	nk_layout_row_end(ctx);
 
-				static real fps = 0.0;
-				fps = 0.05_real * m_physics->m_fps + 0.95_real * fps;
-				str.str("");
-				str << "FPS " << fps;
-				nk_layout_row_dynamic(ctx, 30, 1);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+			//	static real fps = 0.0;
+			//	fps = 0.05_real * m_physics->m_fps + 0.95_real * fps;
+			//	str.str("");
+			//	str << "FPS " << fps;
+			//	nk_layout_row_dynamic(ctx, 30, 1);
+			//	nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
 
-				str.str("");
-				str << "Loops " << m_physics->m_loops;
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "-5")) { m_physics->m_loops = std::max(5,
-					m_physics->m_loops - 5); }
-				if (nk_button_label(ctx, "+5")) { m_physics->m_loops += 5; }
+			//	str.str("");
+			//	str << "Loops " << m_physics->m_loops;
+			//	nk_layout_row_dynamic(ctx, 30, 3);
+			//	nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+			//	if (nk_button_label(ctx, "-5")) { m_physics->m_loops = std::max(5,
+			//		m_physics->m_loops - 5); }
+			//	if (nk_button_label(ctx, "+5")) { m_physics->m_loops += 5; }
 
-				str.str("");
-				str << "Resting Fac " << m_physics->m_resting_factor;
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "-0.2")) { m_physics->m_resting_factor = std::max(0.2_real,
-					m_physics->m_resting_factor - 0.2_real); }
-				if (nk_button_label(ctx, "+0.2")) { m_physics->m_resting_factor += 0.2_real; }
+			//	str.str("");
+			//	str << "Resting Fac " << m_physics->m_resting_factor;
+			//	nk_layout_row_dynamic(ctx, 30, 3);
+			//	nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+			//	if (nk_button_label(ctx, "-0.2")) { m_physics->m_resting_factor = std::max(0.2_real,
+			//		m_physics->m_resting_factor - 0.2_real); }
+			//	if (nk_button_label(ctx, "+0.2")) { m_physics->m_resting_factor += 0.2_real; }
 
-				str.str("");
-				str << "Damp Incr " << m_physics->m_damping_incr;
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "-5")) { m_physics->m_damping_incr = std::max(0.0_real,
-					m_physics->m_damping_incr - 5.0_real); }
-				if (nk_button_label(ctx, "+5")) { m_physics->m_damping_incr += 5.0_real; }
+			//	str.str("");
+			//	str << "Damp Incr " << m_physics->m_damping_incr;
+			//	nk_layout_row_dynamic(ctx, 30, 3);
+			//	nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+			//	if (nk_button_label(ctx, "-5")) { m_physics->m_damping_incr = std::max(0.0_real,
+			//		m_physics->m_damping_incr - 5.0_real); }
+			//	if (nk_button_label(ctx, "+5")) { m_physics->m_damping_incr += 5.0_real; }
 
-				str.str("");
-				str << "PBias Fac " << m_physics->m_pbias_factor;
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "-0.1")) { m_physics->m_pbias_factor =
-					glm::clamp(m_physics->m_pbias_factor - 0.1_real, 0.0_real, 1.0_real); }
-				if (nk_button_label(ctx, "+0.1")) { m_physics->m_pbias_factor =
-					glm::clamp(m_physics->m_pbias_factor + 0.1_real, 0.0_real, 1.0_real); }
+			//	str.str("");
+			//	str << "PBias Fac " << m_physics->m_pbias_factor;
+			//	nk_layout_row_dynamic(ctx, 30, 3);
+			//	nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+			//	if (nk_button_label(ctx, "-0.1")) { m_physics->m_pbias_factor =
+			//		glm::clamp(m_physics->m_pbias_factor - 0.1_real, 0.0_real, 1.0_real); }
+			//	if (nk_button_label(ctx, "+0.1")) { m_physics->m_pbias_factor =
+			//		glm::clamp(m_physics->m_pbias_factor + 0.1_real, 0.0_real, 1.0_real); }
 
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, "Align PBias", NK_TEXT_LEFT);
-				if (nk_option_label(ctx, "Yes", m_physics->m_align_position_bias == 1))
-					m_physics->m_align_position_bias = 1;
-				if (nk_option_label(ctx, "No", m_physics->m_align_position_bias == 0))
-					m_physics->m_align_position_bias = 0;
+			//	nk_layout_row_dynamic(ctx, 30, 3);
+			//	nk_label(ctx, "Align PBias", NK_TEXT_LEFT);
+			//	if (nk_option_label(ctx, "Yes", m_physics->m_align_position_bias == 1))
+			//		m_physics->m_align_position_bias = 1;
+			//	if (nk_option_label(ctx, "No", m_physics->m_align_position_bias == 0))
+			//		m_physics->m_align_position_bias = 0;
 
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, "Use VBias", NK_TEXT_LEFT);
-				if (nk_option_label(ctx, "Yes", m_physics->m_use_vbias == 1))
-					m_physics->m_use_vbias = 1;
-				if (nk_option_label(ctx, "No", m_physics->m_use_vbias == 0))
-					m_physics->m_use_vbias = 0;
+			//	nk_layout_row_dynamic(ctx, 30, 3);
+			//	nk_label(ctx, "Use VBias", NK_TEXT_LEFT);
+			//	if (nk_option_label(ctx, "Yes", m_physics->m_use_vbias == 1))
+			//		m_physics->m_use_vbias = 1;
+			//	if (nk_option_label(ctx, "No", m_physics->m_use_vbias == 0))
+			//		m_physics->m_use_vbias = 0;
 
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, "Warmstart All", NK_TEXT_LEFT);
-				if (nk_option_label(ctx, "Yes", m_physics->m_use_warmstart == 1))
-					m_physics->m_use_warmstart = 1;
-				if (nk_option_label(ctx, "No", m_physics->m_use_warmstart == 0))
-					m_physics->m_use_warmstart = 0;
+			//	nk_layout_row_dynamic(ctx, 30, 3);
+			//	nk_label(ctx, "Warmstart All", NK_TEXT_LEFT);
+			//	if (nk_option_label(ctx, "Yes", m_physics->m_use_warmstart == 1))
+			//		m_physics->m_use_warmstart = 1;
+			//	if (nk_option_label(ctx, "No", m_physics->m_use_warmstart == 0))
+			//		m_physics->m_use_warmstart = 0;
 
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, "Warmstart Single", NK_TEXT_LEFT);
-				if (nk_option_label(ctx, "Yes", m_physics->m_use_warmstart_single == 1))
-					m_physics->m_use_warmstart_single = 1;
-				if (nk_option_label(ctx, "No", m_physics->m_use_warmstart_single == 0))
-					m_physics->m_use_warmstart_single = 0;
+			//	nk_layout_row_dynamic(ctx, 30, 3);
+			//	nk_label(ctx, "Warmstart Single", NK_TEXT_LEFT);
+			//	if (nk_option_label(ctx, "Yes", m_physics->m_use_warmstart_single == 1))
+			//		m_physics->m_use_warmstart_single = 1;
+			//	if (nk_option_label(ctx, "No", m_physics->m_use_warmstart_single == 0))
+			//		m_physics->m_use_warmstart_single = 0;
 
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, "Deactivate", NK_TEXT_LEFT);
-				if (nk_option_label(ctx, "Yes", m_physics->m_deactivate))
-					m_physics->m_deactivate = true;
-				if (nk_option_label(ctx, "No", !m_physics->m_deactivate))
-					m_physics->m_deactivate = false;
+			//	nk_layout_row_dynamic(ctx, 30, 3);
+			//	nk_label(ctx, "Deactivate", NK_TEXT_LEFT);
+			//	if (nk_option_label(ctx, "Yes", m_physics->m_deactivate))
+			//		m_physics->m_deactivate = true;
+			//	if (nk_option_label(ctx, "No", !m_physics->m_deactivate))
+			//		m_physics->m_deactivate = false;
 
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, "Clamp Pos", NK_TEXT_LEFT);
-				if (nk_option_label(ctx, "Yes", m_physics->m_clamp_position == 1))
-					m_physics->m_clamp_position = 1;
-				if (nk_option_label(ctx, "No", m_physics->m_clamp_position == 0))
-					m_physics->m_clamp_position = 0;
+			//	nk_layout_row_dynamic(ctx, 30, 3);
+			//	nk_label(ctx, "Clamp Pos", NK_TEXT_LEFT);
+			//	if (nk_option_label(ctx, "Yes", m_physics->m_clamp_position == 1))
+			//		m_physics->m_clamp_position = 1;
+			//	if (nk_option_label(ctx, "No", m_physics->m_clamp_position == 0))
+			//		m_physics->m_clamp_position = 0;
 
-				str.str("");
-				str << "Num Bodies " << m_physics->m_bodies.size();
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "Create Bodies")) {
-					createRandomBodies(20);
-				}
-				if (nk_button_label(ctx, "Clear Bodies")) {
-					m_physics->clear();
-				}
+			//	str.str("");
+			//	str << "Num Bodies " << m_physics->m_bodies.size();
+			//	nk_layout_row_dynamic(ctx, 30, 3);
+			//	nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+			//	if (nk_button_label(ctx, "Create Bodies")) {
+			//		createRandomBodies(20);
+			//	}
+			//	if (nk_button_label(ctx, "Clear Bodies")) {
+			//		m_physics->clear();
+			//	}
 
-				str.str("");
-				str << "Num Contacts " << m_physics->m_contacts.size();
-				nk_layout_row_dynamic(ctx, 30, 1);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+			//	str.str("");
+			//	str << "Num Contacts " << m_physics->m_contacts.size();
+			//	nk_layout_row_dynamic(ctx, 30, 1);
+			//	nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
 
-				str.str("");
-				str << "Num Active " << m_physics->m_num_active;
-				nk_layout_row_dynamic(ctx, 30, 1);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+			//	str.str("");
+			//	str << "Num Active " << m_physics->m_num_active;
+			//	nk_layout_row_dynamic(ctx, 30, 1);
+			//	nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
 
-				str.str("");
-				str << "Cell width " << m_physics->m_width;
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "-1")) {
-					m_physics->m_grid.clear();
-					m_physics->m_width = std::max(1.0_real, m_physics->m_width - 1);
-					for (auto body : m_physics->m_bodies) m_physics->addGrid(body.second);
-				}
-				if (nk_button_label(ctx, "+1")) {
-					m_physics->m_grid.clear();
-					m_physics->m_width++;
-					for (auto body : m_physics->m_bodies) m_physics->addGrid(body.second);
-				}
+			//	str.str("");
+			//	str << "Cell width " << m_physics->m_width;
+			//	nk_layout_row_dynamic(ctx, 30, 3);
+			//	nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+			//	if (nk_button_label(ctx, "-1")) {
+			//		m_physics->m_grid.clear();
+			//		m_physics->m_width = std::max(1.0_real, m_physics->m_width - 1);
+			//		for (auto body : m_physics->m_bodies) m_physics->addGrid(body.second);
+			//	}
+			//	if (nk_button_label(ctx, "+1")) {
+			//		m_physics->m_grid.clear();
+			//		m_physics->m_width++;
+			//		for (auto body : m_physics->m_bodies) m_physics->addGrid(body.second);
+			//	}
 
-				nk_layout_row_dynamic(ctx, 30, 5);
-				str.str("Current Body ");
-				if (m_physics->m_body) { str << "Current Body " << m_physics->m_body->m_name; }
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+			//	nk_layout_row_dynamic(ctx, 30, 5);
+			//	str.str("Current Body ");
+			//	if (m_physics->m_body) { str << "Current Body " << m_physics->m_body->m_name; }
+			//	nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
 
-				if (nk_button_label(ctx, "Pick body")) { 
-					glmvec3 pos{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->
-						getWorldTransform()[3] };
-					glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->
-						getWorldTransform()[2] };
-					m_physics->m_body = m_physics->pickBody( pos, dir );
-				}
-				if (nk_button_label(ctx, "Delete body")) {
-					glmvec3 pos{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->
-						getWorldTransform()[3] };
-					glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->
-						getWorldTransform()[2] };
-					auto b = m_physics->pickBody( pos, dir );
-					if(b) m_physics->eraseBody(b);
-				}
-				if (nk_button_label(ctx, "Add collider")) {
-					if (m_physics->m_body)
-						m_physics->addCollider(m_physics->m_body, onCollide);
-				}
-				if (nk_button_label(ctx, "Remove colliders")) {
-					m_physics->clearCollider();
-				}
+			//	if (nk_button_label(ctx, "Pick body")) { 
+			//		glmvec3 pos{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->
+			//			getWorldTransform()[3] };
+			//		glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->
+			//			getWorldTransform()[2] };
+			//		m_physics->m_body = m_physics->pickBody( pos, dir );
+			//	}
+			//	if (nk_button_label(ctx, "Delete body")) {
+			//		glmvec3 pos{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->
+			//			getWorldTransform()[3] };
+			//		glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->
+			//			getWorldTransform()[2] };
+			//		auto b = m_physics->pickBody( pos, dir );
+			//		if(b) m_physics->eraseBody(b);
+			//	}
+			//	if (nk_button_label(ctx, "Add collider")) {
+			//		if (m_physics->m_body)
+			//			m_physics->addCollider(m_physics->m_body, onCollide);
+			//	}
+			//	if (nk_button_label(ctx, "Remove colliders")) {
+			//		m_physics->clearCollider();
+			//	}
 
-				real vel = 5.0;
-				real m_dx, m_dy, m_dz, m_da, m_db, m_dc;
-				m_dx = m_dy = m_dz = m_da = m_db = m_dc = 0.0;
+			//	real vel = 5.0;
+			//	real m_dx, m_dy, m_dz, m_da, m_db, m_dc;
+			//	m_dx = m_dy = m_dz = m_da = m_db = m_dc = 0.0;
 
-				nk_layout_row_static(ctx, 30, 100, 2);
-				if (nk_button_label(ctx, "+X")) {m_dx = vel; }
-				if (nk_button_label(ctx, "-X")) { m_dx = -vel; }
-				nk_layout_row_static(ctx, 30, 100, 2);
-				if (nk_button_label(ctx, "+Y")) { m_dy = vel; }
-				if (nk_button_label(ctx, "-Y")) { m_dy = -vel; }
-				nk_layout_row_static(ctx, 30, 100, 2);
-				if (nk_button_label(ctx, "+Z")) { m_dz = vel; }
-				if (nk_button_label(ctx, "-Z")) {m_dz = -vel; }
+			//	nk_layout_row_static(ctx, 30, 100, 2);
+			//	if (nk_button_label(ctx, "+X")) {m_dx = vel; }
+			//	if (nk_button_label(ctx, "-X")) { m_dx = -vel; }
+			//	nk_layout_row_static(ctx, 30, 100, 2);
+			//	if (nk_button_label(ctx, "+Y")) { m_dy = vel; }
+			//	if (nk_button_label(ctx, "-Y")) { m_dy = -vel; }
+			//	nk_layout_row_static(ctx, 30, 100, 2);
+			//	if (nk_button_label(ctx, "+Z")) { m_dz = vel; }
+			//	if (nk_button_label(ctx, "-Z")) {m_dz = -vel; }
 
-				nk_layout_row_static(ctx, 30, 100, 2);
-				if (nk_button_label(ctx, "RX")) { m_da = vel; }
-				if (nk_button_label(ctx, "-RX")) { m_da = -vel; }
-				nk_layout_row_static(ctx, 30, 100, 2);
-				if (nk_button_label(ctx, "+RY")) { m_db = vel; }
-				if (nk_button_label(ctx, "-RY")) { m_db = -vel; }
-				nk_layout_row_static(ctx, 30, 100, 2);
-				if (nk_button_label(ctx, "+RZ")) { m_dc = vel; }
-				if (nk_button_label(ctx, "-RZ")) { m_dc = -vel; }
+			//	nk_layout_row_static(ctx, 30, 100, 2);
+			//	if (nk_button_label(ctx, "RX")) { m_da = vel; }
+			//	if (nk_button_label(ctx, "-RX")) { m_da = -vel; }
+			//	nk_layout_row_static(ctx, 30, 100, 2);
+			//	if (nk_button_label(ctx, "+RY")) { m_db = vel; }
+			//	if (nk_button_label(ctx, "-RY")) { m_db = -vel; }
+			//	nk_layout_row_static(ctx, 30, 100, 2);
+			//	if (nk_button_label(ctx, "+RZ")) { m_dc = vel; }
+			//	if (nk_button_label(ctx, "-RZ")) { m_dc = -vel; }
 
-				if (m_physics->m_body) {
-					real dt = (real)m_physics->m_sim_delta_time;
-					m_physics->m_body->m_positionW += (real)dt * glmvec3{ m_dx, m_dy, m_dz };
-					m_physics->m_body->m_orientationLW =
-						glm::rotate(glmquat{ 1,0,0,0 }, (real)dt * m_da, glmvec3{ 1, 0, 0 }) *
-						glm::rotate(glmquat{ 1,0,0,0 }, (real)dt * m_db, glmvec3{ 0, 1, 0 }) *
-						glm::rotate(glmquat{ 1,0,0,0 }, (real)dt * m_dc, glmvec3{ 0, 0, 1 }) *
-						m_physics->m_body->m_orientationLW;
+			//	if (m_physics->m_body) {
+			//		real dt = (real)m_physics->m_sim_delta_time;
+			//		m_physics->m_body->m_positionW += (real)dt * glmvec3{ m_dx, m_dy, m_dz };
+			//		m_physics->m_body->m_orientationLW =
+			//			glm::rotate(glmquat{ 1,0,0,0 }, (real)dt * m_da, glmvec3{ 1, 0, 0 }) *
+			//			glm::rotate(glmquat{ 1,0,0,0 }, (real)dt * m_db, glmvec3{ 0, 1, 0 }) *
+			//			glm::rotate(glmquat{ 1,0,0,0 }, (real)dt * m_dc, glmvec3{ 0, 0, 1 }) *
+			//			m_physics->m_body->m_orientationLW;
 
-					m_physics->m_body->updateMatrices();
-					m_dx = m_dy = m_dz = m_da = m_db = m_dc = 0.0_real;
-				}
+			//		m_physics->m_body->updateMatrices();
+			//		m_dx = m_dy = m_dz = m_da = m_db = m_dc = 0.0_real;
+			//	}
 
-				nk_layout_row_dynamic(ctx, 30, 1);
-				nk_label(ctx, "New Cloth: C, Switch Cloth: N, Cloth Controls: I, K, J, L, U, O",
-					NK_TEXT_LEFT);
-			}
-			nk_end(ctx);
+			//	nk_layout_row_dynamic(ctx, 30, 1);
+			//	nk_label(ctx, "New Cloth: C, Switch Cloth: N, Cloth Controls: I, K, J, L, U, O",
+			//		NK_TEXT_LEFT);
+			//}
+			//nk_end(ctx);
 		}
 
 		/// <summary>
@@ -589,36 +589,36 @@ namespace ve {
 			if (pSubrender == nullptr)
 				return;
 
-			struct nk_context* ctx = pSubrender->getContext();
+			//struct nk_context* ctx = pSubrender->getContext();
 
-			/* GUI */
-			if (nk_begin(ctx, "Constraints Panel", nk_rect(580, 20, 400, 160),
-				NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
-				NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE))
-			{
-				std::stringstream str;
-				str << std::setprecision(5);
+			///* GUI */
+			//if (nk_begin(ctx, "Constraints Panel", nk_rect(580, 20, 400, 160),
+			//	NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
+			//	NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE))
+			//{
+			//	std::stringstream str;
+			//	str << std::setprecision(5);
 
-				nk_layout_row_dynamic(ctx, 30, 1);
-				str.str("Constraint Demos");
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
+			//	nk_layout_row_dynamic(ctx, 30, 1);
+			//	str.str("Constraint Demos");
+			//	nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
 
-				nk_layout_row_dynamic(ctx, 30, 4);
-				if (nk_button_label(ctx, "Ball-Socket")) { m_constraintDemos.ballSocketJoint(); }
-				if (nk_button_label(ctx, "Hinge")) { m_constraintDemos.hingeJoint(); }
-				if (nk_button_label(ctx, "Slider")) { m_constraintDemos.sliderJoint(); }
-				if (nk_button_label(ctx, "Fixed")) { m_constraintDemos.fixedJoint(); }
+			//	nk_layout_row_dynamic(ctx, 30, 4);
+			//	if (nk_button_label(ctx, "Ball-Socket")) { m_constraintDemos.ballSocketJoint(); }
+			//	if (nk_button_label(ctx, "Hinge")) { m_constraintDemos.hingeJoint(); }
+			//	if (nk_button_label(ctx, "Slider")) { m_constraintDemos.sliderJoint(); }
+			//	if (nk_button_label(ctx, "Fixed")) { m_constraintDemos.fixedJoint(); }
 
-				nk_layout_row_dynamic(ctx, 30, 5);
-				if (nk_button_label(ctx, "Bridge")) { m_constraintDemos.bridge(); }
-				if (nk_button_label(ctx, "Ragdoll")) { m_constraintDemos.ragdoll(); }
-				if (nk_button_label(ctx, "Cannon")) { m_constraintDemos.sliderCannon(); }
-				
-				//if (nk_button_label(ctx, "Wheel")) { m_constraintDemos.wheel(); }
-				if (nk_button_label(ctx, "Wheel")) { m_trialBike.assembleBike(); }
-				if (nk_button_label(ctx, "Chain")) { m_constraintDemos.hingeChain(); }
-			}
-			nk_end(ctx);
+			//	nk_layout_row_dynamic(ctx, 30, 5);
+			//	if (nk_button_label(ctx, "Bridge")) { m_constraintDemos.bridge(); }
+			//	if (nk_button_label(ctx, "Ragdoll")) { m_constraintDemos.ragdoll(); }
+			//	if (nk_button_label(ctx, "Cannon")) { m_constraintDemos.sliderCannon(); }
+			//	
+			//	//if (nk_button_label(ctx, "Wheel")) { m_constraintDemos.wheel(); }
+			//	if (nk_button_label(ctx, "Wheel")) { m_trialBike.assembleBike(); }
+			//	if (nk_button_label(ctx, "Chain")) { m_constraintDemos.hingeChain(); }
+			//}
+			//nk_end(ctx);
 		}
 
 		VPEWorld* m_physics;	//pointer to the physics world
@@ -638,6 +638,71 @@ namespace ve {
 	};
 
 
+	class VEEventListenerStartMenu : public VEEventListener {
+	public:
+		VEEventListenerStartMenu(std::string name, TrialBike* bike)
+			: VEEventListener(name), m_bike(bike) {
+		}
+
+		bool started() const { return m_started; }
+
+	protected:
+		virtual void onDrawOverlay(veEvent event) override {
+			if (m_started) return;
+
+			VESubrender_Nuklear* pSubrender =
+				(VESubrender_Nuklear*)getEnginePointer()->getRenderer()->getOverlay();
+			if (!pSubrender) return;
+
+			nk_context* ctx = pSubrender->getContext();
+
+			// window size
+			const float winW = 500.0f;
+			const float winH = 320.0f;
+
+			//screen size 
+			const float screenW = 3840.0f;
+			const float screenH = 2160.0f;
+
+			// centered poosition
+			const float winX = (screenW - winW) * 0.5f;
+			const float winY = (screenH - winH) * 0.5f;
+
+			if (nk_begin(ctx, "Choose Track",
+				nk_rect(winX, winY, winW, winH),
+				NK_WINDOW_BORDER | NK_WINDOW_TITLE))
+			{
+				nk_layout_row_dynamic(ctx, 30, 1);
+				nk_label(ctx, "Select the road to load:", NK_TEXT_LEFT);
+
+				static int choice = 0; // 0=bumpy,1=tall,2=stepped
+
+				nk_layout_row_dynamic(ctx, 30, 1);
+				if (nk_option_label(ctx, "Bumpy Road", choice == 0)) choice = 0;
+				if (nk_option_label(ctx, "Tall Hill", choice == 1)) choice = 1;
+				if (nk_option_label(ctx, "Stepped Drops", choice == 2)) choice = 2;
+
+				nk_layout_row_dynamic(ctx, 45, 1);
+				if (nk_button_label(ctx, "Start"))
+				{
+					using TT = TrialBike::ObstacleTrackType;
+					if (choice == 0) m_bike->setObstacleTrackType(TT::BumpyRoad);
+					if (choice == 1) m_bike->setObstacleTrackType(TT::TallHill);
+					if (choice == 2) m_bike->setObstacleTrackType(TT::SteppedDrops);
+
+					m_bike->createObstacles(m_bike->m_cachedCtx);
+					m_started = true;
+				}
+			}
+			nk_end(ctx);
+		}
+
+	private:
+		TrialBike* m_bike = nullptr;
+		bool m_started = false;
+	};
+
+
 	//----------------------------------------------------------------------------------------------
 	// My custom engine
 
@@ -650,6 +715,7 @@ namespace ve {
 		VEEventListenerPhysicsKeys* m_physics_listener_keys;
 		VEEventListenerPhysicsGUI* m_physics_listener_gui;
 		VEEventListenerConstraintsGUI* m_physics_listener_constraints_gui;
+		VEEventListenerStartMenu* m_start_menu;
 		TrialBike m_trialBike;
 
 		MyVulkanEngine(veRendererType type = veRendererType::VE_RENDERER_TYPE_FORWARD,
@@ -668,6 +734,8 @@ namespace ve {
 				"Physics GUI",&m_physics), { veEvent::VE_EVENT_DRAW_OVERLAY });
 			registerEventListener(m_physics_listener_constraints_gui = new VEEventListenerConstraintsGUI(
 				"Constraints GUI", &m_physics), { veEvent::VE_EVENT_DRAW_OVERLAY });
+			registerEventListener(m_start_menu = new VEEventListenerStartMenu(
+				"Start Menu", &m_trialBike), { veEvent::VE_EVENT_DRAW_OVERLAY });
 		};
 		
 
