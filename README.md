@@ -61,7 +61,14 @@ physicsexample.cpp contains code that uses Nuklear to create two debug panels, f
 
 In debug mode, the simulation pauses and can be stepped through manually. This can be mixed with debugging and setting breakpoints, and outputting values.
 
+# Destruction Model in VPE
+
+Pre-fractures polytopes using voronoi diagrams. Press 1 to spawn a house made out of destructible polytopes.
+
 # Screenshots and Videos
+
+[![Video](https://img.youtube.com/vi/S6FQq5M6HZk/0.jpg)](https://www.youtube.com/watch?v=S6FQq5M6HZk "")
+Destruction Model
 
 [![Video](https://img.youtube.com/vi/OXzVGFwC8dI/0.jpg)](https://www.youtube.com/watch?v=OXzVGFwC8dI "")
 
