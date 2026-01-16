@@ -31,12 +31,12 @@
 
 #include "VPE.hpp"
 #include "VPEConstraintDemos.hpp"
-#include "voronoi2D/triangulation.hpp"
-#include "voronoi2D/voronoi_generation.hpp"
-#include "voronoi2D/writeToOBJ.hpp"
-#include "voronoi2D/transformToPolytopes.hpp"
-#include "voronoi2D/Voronoi.hpp"
-#include "voronoi2D/House.hpp"
+#include "destruction/triangulation.hpp"
+#include "destruction/voronoi_generation.hpp"
+#include "destruction/writeToOBJ.hpp"
+#include "destruction/transformToPolytopes.hpp"
+#include "destruction/Voronoi.hpp"
+#include "destruction/House.hpp"
 
 using namespace vpe;
 
