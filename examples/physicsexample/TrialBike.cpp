@@ -96,20 +96,18 @@ namespace ve {
             0.6_real
         );
 
-        m_frame = frame; 
+        m_frame = frame;
         frame->setAngularFactor(glmvec3{ 1.0_real, 0.0_real, 0.0_real });
 
         return frame;
     }
 
     void TrialBike::createBiker(
-        const std::shared_ptr<VPEWorld::Body>& frame,
-        const BikeParams& p,
-        std::shared_ptr<VPEWorld::Body>& outBottom,
-        std::shared_ptr<VPEWorld::Body>& outTop)
+        const BikeParams& p
+    )
     {
         // slightly above the bike frame
-        glmvec3 bikerPos = frame->m_positionW + glmvec3{ 0.0_real, 1.0_real, -0.4_real };
+        glmvec3 bikerPos = m_frame->m_positionW + glmvec3{ 0.0_real, 1.0_real, -0.4_real };
         glmquat bikerOri{ 1, 0, 0, 0 };
 
         // biker bottom
@@ -127,7 +125,7 @@ namespace ve {
 
         // attach biker to the frame
         auto bikerJoint = std::make_shared<VPEWorld::FixedJoint>(
-            frame,
+            m_frame,
             biker_bottom,
             bikerPos
         );
@@ -163,16 +161,11 @@ namespace ve {
 
         hipJoint->enableLimit(-0.261799_real, 0.0_real);
         m_physics->addConstraint(hipJoint);
-
-        outBottom = biker_bottom;
-        outTop = biker_top;
     }
 
     void TrialBike::createWheels(
         const BikeSpawnContext& ctx,
-        const BikeParams& p,
-        std::shared_ptr<VPEWorld::Body>& outRearWheel,
-        std::shared_ptr<VPEWorld::Body>& outFrontWheel)
+        const BikeParams& p)
     {
         glmquat wheelOri{ 1,0,0,0 };
 
@@ -203,19 +196,17 @@ namespace ve {
         rearWheel->setAngularFactor(glmvec3{ 1.0_real, 0.0_real, 0.0_real });
         frontWheel->setAngularFactor(glmvec3{ 1.0_real, 0.0_real, 0.0_real });
 
-        outRearWheel = rearWheel;
-        outFrontWheel = frontWheel;
+		m_rearWheel = rearWheel;
+        m_frontWheel = frontWheel;
     }
 
     std::shared_ptr<VPEWorld::HingeJoint> TrialBike::attachRearWheelHinge(
-        const std::shared_ptr<VPEWorld::Body>& frame,
-        const std::shared_ptr<VPEWorld::Body>& rearWheel,
         const BikeSpawnContext& ctx,
         const BikeParams& p)
     {
         auto rearHinge = std::make_shared<VPEWorld::HingeJoint>(
-            frame,
-            rearWheel,
+            m_frame,
+            m_rearWheel,
             ctx.rearPos,
             p.hingeAxis
         );
@@ -228,7 +219,6 @@ namespace ve {
     }
 
     std::shared_ptr<VPEWorld::Body> TrialBike::createPassiveHandles(
-        const std::shared_ptr<VPEWorld::Body>& frame,
         const BikeSpawnContext& ctx)
     {
         // handle positions
@@ -243,7 +233,7 @@ namespace ve {
             glmvec3{ 1.0_real },
             handlePos,
             handleOri,
-            0.1_real,
+            1.0_real / 100.0_real,
             false,
             0.5_real
         );
@@ -251,7 +241,7 @@ namespace ve {
         m_handles = handles;
 
         // fixed joint to frame
-        auto handleFixed = std::make_shared<VPEWorld::FixedJoint>(frame, handles, handlePos);
+        auto handleFixed = std::make_shared<VPEWorld::FixedJoint>(m_frame, handles, handlePos);
         m_physics->addConstraint(handleFixed);
 
         return handles;
@@ -259,7 +249,6 @@ namespace ve {
 
     std::shared_ptr<VPEWorld::Body> TrialBike::createActiveHandlesAndSlider(
         const std::shared_ptr<VPEWorld::Body>& handlesPassive,
-        const std::shared_ptr<VPEWorld::Body>& frontWheel,
         const BikeSpawnContext& ctx,
         const BikeParams& p
     )
@@ -277,12 +266,13 @@ namespace ve {
             glmvec3{ 1.0_real },
             activeStartPos,
             handleOri,
-            0.15_real,
+            1.0_real / 100.0_real,
             true,
             0.5_real
         );
 
         m_handlesActive = handlesActive;
+
 
         const glmvec3 sliderAxis{ 0.0_real, 1.0_real, -0.3_real };
         glmvec3 sliderAnchor = activeStartPos;
@@ -296,6 +286,7 @@ namespace ve {
 
         m_handleSlider = handleSlider;
 
+
         m_sliderLocalA = glm::inverse(handlesPassive->m_orientationLW) * (sliderAnchor - handlesPassive->m_positionW);
         m_sliderLocalB = glm::inverse(handlesActive->m_orientationLW) * (sliderAnchor - handlesActive->m_positionW);
         m_sliderAxisLocalA = glm::normalize(glm::inverse(handlesPassive->m_orientationLW) * sliderAxis);
@@ -304,7 +295,7 @@ namespace ve {
 
         auto frontSpinHinge = std::make_shared<VPEWorld::HingeJoint>(
             handlesActive,
-            frontWheel,
+            m_frontWheel,
             ctx.frontPos,
             p.hingeAxis
         );
@@ -335,7 +326,7 @@ namespace ve {
                     glmvec3{ size },
                     posW,
                     cubeOri,
-                    1.0_real / 10000.0_real,
+                    1.0_real / 100000.0_real,
                     false,
                     1.0_real
                 );
@@ -352,7 +343,7 @@ namespace ve {
                     glmvec3{ scale },
                     posW,
                     oriW,
-                    1.0_real / 10000.0_real,
+                    1.0_real / 100000.0_real,
                     false,
                     friction
                 );
@@ -371,7 +362,7 @@ namespace ve {
         {
         case ObstacleTrackType::BumpyRoad:
         {
-            const int segments = 6;
+            const int segments = 10;
 
             real cursor = 0.0_real;
 
@@ -403,7 +394,7 @@ namespace ve {
                     createAndAddObject(
                         crateDir, "cube.obj", &m_physics->g_cube,
                         glmvec3{ 1.0_real }, posW, cubeOri,
-                        1.0_real / 10000.0_real, false, 1.0_real
+                        1.0_real / 100000.0_real, false, 1.0_real
                     );
                 };
 
@@ -414,7 +405,7 @@ namespace ve {
                     createAndAddObject(
                         bikeDir, "ramp.obj", &m_physics->g_ramp,
                         glmvec3{ 1.0_real }, posW, oriW,
-                        1.0_real / 10000.0_real, false, friction
+                        1.0_real / 100000.0_real, false, friction
                     );
                 };
             real cursor = 0.0_real;
@@ -472,7 +463,7 @@ namespace ve {
                 createAndAddObject(
                     crateDir, "cube.obj", &m_physics->g_cube,
                     glmvec3{ 1.0_real }, posW, cubeOri,
-                    1.0_real / 10000.0_real, false, 1.0_real
+                    1.0_real / 100000.0_real, false, 1.0_real
                 );
                 };
 
@@ -481,13 +472,27 @@ namespace ve {
                 createAndAddObject(
                     bikeDir, "ramp.obj", &m_physics->g_ramp,
                     glmvec3{ 1.0_real }, posW, oriW,
-                    1.0_real / 10000.0_real, false, friction
+                    1.0_real / 100000.0_real, false, friction
                 );
                 };
 
             real cursor = 0.0_real;
             std::vector<real> dropHeights = { 1.0_real, 2.0_real, 3.0_real };
 
+            for (size_t i = 0; i < dropHeights.size(); ++i) {
+                int maxHeight = static_cast<int>(dropHeights[i]);
+
+                // CLIMBING PHASE 
+                for (int h = 0; h < maxHeight; ++h) {
+                    glm::vec3 p = start + cursor * fwdN;
+                    for (int level = 0; level < h; ++level) {
+                        spawnCube(p, (real)level);
+                    }
+                    spawnRamp(p, rampUpOri(), 1.2_real, (real)h);
+                    cursor += cubeSize;
+                }
+                cursor += 6.0_real;
+            }
             for (size_t i = 0; i < dropHeights.size(); ++i) {
                 int maxHeight = static_cast<int>(dropHeights[i]);
 
@@ -516,56 +521,56 @@ namespace ve {
         const BikeParams p = makeBikeParams();
         m_cachedCtx = computeBikeSpawnContext(p);
 
-
         // create frame
         auto frame = createFrame(m_cachedCtx, p);
 
-        // create biker
-        std::shared_ptr<VPEWorld::Body> biker_bottom;
-        std::shared_ptr<VPEWorld::Body> biker_top;
-        createBiker(frame, p, biker_bottom, biker_top);
-
-
         // wheels
-        std::shared_ptr<VPEWorld::Body> rearWheel;
-        std::shared_ptr<VPEWorld::Body> frontWheel;
-        createWheels(m_cachedCtx, p, rearWheel, frontWheel);
+        createWheels(m_cachedCtx, p);
 
         // rear hinge driving
-        auto rearHinge = attachRearWheelHinge(frame, rearWheel, m_cachedCtx, p);
+        auto rearHinge = attachRearWheelHinge(m_cachedCtx, p);
 
         // handles passive & fixed to frame
-        auto handles = createPassiveHandles(frame, m_cachedCtx);
+        auto handles = createPassiveHandles(m_cachedCtx);
 
         // active handles, slider, front wheel spin hinge
-        auto handlesActive = createActiveHandlesAndSlider(handles, frontWheel, m_cachedCtx, p);
+        auto handlesActive = createActiveHandlesAndSlider(handles, m_cachedCtx, p);
 
-        //createObstacles(ctx, m_trackType);
-
+        // create biker
+        createBiker( p);
     }
 
-    void TrialBike::setEngine(bool on)
+    void TrialBike::setEngine(bool on,int i)
     {
         if (!on) {
             m_rearHinge->disableMotor();
             return;
         }
 
-        m_rearHinge->enableMotor(m_targetOmega, m_maxMotorTorque);
+        m_rearHinge->enableMotor(i*m_targetOmega, m_maxMotorTorque);
         m_rearHinge->setBody1MotorEnabled(false);
     }
 
-    void TrialBike::jump() {
-        if (!m_frame) return;
+    void TrialBike::jump()
+    {
+        if (!m_frame || !m_rearWheel || !m_frontWheel)
+            return;
 
-        // upward force
-        VPEWorld::Force jumpForce;
-        jumpForce.m_forceW = glmvec3{ 0.0_real, 5000.0_real, 0.0_real };
-        m_frame->setForce(JUMP_FORCE_ID, jumpForce);
+        m_rearWheel->setForce(
+            JUMP_FORCE_ID + 0,
+            VPEWorld::Force{ { 0.0_real, 15.0_real, 0.0_real } }
+        );
 
-        // timer activation
+        m_frontWheel->setForce(
+            JUMP_FORCE_ID + 1,
+            VPEWorld::Force{ { 0.0_real, 35.0_real, 0.0_real } }
+        );
+
         m_jumpActive = true;
+        m_jumpTimer = 0.0_real;
+        m_jumpTimeRemaining = 0.2_real;
     }
+
 
     void TrialBike::applyFrontSuspensionSpring()
     {
@@ -591,28 +596,10 @@ namespace ve {
 
         // spring
         const real x0 = -0.2_real;
-        const real k = 6000.0_real;
-        const real d = 500.0_real;
+        const real k = 500.0_real;
+        const real d = 50.0_real;
 
         real F = -k * (x - x0) - d * v;
-
-        // hard stops
-        const real minX = -0.2_real;
-        const real maxX = 0.10_real;
-        const real stopK = 50000.0_real;
-        const real stopD = 2000.0_real;
-
-        if (x < minX) {
-            const real penetration = x - minX;                
-            const real vIntoStop = glm::min(v, 0.0_real);   
-            F += -stopK * penetration - stopD * vIntoStop;
-        }
-
-        if (x > maxX) {
-            const real penetration = x - maxX;                 
-            const real vIntoStop = glm::max(v, 0.0_real);    
-            F += -stopK * penetration - stopD * vIntoStop;
-        }
 
         // applying equal and opposite forces
         m_handles->setForce(springForceA, VPEWorld::Force{ -F * axisW });
@@ -623,6 +610,8 @@ namespace ve {
     {
         return m_frame ? m_frame->m_positionW : glm::vec3{ 0.0_real };
     }
+
+
 
 }
 

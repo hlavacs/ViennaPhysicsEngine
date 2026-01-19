@@ -117,14 +117,20 @@ namespace ve {
 			auto sceneMgr = getSceneManagerPointer();
 			auto* cam = sceneMgr->getSceneNode("StandardCamera");
 
-			if (m_trialBike->m_jumpActive) {
+			if (m_trialBike->m_jumpActive)
+			{
 				m_trialBike->m_jumpTimeRemaining -= event.dt;
 
-				if (m_trialBike->m_jumpTimeRemaining <= 0.0_real) {
-					m_trialBike->m_frame->removeForce(9999);  // remove vertical force
-					m_trialBike->m_jumpActive = false;              // jump finished
+				if (m_trialBike->m_jumpTimeRemaining <= 0.0_real)
+				{
+					m_trialBike->m_rearWheel->removeForce(m_trialBike->JUMP_FORCE_ID + 0);
+					m_trialBike->m_frontWheel->removeForce(m_trialBike->JUMP_FORCE_ID + 1);
+					m_trialBike->m_jumpActive = false;
 				}
 			}
+
+
+
 			//MAKE CAMERA LOOK AT BIKE FROM SIDE VIEW
 			if (m_trialBike) {
 				glm::vec3 bikePos = m_trialBike->getFramePosition();
@@ -199,20 +205,6 @@ namespace ve {
 				m_physics->addBody(body);
 			}
 
-			if (event.idata1 == GLFW_KEY_SPACE && event.idata3 == GLFW_PRESS) {
-				glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
-
-				for (int i = 0; i < 1; ++i) {
-					VESceneNode* cube0;
-					static real dy = 0.5_real;
-					VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/crate0", "cube.obj", 0, getRoot()));
-					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_cube, glmvec3{ 1.0_real }, glmvec3{positionCamera.x, dy++, positionCamera.z + 4}, glmquat{ 1,0,0,0 }, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction );
-					body->setForce( 0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} } );
-					body->m_on_move = onMove;
-					body->m_on_erase = onErase;
-					m_physics->addBody(body);
-				}
-			}
 
 			if (event.idata1 == GLFW_KEY_Y && event.idata3 == GLFW_PRESS) {
 				glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
@@ -242,20 +234,29 @@ namespace ve {
 				m_physics->addBody(body);
 			}
 
-			if (event.idata1 == GLFW_KEY_L) {
+			if (event.idata1 == GLFW_KEY_RIGHT) {
 				if (event.idata3 == GLFW_PRESS || event.idata3 == GLFW_REPEAT) {
 					//std::cout << "GO!";
-					m_trialBike->setEngine(true);   // start engine
+					m_trialBike->setEngine(true, 1);   // start engine
 				}
 				else if (event.idata3 == GLFW_RELEASE) {
 					//std::cout << "STOP!";
-					m_trialBike->setEngine(false);  // stop engine
+					m_trialBike->setEngine(false, 1);  // stop engine
 				}
 			}
-			if (event.idata1 == GLFW_KEY_T) {
-				//std::cout << "JUMP!";
-				m_trialBike->jump();
 
+			if (event.idata1 == GLFW_KEY_LEFT) {
+				if (event.idata3 == GLFW_PRESS || event.idata3 == GLFW_REPEAT) {
+					//std::cout << "GO!";
+					m_trialBike->setEngine(true, -1);   // start engine
+				}
+				else if (event.idata3 == GLFW_RELEASE) {
+					//std::cout << "STOP!";
+					m_trialBike->setEngine(false, 1);  // stop engine
+				}
+			}
+			if (event.idata1 == GLFW_KEY_SPACE && event.idata3 == GLFW_PRESS) {
+				m_trialBike->jump();
 			}
 
 			return false;
@@ -668,12 +669,12 @@ namespace ve {
 			const float winX = (screenW - winW) * 0.5f;
 			const float winY = (screenH - winH) * 0.5f;
 
-			if (nk_begin(ctx, "Choose Track",
+			if (nk_begin(ctx, "Start Menu",
 				nk_rect(winX, winY, winW, winH),
 				NK_WINDOW_BORDER | NK_WINDOW_TITLE))
 			{
 				nk_layout_row_dynamic(ctx, 30, 1);
-				nk_label(ctx, "Select the road to load:", NK_TEXT_LEFT);
+				nk_label(ctx, "Select Obstacle Track Type:", NK_TEXT_LEFT);
 
 				static int choice = 0; // 0=bumpy,1=tall,2=stepped
 

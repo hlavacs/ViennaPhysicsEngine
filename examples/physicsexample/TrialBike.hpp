@@ -37,9 +37,14 @@ namespace ve {
         // jump state 
         bool m_jumpActive = false;
         real m_jumpTimeRemaining = 0.5_real;
+        real m_jumpTimer = 0.0_real;
+        static constexpr uint64_t JUMP_FORCE_ID = 1000;
+        static constexpr uint64_t PRE_JUMP_FORCE_ID = 2000;
 
         // bike state
         std::shared_ptr<VPEWorld::Body> m_frame{};
+        std::shared_ptr<VPEWorld::Body> m_rearWheel{};
+        std::shared_ptr<VPEWorld::Body> m_frontWheel{};
         std::shared_ptr<VPEWorld::HingeJoint> m_rearHinge{};
         BikeSpawnContext m_cachedCtx{};
 
@@ -51,7 +56,7 @@ namespace ve {
 
 
         void assembleBike();
-        void setEngine(bool on);
+        void setEngine(bool on, int i);
         void jump();
         void applyFrontSuspensionSpring();
         glm::vec3 getFramePosition() const;
@@ -60,7 +65,7 @@ namespace ve {
 
     private:
 
-        static constexpr uint64_t JUMP_FORCE_ID = 9999;
+        
         static constexpr const char* bikeDir = "../../media/models/trial-bike";
         static constexpr const char* crateDir = "../../media/models/test/crate0";
         static constexpr uint32_t springForceA = 7878;
@@ -84,34 +89,26 @@ namespace ve {
         std::shared_ptr<VPEWorld::Body> createFrame(const BikeSpawnContext& ctx, const BikeParams& p);
 
         void createBiker(
-            const std::shared_ptr<VPEWorld::Body>& frame,
-            const BikeParams& p,
-            std::shared_ptr<VPEWorld::Body>& outBottom,
-            std::shared_ptr<VPEWorld::Body>& outTop
+            const BikeParams& p
         );
 
         void createWheels(
             const BikeSpawnContext& ctx,
-            const BikeParams& p,
-            std::shared_ptr<VPEWorld::Body>& outRearWheel,
-            std::shared_ptr<VPEWorld::Body>& outFrontWheel
+            const BikeParams& p
         );
 
         std::shared_ptr<VPEWorld::HingeJoint> attachRearWheelHinge(
-            const std::shared_ptr<VPEWorld::Body>& frame,
-            const std::shared_ptr<VPEWorld::Body>& rearWheel,
             const BikeSpawnContext& ctx,
             const BikeParams& p
         );
 
         std::shared_ptr<VPEWorld::Body> createPassiveHandles(
-            const std::shared_ptr<VPEWorld::Body>& frame,
+ 
             const BikeSpawnContext& ctx
         );
 
         std::shared_ptr<VPEWorld::Body> createActiveHandlesAndSlider(
             const std::shared_ptr<VPEWorld::Body>& handlesPassive,
-            const std::shared_ptr<VPEWorld::Body>& frontWheel,
             const BikeSpawnContext& ctx,
             const BikeParams& p
         );
@@ -130,9 +127,11 @@ namespace ve {
 
         // front suspension / handles
         std::shared_ptr<VPEWorld::SliderJoint> m_handleSlider{};
+    public:
         std::shared_ptr<VPEWorld::Body> m_handles{};
         std::shared_ptr<VPEWorld::Body> m_handlesActive{};
-
+    
+    private:
         glmvec3 m_sliderLocalA{};
         glmvec3 m_sliderLocalB{};
         glmvec3 m_sliderAxisLocalA{};
