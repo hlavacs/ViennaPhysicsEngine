@@ -94,29 +94,23 @@ namespace VD
                     trianglePoints.erase(std::remove_if(trianglePoints.begin(), trianglePoints.end(), [&eachPoints](const glmvec2 &trianglePoint)
                                                         { return isVectorEqualTo(eachPoints, trianglePoint); }),
                                          trianglePoints.end());
-                    /**
-                     * Construct Edges from current Point to the other points and save corresponding triangle
-                     */
+                    /** Construct Edges from current Point to the other points and save corresponding triangle */
                     for (const auto &eachPoint : trianglePoints)
                     {
                         edgeTriangleMap[Edge(eachPoints, eachPoint)].push_back(eachTriangle);
                     }
                 }
             }
-
-            /**
-             * Keep track of vertices and unbounded edges
-             */
+            /** Keep track of vertices and unbounded edges */
             std::vector<glmvec2> voronoi_vertices = {};
             std::vector<Edge> unbounded_edges = {};
 
             for (const auto &[edge, triangle] : edgeTriangleMap)
             {
-
                 /** If only 1 triangle contains this edge, it means that the edge is unbounded. Create artificial boundary for voronoi diagram for clipping later*/
                 if (triangle.size() == 1)
                 {
-                    if (unbounded_edges.size() == 0)
+                    if (unbounded_edges.size() < 2)
                     {
                         /**Construct the voronoi edge from the perpendicular line segment from the delaunay edge to the circumcircle center */
                         glmvec2 A = edge.getA();
@@ -131,36 +125,24 @@ namespace VD
 
                         /**Check orientation of edge, should go away from the voronoi */
                         glm::length(P1) < glm::length(P2) ? unbounded_edges.push_back(Edge(C, P2)) : unbounded_edges.push_back(Edge(C, P1));
-                    }
-                    else
-                    {
-                        /**Construct the voronoi edge from the perpendicular line segment from the delaunay edge to the circumcircle center */
-                        glmvec2 A = edge.getA();
-                        glmvec2 B = edge.getB();
-                        glmvec2 C = triangle[0].getCircumcircleCenter();
-                        glmvec2 D = intersectionOnLineFromPoint(A, B, C);
 
-                        glmvec2 DC = C - D;
-                        glmvec2 P1 = C + glm::normalize(DC) * 10.0_real;
-                        glmvec2 P2 = C - glm::normalize(DC) * 10.0_real;
-
-                        /**Check orientation of edge, should go away from the voronoi */
-                        glm::length(P1) < glm::length(P2) ? unbounded_edges.push_back(Edge(C, P2)) : unbounded_edges.push_back(Edge(C, P1));
-
-                        Edge e1 = unbounded_edges[0];
-                        Edge e2 = unbounded_edges[1];
-                        /**Check if the two outside voronoi edges intersect  */
-                        if (checkIntersection(e1, e2))
+                        if (unbounded_edges.size() == 2)
                         {
-                            /**If intersection ocurrs save the intersection point a voronoi vertice */
-                            glmvec2 I = getIntersection(e1.getA(), e1.getB(), e2.getA(), e2.getB());
-                            voronoi_vertices.push_back(I);
-                        }
-                        else
-                        {
-                            /**If no intersection, stop after some distance and then connect the two edges with another edge */
-                            voronoi_vertices.push_back(e1.getB());
-                            voronoi_vertices.push_back(e2.getB());
+                            Edge e1 = unbounded_edges[0];
+                            Edge e2 = unbounded_edges[1];
+                            /**Check if the two outside voronoi edges intersect  */
+                            if (checkIntersection(e1, e2))
+                            {
+                                /**If intersection ocurrs save the intersection point a voronoi vertice */
+                                glmvec2 I = getIntersection(e1.getA(), e1.getB(), e2.getA(), e2.getB());
+                                voronoi_vertices.push_back(I);
+                            }
+                            else
+                            {
+                                /**If no intersection, stop after some distance and then connect the two edges with another edge */
+                                voronoi_vertices.push_back(e1.getB());
+                                voronoi_vertices.push_back(e2.getB());
+                            }
                         }
                     }
                 }
@@ -170,20 +152,19 @@ namespace VD
                     voronoi_vertices.push_back(triangle[0].getCircumcircleCenter());
                     voronoi_vertices.push_back(triangle[1].getCircumcircleCenter());
                 }
+                /**Edge case if only one triangle exist, connect the center of circumcircle with the constructed edges */
                 if (edgeTriangleMap.size() == 2)
                 {
-                    /**Edge case if only one triangle exist, connect the center of circumcircle with the constructed edges */
                     voronoi_vertices.push_back(triangle[0].getCircumcircleCenter());
                 }
             }
-            /**Sort the voronoi vertices in counter clockwise order for later visualizing*/
+            /**Sort the voronoi vertices in counter clockwise order*/
             sort_vertices_ccw(voronoi_vertices);
             Voronoi voronoi = Voronoi(voronoi_vertices);
             voronois.push_back(voronoi);
         }
         return voronois;
     }
-
 
     /// <summary>
     /// Clip Voronoi vertices to a convex face
