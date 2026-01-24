@@ -80,15 +80,12 @@ namespace VD
         /* Iterate through every starting points/voronoi center */
         for (const auto &eachPoints : seed_points)
         {
-            /**Save triangles that contain current point */
-            std::vector<Triangle> relevantTriangles = {};
             /** keep Track on which edge belongs to which triangle*/
             std::unordered_map<Edge, std::vector<Triangle>> edgeTriangleMap;
             for (const Triangle &eachTriangle : delaunayTriangles)
             {
                 if (eachTriangle.containsPoint(eachPoints))
                 {
-                    relevantTriangles.push_back(eachTriangle);
                     /** Only leave the two other points to make edges to them*/
                     std::vector<glmvec2> trianglePoints = eachTriangle.getPoints();
                     trianglePoints.erase(std::remove_if(trianglePoints.begin(), trianglePoints.end(), [&eachPoints](const glmvec2 &trianglePoint)
