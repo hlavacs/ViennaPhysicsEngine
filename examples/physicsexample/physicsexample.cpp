@@ -956,6 +956,41 @@ namespace ve
 					m_physics->addCollider(body, onCollideFracture);
 				}
 			}
+			if (event.idata1 == GLFW_KEY_2 && event.idata3 == GLFW_PRESS)
+			{
+				std::default_random_engine rnd_gen{12345};			   // Random number generator
+				std::uniform_real_distribution<> rnd_unif{0.0f, 1.0f}; // Random number distribution
+
+				glmvec3 positionCamera{getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3]};
+				glmvec3 dir{getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2]};
+				glmvec3 vel = (30.0_real + 5.0_real * (real)rnd_unif(rnd_gen)) * dir / glm::length(dir);
+				glmvec3 scale{0.7, 0.7, 0.7}; // = rnd_unif(rnd_gen) * 10;
+				real angle = (real)rnd_unif(rnd_gen) * 10 * 3 * (real)M_PI / 180.0_real;
+				glmvec3 orient{rnd_unif(rnd_gen), rnd_unif(rnd_gen), rnd_unif(rnd_gen)};
+				glmvec3 vrot{rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5};
+				VESceneNode *cube;
+				VECHECKPOINTER(cube = getSceneManagerPointer()->loadModel("Wall" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction", "wall.obj", 0, getRoot()));
+				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Wall" + std::to_string(m_physics->m_bodies.size()), cube, &VD::wall, scale, positionCamera + 2.0_real * dir, glm::rotate(angle, glm::normalize(orient)), vel, vrot, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
+				body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
+				body->m_on_move = onMove;
+				body->m_on_erase = onErase;
+				m_physics->addBody(body);
+				m_physics->addCollider(body, onCollideFracture);
+			}
+
+			if (event.idata1 == GLFW_KEY_3 && event.idata3 == GLFW_PRESS)
+			{
+				glmvec3 positionCamera{getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3]};
+				for (int index = 0; index < wall_poly.size(); ++index)
+				{
+					VESceneNode *cube0;
+					VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction", "wall" + std::to_string(index) + ".obj", 0, getRoot()));
+					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &wall_poly[index], glmvec3{0.90_real}, glmvec3{positionCamera.x, positionCamera.y, positionCamera.z + 4} + wall_tl[index], glmquat{1, 0, 0, 0}, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
+					body->m_on_move = onMove;
+					body->m_on_erase = onErase;
+					m_physics->addBody(body);
+				}
+			}
 
 			return false;
 		};
