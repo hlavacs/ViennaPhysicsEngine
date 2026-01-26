@@ -981,14 +981,16 @@ namespace ve
 			if (event.idata1 == GLFW_KEY_3 && event.idata3 == GLFW_PRESS)
 			{
 				glmvec3 positionCamera{getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3]};
-				for (int index = 0; index < wall_poly.size(); ++index)
+				for (int index = 0; index < 1; ++index)
 				{
 					VESceneNode *cube0;
-					VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction", "wall" + std::to_string(index) + ".obj", 0, getRoot()));
-					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &wall_poly[index], glmvec3{0.90_real}, glmvec3{positionCamera.x, positionCamera.y, positionCamera.z + 4} + wall_tl[index], glmquat{1, 0, 0, 0}, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
+					VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("Wall" + std::to_string(m_physics->m_body_id), "../../media/models/test/destruction", "wall.obj", 0, getRoot()));
+					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Wall" + std::to_string(m_physics->m_bodies.size()), cube0, &VD::wall, glmvec3{1.0_real}, glmvec3{positionCamera.x, 0.5, positionCamera.z + 4}, glmquat{1, 0, 0, 0}, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
+					body->setForce(0ul, VPEWorld::Force{{0, m_physics->c_gravity, 0}});
 					body->m_on_move = onMove;
 					body->m_on_erase = onErase;
 					m_physics->addBody(body);
+					m_physics->addCollider(body, onCollideFracture);
 				}
 			}
 
