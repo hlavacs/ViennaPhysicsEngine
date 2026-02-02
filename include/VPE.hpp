@@ -411,7 +411,7 @@ namespace vpe {
 				{ {3,-1}, {10, 1}, {5,-1}, {8, 1} },	//face 4
 				{ {1,-1}, {9, 1},  {7,-1}, {11, 1} }	//face 5
 			},
-			[](real mass, glmvec3& s) { //callback for calculating the inertia tensor of this polytope
+			[](real mass, glmvec3& s) { // inertia tensor callback
 				return mass * glmmat3{ {s.y * s.y + s.z * s.z,0,0}, {0,s.x * s.x + s.z * s.z,0}, {0,0,s.x * s.x + s.y * s.y} } / 12.0_real;
 			}
 
@@ -419,66 +419,64 @@ namespace vpe {
 
 		inline static Polytope g_ramp{
 			// vertices 
-	{ // verts
-	  { -0.5_real, -0.5_real, -0.5_real }, // 0  (OBJ v5)
-	  { -0.5_real, -0.5_real,  0.5_real }, // 1  (OBJ v1)
-	  { -0.5_real,  0.5_real, -0.5_real }, // 2  (OBJ v3)
-	  {  0.5_real, -0.5_real,  0.5_real }, // 3  (OBJ v2)
-	  {  0.5_real, -0.5_real, -0.5_real }, // 4  (OBJ v6)
-	  {  0.5_real,  0.5_real, -0.5_real }  // 5  (OBJ v4)
-	},
+			{ 
+			  { -0.5_real, -0.5_real, -0.5_real }, 
+			  { -0.5_real, -0.5_real,  0.5_real }, 
+			  { -0.5_real,  0.5_real, -0.5_real }, 
+			  {  0.5_real, -0.5_real,  0.5_real }, 
+			  {  0.5_real, -0.5_real, -0.5_real }, 
+			  {  0.5_real,  0.5_real, -0.5_real }  
+			},
 
-	{ // edges (vertex index pairs)
-	  {0,1}, // 0
-	  {1,3}, // 1
-	  {3,4}, // 2
-	  {4,0}, // 3
-	  {0,2}, // 4
-	  {2,1}, // 5
-	  {2,5}, // 6
-	  {5,3}, // 7
-	  {5,4}  // 8
-	}, //edges
+			{ // edges 
+			  {0,1}, 
+			  {1,3}, 
+			  {3,4}, 
+			  {4,0}, 
+			  {0,2}, 
+			  {2,1}, 
+			  {2,5}, 
+			  {5,3}, 
+			  {5,4}  
+			}, 
 
-	{ // faces (edge index, winding sign)
-	  { {0,-1}, {3,-1}, {2,-1}, {1,-1} }, // face 0: y = -0.5 (front)
-	  { {4, 1}, {6, 1}, {8, 1}, {3, 1} }, // face 1: z = -0.5 (bottom)
-	  { {1, 1}, {7,-1}, {6,-1}, {5, 1} }, // face 2: sloped top (y+z=0)
-	  { {0, 1}, {5,-1}, {4,-1} },         // face 3: x = -0.5 (left triangle)
-	  { {8,-1}, {7, 1}, {2, 1} }          // face 4: x =  0.5 (right triangle)
-	},
+			{ // faces 
+			  { {0,-1}, {3,-1}, {2,-1}, {1,-1} }, 
+			  { {4, 1}, {6, 1}, {8, 1}, {3, 1} }, 
+			  { {1, 1}, {7,-1}, {6,-1}, {5, 1} }, 
+			  { {0, 1}, {5,-1}, {4,-1} },        
+			  { {8,-1}, {7, 1}, {2, 1} }          
+			},
 
-	[](real mass, glmvec3& s) { // inertia tensor callback
-				// For this particular wedge (right-triangular prism occupying half the box),
-				// the inertia about the shape's local origin (as authored here) matches the box-form.
-				return mass * glmmat3{
-				  { s.y * s.y + s.z * s.z, 0, 0 },
-				  { 0, s.x * s.x + s.z * s.z, 0 },
-				  { 0, 0, s.x * s.x + s.y * s.y }
-				} / 12.0_real;
-			}
-		};
+			[](real mass, glmvec3& s) { // inertia tensor callback
+						return mass * glmmat3{
+						  { s.y * s.y + s.z * s.z, 0, 0 },
+						  { 0, s.x * s.x + s.z * s.z, 0 },
+						  { 0, 0, s.x * s.x + s.y * s.y }
+						} / 12.0_real;
+					}
+				};
 
 		inline static Polytope g_biker_bottom{
 	{   // vertices 
-		{ -0.069726_real, -0.696598_real,  0.217495_real }, // 0 = OBJ v3  (-x, lowY, lowZ)
-		{ -0.069726_real, -0.696598_real,  0.356947_real }, // 1 = OBJ v1  (-x, lowY, highZ)
-		{ -0.069726_real, -0.557145_real,  0.356947_real }, // 2 = OBJ v2  (-x, highY, highZ)
-		{ -0.069726_real, -0.557145_real,  0.217495_real }, // 3 = OBJ v4  (-x, highY, lowZ)
+		{ -0.069726_real, -0.696598_real,  0.217495_real }, 
+		{ -0.069726_real, -0.696598_real,  0.356947_real }, 
+		{ -0.069726_real, -0.557145_real,  0.356947_real }, 
+		{ -0.069726_real, -0.557145_real,  0.217495_real }, 
 
-		{  0.069726_real, -0.696598_real,  0.356947_real }, // 4 = OBJ v5  (+x, lowY, highZ)
-		{  0.069726_real, -0.696598_real,  0.217495_real }, // 5 = OBJ v7  (+x, lowY, lowZ)
-		{  0.069726_real, -0.557145_real,  0.217495_real }, // 6 = OBJ v8  (+x, highY, lowZ)
-		{  0.069726_real, -0.557145_real,  0.356947_real }  // 7 = OBJ v6  (+x, highY, highZ)
+		{  0.069726_real, -0.696598_real,  0.356947_real }, 
+		{  0.069726_real, -0.696598_real,  0.217495_real }, 
+		{  0.069726_real, -0.557145_real,  0.217495_real }, 
+		{  0.069726_real, -0.557145_real,  0.356947_real }  
 	},
 
-	{   // edges (unchanged)
+	{   // edges 
 		{0,1}, {1,2}, {2,3}, {3,0},
 		{4,5}, {5,6}, {6,7}, {7,4},
 		{5,0}, {1,4}, {3,6}, {7,2}
 	},
 
-	{   // faces (unchanged)
+	{   // faces
 		{ {0, 1}, {1, 1},  {2, 1}, {3, 1} },   // face 0
 		{ {4, 1}, {5, 1},  {6, 1}, {7, 1} },   // face 1
 		{ {0,-1}, {8,-1},  {4,-1}, {9,-1} },   // face 2
@@ -487,7 +485,7 @@ namespace vpe {
 		{ {1,-1}, {9, 1},  {7,-1}, {11, 1} }   // face 5
 	},
 
-	[](real mass, glmvec3& s) { // inertia tensor callback (unchanged)
+	[](real mass, glmvec3& s) { // inertia tensor callback 
 		return mass * glmmat3{
 			{ s.y * s.y + s.z * s.z, 0, 0 },
 			{ 0, s.x * s.x + s.z * s.z, 0 },
@@ -497,25 +495,25 @@ namespace vpe {
 		};
 
 		inline static Polytope g_biker_top{
-			{   // vertices (updated from new OBJ)
-				{ 0.180750_real, -0.594435_real, -0.128425_real }, // 0 = OBJ v3
-				{ 0.180750_real, -0.594435_real,  0.024946_real }, // 1 = OBJ v1
-				{ 0.180750_real, -0.441063_real,  0.024946_real }, // 2 = OBJ v2
-				{ 0.180750_real, -0.441063_real, -0.128425_real }, // 3 = OBJ v4
+			{   // vertices 
+				{ 0.180750_real, -0.594435_real, -0.128425_real }, 
+				{ 0.180750_real, -0.594435_real,  0.024946_real }, 
+				{ 0.180750_real, -0.441063_real,  0.024946_real }, 
+				{ 0.180750_real, -0.441063_real, -0.128425_real }, 
 
-				{ 0.334121_real, -0.594435_real,  0.024946_real }, // 4 = OBJ v5
-				{ 0.334121_real, -0.594435_real, -0.128425_real }, // 5 = OBJ v7
-				{ 0.334121_real, -0.441063_real, -0.128425_real }, // 6 = OBJ v8
-				{ 0.334121_real, -0.441063_real,  0.024946_real }  // 7 = OBJ v6
+				{ 0.334121_real, -0.594435_real,  0.024946_real }, 
+				{ 0.334121_real, -0.594435_real, -0.128425_real }, 
+				{ 0.334121_real, -0.441063_real, -0.128425_real }, 
+				{ 0.334121_real, -0.441063_real,  0.024946_real }  
 			},
 
-			{   // edges (same as cube)
+			{   // edges
 				{0,1}, {1,2}, {2,3}, {3,0},
 				{4,5}, {5,6}, {6,7}, {7,4},
 				{5,0}, {1,4}, {3,6}, {7,2}
 			},
 
-			{   // faces (same as cube)
+			{   // faces 
 				{ {0, 1}, {1, 1},  {2, 1}, {3, 1} },   // face 0
 				{ {4, 1}, {5, 1},  {6, 1}, {7, 1} },   // face 1
 				{ {0,-1}, {8,-1},  {4,-1}, {9,-1} },   // face 2

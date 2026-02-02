@@ -69,7 +69,7 @@ namespace ve {
             m_physics->m_restitution,
             friction
         );
-
+        
         body->m_on_move = m_onMove;
         body->m_on_erase = m_onErase;
 
@@ -553,6 +553,7 @@ namespace ve {
 
     void TrialBike::jump()
     {
+        if (m_jumpCooldownRemaining > 0.0_real) return;
         if (!m_frame || !m_rearWheel || !m_frontWheel)
             return;
 
@@ -569,6 +570,7 @@ namespace ve {
         m_jumpActive = true;
         m_jumpTimer = 0.0_real;
         m_jumpTimeRemaining = 0.2_real;
+        m_jumpCooldownRemaining = JUMP_COOLDOWN;
     }
 
 
@@ -611,7 +613,11 @@ namespace ve {
         return m_frame ? m_frame->m_positionW : glm::vec3{ 0.0_real };
     }
 
-
-
+    void TrialBike::update(double dt) {
+        if (m_jumpCooldownRemaining > 0.0_real) {
+            m_jumpCooldownRemaining -= (real)dt;
+            if (m_jumpCooldownRemaining < 0.0_real) m_jumpCooldownRemaining = 0.0_real;
+        }
+    }
 }
 

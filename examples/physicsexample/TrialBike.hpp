@@ -47,6 +47,8 @@ namespace ve {
         std::shared_ptr<VPEWorld::Body> m_frontWheel{};
         std::shared_ptr<VPEWorld::HingeJoint> m_rearHinge{};
         BikeSpawnContext m_cachedCtx{};
+        std::shared_ptr<VPEWorld::Body> m_handles{};
+        std::shared_ptr<VPEWorld::Body> m_handlesActive{};
 
         TrialBike(VPEWorld* physics, VPEWorld::callback_move onMove, VPEWorld::callback_erase onErase)
             : m_physics{ physics }, m_onMove{ onMove }, m_onErase{ onErase } {
@@ -57,6 +59,7 @@ namespace ve {
 
         void assembleBike();
         void setEngine(bool on, int i);
+        void update(double dt);
         void jump();
         void applyFrontSuspensionSpring();
         glm::vec3 getFramePosition() const;
@@ -112,11 +115,11 @@ namespace ve {
             const BikeSpawnContext& ctx,
             const BikeParams& p
         );
-
-        
         
 
-    private:
+        real m_jumpCooldownRemaining = 0.0_real;
+        static constexpr real JUMP_COOLDOWN = 1.0_real;
+
         VPEWorld* m_physics = nullptr;
         VPEWorld::callback_move m_onMove{};
         VPEWorld::callback_erase m_onErase{};
@@ -127,11 +130,7 @@ namespace ve {
 
         // front suspension / handles
         std::shared_ptr<VPEWorld::SliderJoint> m_handleSlider{};
-    public:
-        std::shared_ptr<VPEWorld::Body> m_handles{};
-        std::shared_ptr<VPEWorld::Body> m_handlesActive{};
-    
-    private:
+
         glmvec3 m_sliderLocalA{};
         glmvec3 m_sliderLocalB{};
         glmvec3 m_sliderAxisLocalA{};

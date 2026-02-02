@@ -113,6 +113,7 @@ namespace ve {
 			m_physics->tick(event.dt);
 
 			m_trialBike->applyFrontSuspensionSpring();
+			m_trialBike->update(event.dt);
 			//making the camera sideways, facing the bike and following it so it is always in the center of the screen
 			auto sceneMgr = getSceneManagerPointer();
 			auto* cam = sceneMgr->getSceneNode("StandardCamera");
@@ -661,9 +662,13 @@ namespace ve {
 			const float winW = 500.0f;
 			const float winH = 320.0f;
 
-			//screen size 
-			const float screenW = 3840.0f;
-			const float screenH = 2160.0f;
+			//screen size
+			// 4K screen size
+			//const float screenW = 3840.0f;
+			//const float screenH = 2160.0f;
+			//HD screen size
+			const float screenW = 1920.0f;
+			const float screenH = 1080.0f;
 
 			// centered poosition
 			const float winX = (screenW - winW) * 0.5f;
