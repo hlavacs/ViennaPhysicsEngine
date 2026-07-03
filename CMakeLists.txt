@@ -14,7 +14,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release")
 
-option(VPE_BUILD_EXAMPLES "Build VPE examples" OFF)
+option(VPE_BUILD_EXAMPLES "Build the VVE example (needs Vienna Vulkan Engine + Vulkan SDK)" OFF)
+option(VPE_BUILD_EXAMPLE_SIMPLE "Build the portable raylib example" OFF)
 option(VPE_BUILD_TESTS "Build VPE tests" ON)
 
 # enable clang-tidy. disable to speed up compilation
@@ -29,7 +30,7 @@ target_include_directories(ViennaPhysicsEngine INTERFACE
 )
 target_compile_features(ViennaPhysicsEngine INTERFACE cxx_std_20)
 
-if (VPE_BUILD_EXAMPLES)
+if (VPE_BUILD_EXAMPLES OR VPE_BUILD_EXAMPLE_SIMPLE)
   add_subdirectory(examples)
 endif ()
 

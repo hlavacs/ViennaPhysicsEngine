@@ -1,0 +1,15 @@
+# Matches the existing VPE.hpp style: tabs, attached braces, long lines allowed.
+BasedOnStyle: LLVM
+Language: Cpp
+Standard: c++20
+UseTab: ForIndentation
+TabWidth: 4
+IndentWidth: 4
+ColumnLimit: 120
+BreakBeforeBraces: Attach
+PointerAlignment: Left
+AccessModifierOffset: -4
+IndentCaseLabels: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortLambdasOnASingleLine: All
+SortIncludes: Never

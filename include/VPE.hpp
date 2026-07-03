@@ -26,6 +26,7 @@
 #include <cassert>
 #include <limits>
 #include <stdexcept>
+#include <memory>	//std::shared_ptr; MSVC provides it transitively, gcc/clang do not
 
 //This engine uses left handed, Y UP. To align your engine with VPE, use 
 //#define GLM_FORCE_LEFT_HANDED before including VPE.hpp
@@ -1704,8 +1705,9 @@ namespace vpe {
 		/// <param name="contact">Contact between the two bodies.</param>
 		/// <param name="eq">Result of edge query.</param>
 		void createEdgeContact(Contact& contact, EdgeQuery& eq) {
-			Face* ref_face = maxFaceAlignment(eq.m_normalL, eq.m_edge_ref->m_edge_face_ptrs, fabs);	//face of A best aligned with the contact normal
-			Face* inc_face = maxFaceAlignment(-RTOIN(eq.m_normalL), eq.m_edge_inc->m_edge_face_ptrs, fabs);	//face of B best aligned with the contact normal
+			auto abs_fct = [](real x) { return std::abs(x); };	//::fabs is double(double) on gcc/clang, not convertible to real(*)(real) when real is float
+			Face* ref_face = maxFaceAlignment(eq.m_normalL, eq.m_edge_ref->m_edge_face_ptrs, abs_fct);	//face of A best aligned with the contact normal
+			Face* inc_face = maxFaceAlignment(-RTOIN(eq.m_normalL), eq.m_edge_inc->m_edge_face_ptrs, abs_fct);	//face of B best aligned with the contact normal
 
 			real dp_ref = fabs(glm::dot(eq.m_normalL, ref_face->m_normalL));	//Use the better aligned face as reference face.
 			real dp_inc = fabs(glm::dot(eq.m_normalL, inc_face->m_normalL));

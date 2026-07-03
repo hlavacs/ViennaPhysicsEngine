@@ -1,0 +1,63 @@
+# CI for the refactoring work (REFACTORING.md, Phase 0).
+#
+# The golden-run reference environment is ubuntu / gcc / Release: the committed
+# tests/golden/*.golden.txt files were generated there and must stay bit-exact.
+# Other jobs build and run the unit tests; they skip the golden comparison
+# because float results differ across compilers/platforms.
+
+name: CI
+
+on:
+  push:
+    branches: [main, V2, develop]
+  pull_request:
+
+jobs:
+  reference:
+    name: Reference (ubuntu gcc Release) — unit + golden runs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build -j
+      - name: Test (incl. golden runs, ASLR off)
+        run: ctest --test-dir build --output-on-failure
+
+  clang:
+    name: ubuntu clang Release — unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++
+      - name: Build
+        run: cmake --build build -j
+      - name: Test (unit tests only)
+        run: ctest --test-dir build --output-on-failure -E goldenrun
+
+  msvc:
+    name: windows MSVC — unit tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build
+      - name: Build
+        run: cmake --build build --config Release -j
+      - name: Test (unit tests only)
+        run: ctest --test-dir build -C Release --output-on-failure -E goldenrun
+
+  clang-tidy:
+    name: clang-tidy (informational)
+    runs-on: ubuntu-latest
+    continue-on-error: true # baseline is not clean yet; tighten after Phase 1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure with compile commands
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: Run clang-tidy on the engine header (via tests TU)
+        run: clang-tidy -p build tests/testlib.cpp 2>&1 | tee tidy.log
+      - name: Summary
+        run: grep -c "warning:" tidy.log || true

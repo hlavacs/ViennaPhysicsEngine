@@ -30,6 +30,29 @@ g++ -std=c++20 -I extern proposals/typed_spaces/clip_face_face_demo.cpp -o demo 
 
 **Exit criterion:** green CI, golden files committed, `git tag pre-refactor`.
 
+**Status: implemented.** `tests/goldenrun.cpp` (scenes: stack, pendulum, hinge,
+cloth; `--generate`/`--compare`), golden files in `tests/golden/`, `.clang-format`,
+`.clang-tidy`, warning flags (`VPE_WARNINGS_AS_ERRORS` option), CI in
+`.github/workflows/ci.yml`.
+
+Findings from implementation:
+
+- **Determinism requires ASLR off.** Contact pairs are keyed by body addresses
+  (`void*`), so address layout changes `unordered_map` iteration order, hence
+  impulse application order, hence float results — the same binary produces
+  different stack-scene results per run. CTest therefore runs goldenrun under
+  `setarch -R` on Linux. This is a concrete correctness argument for Phase 2:
+  index-based handles make iteration order address-independent.
+  Confirmed on macOS too (no ASLR opt-out exists there), so `build_cmake.sh`
+  skips goldenrun on Darwin — the Linux CI job is the golden-run authority
+  until Phase 2 makes the simulation address-independent.
+- The golden files are reference-environment artifacts (ubuntu/gcc/Release);
+  the MSVC and clang CI jobs run unit tests only.
+- Two portability fixes were needed to build with gcc at all (VPE.hpp compiled
+  only with MSVC transitive includes/overloads): added `#include <memory>`, and
+  replaced `fabs` as a `real(*)(real)` argument in `createEdgeContact` with a
+  lambda (glibc's `::fabs` is `double(double)` only).
+
 ## Phase 1 — Transform macros → typed coordinate spaces
 
 Replace the 17 macros (`ITORP`, `RTOWN`, `WTOTIP`, …, VPE.hpp lines 203–223)

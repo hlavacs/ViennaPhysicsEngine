@@ -1,0 +1,22 @@
+# Phase 0 baseline (REFACTORING.md). Deliberately focused on the checks that
+# matter for the no-macros/strong-types rework; noisy style checks disabled
+# so real findings are visible. Tighten as phases complete.
+Checks: >
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  -modernize-avoid-c-arrays,
+  cppcoreguidelines-*,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -cppcoreguidelines-pro-type-vararg,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  readability-*,
+  -readability-magic-numbers,
+  -readability-identifier-length,
+  -readability-function-cognitive-complexity,
+  bugprone-*,
+  performance-*
+WarningsAsErrors: ''
+HeaderFilterRegex: 'include/VPE\.hpp'
+FormatStyle: file
