@@ -21,7 +21,11 @@
 #include <set>
 #include <array>
 #include <map>
+#include <unordered_map>
 #include <functional>
+#include <cassert>
+#include <limits>
+#include <stdexcept>
 
 //This engine uses left handed, Y UP. To align your engine with VPE, use 
 //#define GLM_FORCE_LEFT_HANDED before including VPE.hpp
@@ -39,21 +43,26 @@
 //If SINGLE_ACCURACY is defined then use single accuracy
 //Time is always in double.
 
+// Define VPE_DOUBLE_ACCURACY before including this header to use doubles.
+#ifndef VPE_DOUBLE_ACCURACY
 #define VPE_SINGLE_ACCURACY
+#endif
 //#define VPE_DOUBLE_ACCURACY
 
 #ifdef VPE_DOUBLE_ACCURACY
 using real = double;
 using int_t = int64_t;
 using uint_t = uint64_t;
-using glmvec2 = glm::dvec2
-using glmvec3 = glm::dvec3
-using glmmat2 = glm::dmat2
-using glmmat3 = glm::dmat3
-using glmvec4 = glm::dvec4
-using glmmat4 = glm::dmat4
-using glmquat = glm::dquat
+using glmvec2 = glm::dvec2;
+using glmvec3 = glm::dvec3;
+using glmmat2 = glm::dmat2;
+using glmvec4 = glm::dvec4;
+using glmmat3 = glm::dmat3;
+using glmmat4 = glm::dmat4;
+using glmquat = glm::dquat;
 const real c_eps = 1.0e-12;
+const real pi = glm::pi<real>();
+const real pi2 = 2.0 * pi;
 #else
 #ifdef VPE_SINGLE_ACCURACY
 using real = float;
@@ -74,7 +83,7 @@ const real pi2 = 2.0f * pi;
 #endif
 
 #endif
-constexpr real operator "" _real(long double val) { return (real)val; };	//define _real 
+constexpr real operator""_real(long double val) { return static_cast<real>(val); };	//define _real 
 
 
 //Pairs of data
@@ -893,11 +902,15 @@ namespace vpe {
 				});
 			}
 
-			typename std::vector<pair_t>::iterator find(const key_type& key) const {
+			typename std::vector<pair_t>::iterator find(const key_type& key) {
 				return std::find_if(m_vector.begin(), m_vector.end(), [&key](auto pair) { return pair.first == key; });
 			}
 
-			pair_t& operator [] (const key_type& key) const {
+			typename std::vector<pair_t>::const_iterator find(const key_type& key) const {
+				return std::find_if(m_vector.begin(), m_vector.end(), [&key](auto pair) { return pair.first == key; });
+			}
+
+			pair_t& operator [] (const key_type& key) {
 				auto element = this->find(key);
 				if (element != m_vector.end()) {
 					return *element;
@@ -907,7 +920,21 @@ namespace vpe {
 				}
 			}
 
-			pair_t& at(const key_type& key) const {
+			const pair_t& operator [] (const key_type& key) const {
+				auto element = this->find(key);
+				if (element != m_vector.end()) {
+					return *element;
+				}
+				else {
+					throw std::out_of_range("Attempted element lookup failed, key is not in vector.");
+				}
+			}
+
+			pair_t& at(const key_type& key) {
+				return (*this)[key];
+			}
+
+			const pair_t& at(const key_type& key) const {
 				return (*this)[key];
 			}
 
@@ -915,7 +942,11 @@ namespace vpe {
 				m_vector.clear();
 			}
 
-			typename std::vector<pair_t>& get_vector() const {
+			typename std::vector<pair_t>& get_vector() {
+				return m_vector;
+			}
+
+			const typename std::vector<pair_t>& get_vector() const {
 				return m_vector;
 			}
 
@@ -937,6 +968,10 @@ namespace vpe {
 
 			size_t size() const {
 				return m_vector.size();
+			}
+
+			bool empty() const {
+				return m_vector.empty();
 			}
 
 			void reserve(size_t size) {
@@ -2768,7 +2803,7 @@ namespace vpe {
 			if (cloth->m_on_erase)
 				cloth->m_on_erase(cloth);
 
-			m_bodies.erase(cloth->m_owner);
+			m_cloths.erase(cloth->m_owner);
 		}
 
 		/// <summary>
@@ -2780,7 +2815,7 @@ namespace vpe {
 			if (cloth->m_on_erase)
 				cloth->m_on_erase(cloth);
 
-			m_bodies.erase(owner);
+			m_cloths.erase(owner);
 		}
 
 		/// <summary>
@@ -3255,7 +3290,7 @@ namespace vpe {
 					{
 						alreadyAddedPositions[vertexPos] = (int) m_massPoints.size();
 
-						glm::vec3 vertexPosGlm = { vertexPos[0], vertexPos[1], vertexPos[2] };		// Convert from std::vector back to glm::vec3
+						glmvec3 vertexPosGlm = { vertexPos[0], vertexPos[1], vertexPos[2] };		// Convert from std::vector back to glmvec3
 
 						ClothMassPoint massPoint(vertexPosGlm);
 
@@ -3534,7 +3569,7 @@ namespace geometry {
 		glmvec3 vec_abs = glm::abs(vec);
 		int min_index = vec_abs.x < vec_abs.y ? (vec_abs.x < vec_abs.z ? 0 : 2) : (vec_abs.y < vec_abs.z ? 1 : 2);
 
-		intpair_t indices(min_index == 0 ? intpair_t{1, 2} : (min_index == 1 ? intpair_t{0, 2} : std::pair<int, int>{ 0, 1 }));
+		intpair_t indices(min_index == 0 ? intpair_t{1, 2} : (min_index == 1 ? intpair_t{0, 2} : intpair_t{ 0, 1 }));
 		glmvec3 ortho(0.0_real);
 		ortho[indices.first] = -vec[indices.second];
 		ortho[indices.second] = vec[indices.first];
@@ -3579,5 +3614,3 @@ namespace geometry {
 	}
 	//---------------------------------End-Cloth-Simulation-Stuff-----------------------------------
 }
-
-
