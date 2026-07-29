@@ -1,6 +1,6 @@
 # The Vienna Physics Engine (VPE)
-The Vienna Physics Engine (VPE) is a simple, single file physics engine for educational purposes.
-Rendering can done by any render engine or framework. The example project provided in this repo uses the Vienna Vulkan Engine (https://github.com/hlavacs/ViennaVulkanEngine) BRANCH v1.1 (!!!) for rendering.
+The Vienna Physics Engine (VPE) is a C++23 module-based physics engine for educational purposes.
+Rendering can be done by any render engine or framework. The example project provided in this repo uses Vienna Vulkan Engine V3 (https://github.com/hlavacs/ViennaVulkanEngine) for rendering.
 If you do not want this then exclude the example from building.
 
 The VPE is developed as basis for game based courses at the Faculty of Computer Science of the University of Vienna, held by Prof. Helmut Hlavacs:
@@ -12,7 +12,7 @@ The VPE is developed as basis for game based courses at the Faculty of Computer 
 VPE's main contributor is Prof. Helmut Hlavacs (http://entertain.univie.ac.at/~hlavacs/). The parts for general constraints have been implemented by Julian Schneebaur. The softbody simulation was implemented by Felix Neumann.
 
 VPE features are:
-- C++20
+- C++23
 - Full rigid body simulation, for now for polytopes only
 - Sequential impulse based solver
 - Implements two solvers to choose from
@@ -24,9 +24,9 @@ VPE features are:
 
 # Set up for Windows 11
 
-The whole engine is contained in VPE.hpp. The provided example program uses the Vienna Vulkan Engine BRANCH 1.1 for rendering and is thus currently restricted to Windows 11. If you want to compile the example, do the following steps:
+The engine is exposed as the `VEPhysicsEngine` C++ module. The provided example program uses Vienna Vulkan Engine V3 for rendering.
 - Make sure you have an up to date CMake, MS Visual Studio 22 and the Vulkan SDK installed.
-- Clone the Vienna Vulkan Engine v1.1: *git clone -b v1.1 https://github.com/hlavacs/ViennaVulkanEngine.git ViennaVulkanEngine1.1*
+- Clone the Vienna Vulkan Engine: *git clone https://github.com/hlavacs/ViennaVulkanEngine.git*
 - Clone the Vienna Physics Engine into the same directory, next to each other: *git clone https://github.com/hlavacs/ViennaPhysicsEngine.git*
 - Cd into Vienna Vulkan Engine and run CMake. Alternatively run the msvc bat file. CMake creates an sln project file.
 - Open the sln file and compile the project. Sometimes compile it twice to make sure everything is done correctly.
@@ -43,7 +43,12 @@ The project will be updated regularly, so it makes sense to pull the newest vers
 
 # Using VPE
 
-You can use VPE without the VVE, just include VPE.hpp into your project, its 100% C++20 and does not depend on any external library.
+You can use VPE without VVE by linking `ViennaPhysicsEngine::ViennaPhysicsEngine`
+and importing its public module:
+
+```cpp
+import VEPhysicsEngine;
+```
 
 To compile and test VPE on Linux without installing or building VVE, run:
 
@@ -61,7 +66,7 @@ cmake --build build/standalone
 ctest --test-dir build/standalone --output-on-failure
 ```
 
-When VPE is added with `add_subdirectory`, consumers can link the header-only target:
+When VPE is added with `add_subdirectory`, consumers link the module target:
 
 ```cmake
 target_link_libraries(my_app PRIVATE ViennaPhysicsEngine::ViennaPhysicsEngine)

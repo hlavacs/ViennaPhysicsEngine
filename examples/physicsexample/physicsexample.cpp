@@ -20,10 +20,10 @@
 #include <string_view>
 #include <vector>
 
-#include "VPE.hpp"
 #include "VPEConstraintDemos.hpp"
 
 import VEEngine;
+import VEPhysicsEngine;
 
 namespace {
 
@@ -302,6 +302,99 @@ void drawBooleanSetting(const char *label, bool &value) {
 	}
 }
 
+struct LightControls {
+	bool directional_enabled{true};
+	std::array<float, 3> directional_direction{-0.45F, -0.8F, 0.35F};
+	std::array<float, 3> directional_color{0.95F, 0.98F, 1.0F};
+	float directional_intensity{1.05F};
+	std::array<float, 3> directional_ambient{0.04F, 0.04F, 0.04F};
+
+	bool point_enabled{true};
+	std::array<float, 3> point_position{2.0F, 8.0F, -4.0F};
+	std::array<float, 3> point_color{1.0F, 0.96F, 0.82F};
+	float point_intensity{3.0F};
+	float point_range{30.0F};
+	std::array<float, 3> point_ambient{0.08F, 0.08F, 0.08F};
+};
+
+[[nodiscard]] vve::Vec3 normalizedDirection(const std::array<float, 3> &direction) {
+	const float length_squared =
+		direction[0] * direction[0] + direction[1] * direction[1] +
+		direction[2] * direction[2];
+	if (length_squared <= 0.000001F) {
+		return vve::Vec3{-0.45F, -0.8F, 0.35F};
+	}
+	const float inverse_length = 1.0F / std::sqrt(length_squared);
+	return vve::Vec3{
+		direction[0] * inverse_length, direction[1] * inverse_length,
+		direction[2] * inverse_length};
+}
+
+void applyLightControls(vve::RenderSystem render, const LightControls &lights) {
+	const auto directional_color = vve::Vec3{
+		lights.directional_color[0], lights.directional_color[1],
+		lights.directional_color[2]};
+	const auto directional_ambient = lights.directional_enabled
+		? vve::Vec3{lights.directional_ambient[0], lights.directional_ambient[1],
+				 lights.directional_ambient[2]}
+		: vve::Vec3{0.0F, 0.0F, 0.0F};
+	render.setDirectionalLight(
+		vve::Direction{.value = normalizedDirection(lights.directional_direction)},
+		vve::LinearColor{.value = directional_color},
+		vve::LightIntensity{
+			.value = lights.directional_enabled ? lights.directional_intensity : 0.0F},
+		vve::LinearColor{.value = directional_ambient});
+
+	const auto point_color =
+		vve::Vec3{lights.point_color[0], lights.point_color[1], lights.point_color[2]};
+	const auto point_ambient = lights.point_enabled
+		? vve::Vec3{
+				lights.point_ambient[0], lights.point_ambient[1], lights.point_ambient[2]}
+		: vve::Vec3{0.0F, 0.0F, 0.0F};
+	render.setPointLight(
+		vve::Position{.value = vve::Vec3{
+			lights.point_position[0], lights.point_position[1], lights.point_position[2]}},
+		vve::LinearColor{.value = point_color},
+		vve::LightIntensity{.value = lights.point_enabled ? lights.point_intensity : 0.0F},
+		vve::LightRange{.value = lights.point_range},
+		vve::LinearColor{.value = point_ambient});
+}
+
+[[nodiscard]] bool drawLightControls(LightControls &lights) {
+	bool changed{};
+
+	if (ImGui::CollapsingHeader("Directional light", ImGuiTreeNodeFlags_DefaultOpen)) {
+		changed |= ImGui::Checkbox("Enabled##Directional", &lights.directional_enabled);
+		changed |= ImGui::DragFloat3(
+			"Direction##Directional", lights.directional_direction.data(), 0.01F, -1.0F, 1.0F,
+			"%.2f");
+		changed |= ImGui::ColorEdit3(
+			"Color##Directional", lights.directional_color.data());
+		changed |= ImGui::SliderFloat(
+			"Intensity##Directional", &lights.directional_intensity, 0.0F, 5.0F, "%.2f");
+		changed |= ImGui::ColorEdit3(
+			"Ambient##Directional", lights.directional_ambient.data());
+	}
+
+	if (ImGui::CollapsingHeader("Point light", ImGuiTreeNodeFlags_DefaultOpen)) {
+		changed |= ImGui::Checkbox("Enabled##Point", &lights.point_enabled);
+		changed |= ImGui::DragFloat3(
+			"Position##Point", lights.point_position.data(), 0.1F, -50.0F, 50.0F, "%.1f");
+		changed |= ImGui::ColorEdit3("Color##Point", lights.point_color.data());
+		changed |= ImGui::SliderFloat(
+			"Intensity##Point", &lights.point_intensity, 0.0F, 20.0F, "%.2f");
+		changed |=
+			ImGui::SliderFloat("Range##Point", &lights.point_range, 0.5F, 100.0F, "%.1f");
+		changed |= ImGui::ColorEdit3("Ambient##Point", lights.point_ambient.data());
+	}
+
+	if (ImGui::Button("Reset lighting")) {
+		lights = LightControls{};
+		changed = true;
+	}
+	return changed;
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -342,16 +435,8 @@ int main(int argc, char **argv) {
 					 << vve::errorName(plane.error()) << '\n';
 		return 2;
 	}
-	render.setDirectionalLight(
-		vve::Direction{.value = vve::Vec3{-0.45F, -0.8F, 0.35F}},
-		vve::LinearColor{.value = vve::Vec3{0.95F, 0.98F, 1.0F}},
-		vve::LightIntensity{.value = 1.05F},
-		vve::LinearColor{.value = vve::Vec3{0.04F, 0.04F, 0.04F}});
-	render.setPointLight(
-		vve::Position{.value = vve::Vec3{2.0F, 8.0F, -4.0F}},
-		vve::LinearColor{.value = vve::Vec3{1.0F, 0.96F, 0.82F}},
-		vve::LightIntensity{.value = 3.0F}, vve::LightRange{.value = 30.0F},
-		vve::LinearColor{.value = vve::Vec3{0.08F, 0.08F, 0.08F}});
+	LightControls lights;
+	applyLightControls(render, lights);
 
 	vve::DefaultCameraController camera;
 	camera.eye = vve::Position{.value = vve::Vec3{0.0F, 6.0F, -14.0F}};
@@ -531,6 +616,14 @@ int main(int argc, char **argv) {
 					physics.m_body->m_orientationLW;
 				physics.m_body->updateMatrices();
 				on_move(0.0, physics.m_body);
+			}
+		}
+		ImGui::End();
+
+		ImGui::SetNextWindowSize(ImVec2{430.0F, 390.0F}, ImGuiCond_FirstUseEver);
+		if (ImGui::Begin("Light Controls")) {
+			if (drawLightControls(lights)) {
+				applyLightControls(render, lights);
 			}
 		}
 		ImGui::End();

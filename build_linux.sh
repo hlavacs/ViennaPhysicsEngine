@@ -11,7 +11,7 @@ WITHOUT_VVE=0
 
 usage() {
   printf 'Usage: %s [debug|release] [--clean] [--without-vve]\n' "$0"
-  printf '       --without-vve builds and tests only the header-only VPE library.\n'
+  printf '       --without-vve builds and tests only the VPE module.\n'
 }
 
 for arg in "$@"; do
@@ -140,5 +140,5 @@ printf '\n%s build complete.\n' "$VARIANT"
 printf 'Executables: bin/%s/exe\n' "$VARIANT_LOWER"
 printf 'Libraries:   bin/%s/lib\n' "$VARIANT_LOWER"
 if [ "$WITHOUT_VVE" -eq 1 ]; then
-  printf 'VPE target:   ViennaPhysicsEngine::ViennaPhysicsEngine (header-only)\n'
+  printf 'VPE target:   ViennaPhysicsEngine::ViennaPhysicsEngine (C++ module)\n'
 fi

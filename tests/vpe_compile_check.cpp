@@ -1,4 +1,4 @@
-#include "VPE.hpp"
+import VEPhysicsEngine;
 
 int main() {
 	vpe::VPEWorld physics;

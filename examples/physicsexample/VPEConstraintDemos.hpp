@@ -1,6 +1,16 @@
 #pragma once
 
-#include "VPE.hpp"
+#include <functional>
+#include <memory>
+
+#define GLM_ENABLE_EXPERIMENTAL
+#include "glm/glm.hpp"
+#include "glm/gtc/quaternion.hpp"
+#include "glm/gtx/matrix_cross_product.hpp"
+#include "glm/gtx/matrix_operation.hpp"
+#include "glm/gtx/quaternion.hpp"
+
+import VEPhysicsEngine;
 
 namespace ve {
 

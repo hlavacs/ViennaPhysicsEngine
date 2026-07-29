@@ -10,7 +10,7 @@ set(HEADERS )
 
 add_executable(${TARGET} ${SOURCE} ${HEADERS})
 
-target_compile_features(${TARGET} PUBLIC cxx_std_20)
+target_compile_features(${TARGET} PUBLIC cxx_std_23)
 
 target_link_libraries(${TARGET} PRIVATE ViennaPhysicsEngine::ViennaPhysicsEngine)
 

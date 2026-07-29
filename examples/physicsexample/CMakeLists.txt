@@ -2,7 +2,6 @@ add_executable(physicsexample
     physicsexample.cpp
     VPEConstraintDemos.cpp
     VPEConstraintDemos.hpp
-    ${CMAKE_SOURCE_DIR}/include/VPE.hpp
 )
 
 set(VVE_V3_ROOT "${CMAKE_SOURCE_DIR}/../ViennaVulkanEngine")
@@ -52,8 +51,8 @@ set_target_properties(physicsexample PROPERTIES
     BUILD_RPATH "${VVE_V3_ROOT}/bin/release/lib"
 )
 
-target_include_directories(physicsexample PUBLIC
-    ${CMAKE_SOURCE_DIR}/include
+target_include_directories(physicsexample BEFORE PUBLIC
+    ${CMAKE_SOURCE_DIR}/extern
     ${Vulkan_INCLUDE_DIRS}
     ${VVE_V3_ROOT}/src
     ${VVE_V3_VCPKG_ROOT}/include
@@ -98,6 +97,7 @@ target_link_directories(physicsexample PRIVATE
 )
 
 target_link_libraries(physicsexample PRIVATE
+    ViennaPhysicsEngine::ViennaPhysicsEngine
     ViennaVulkanEngineV3
     VVEV3ImGui
     VVEV3StdModule

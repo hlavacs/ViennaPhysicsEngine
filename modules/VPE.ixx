@@ -5,34 +5,100 @@
 *
 */
 
-#pragma once
+module;
 
 #include <algorithm>
-#include <vector>
-#include <cstdio>
-#include <iterator>
-#include <ranges>
-#include <string>
-#include <iostream>
-#include <cmath>
-#include <cstdlib>
-#include <random>
-#include <chrono>
-#include <set>
 #include <array>
-#include <map>
+#include <cassert>
+#include <chrono>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstdint>
 #include <functional>
-
-//This engine uses left handed, Y UP. To align your engine with VPE, use 
-//#define GLM_FORCE_LEFT_HANDED before including VPE.hpp
-//If your engine uses right handed, Z up, then do not define this macro and use vpe::toPhysics/vpe::fromPhysics to swap y and z.
+#include <iostream>
+#include <iterator>
+#include <limits>
+#include <map>
+#include <memory>
+#include <random>
+#include <ranges>
+#include <set>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include "glm/glm.hpp"
-#include "glm/gtx/matrix_operation.hpp"
 #include "glm/gtc/quaternion.hpp"
-#include "glm/gtx/quaternion.hpp"
 #include "glm/gtx/matrix_cross_product.hpp"
+#include "glm/gtx/matrix_operation.hpp"
+#include "glm/gtx/quaternion.hpp"
+
+// Standard-library specializations must belong to the global module. Attaching
+// them to VEPhysicsEngine gives their member functions module linkage, which
+// prevents ordinary standard-library instantiations in consumers from finding
+// the definitions.
+#ifdef VPE_DOUBLE_ACCURACY
+using vpe_global_real = double;
+using vpe_global_int = std::int64_t;
+using vpe_global_vec2 = glm::dvec2;
+#else
+using vpe_global_real = float;
+using vpe_global_int = std::int32_t;
+using vpe_global_vec2 = glm::vec2;
+#endif
+
+namespace std {
+	template <>
+	struct hash<pair<vpe_global_int, vpe_global_int>> {
+		size_t operator()(const pair<vpe_global_int, vpe_global_int>& value) const {
+			size_t seed = hash<vpe_global_int>{}(value.first);
+			seed ^= hash<vpe_global_int>{}(value.second) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+			return seed;
+		}
+	};
+
+	template <>
+	struct hash<pair<void*, void*>> {
+		size_t operator()(const pair<void*, void*>& value) const {
+			size_t seed = hash<void*>{}(min(value.first, value.second));
+			seed ^= hash<void*>{}(max(value.first, value.second)) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+			return seed;
+		}
+	};
+
+	template <>
+	struct equal_to<pair<void*, void*>> {
+		constexpr bool operator()(const pair<void*, void*>& lhs, const pair<void*, void*>& rhs) const {
+			return (lhs.first == rhs.first && lhs.second == rhs.second)
+				|| (lhs.first == rhs.second && lhs.second == rhs.first);
+		}
+	};
+
+	template <>
+	struct hash<vpe_global_vec2> {
+		size_t operator()(const vpe_global_vec2& value) const {
+			size_t seed = hash<vpe_global_real>{}(value.x);
+			seed ^= hash<vpe_global_real>{}(value.y) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+			return seed;
+		}
+	};
+
+	template <>
+	struct less<vpe_global_vec2> {
+		bool operator()(const vpe_global_vec2& lhs, const vpe_global_vec2& rhs) const {
+			return hash<vpe_global_vec2>{}(lhs) < hash<vpe_global_vec2>{}(rhs);
+		}
+	};
+}
+
+export module VEPhysicsEngine;
+
+//This engine uses left handed, Y UP. To align your engine with VPE, configure
+//with VPE_FORCE_LEFT_HANDED enabled.
+//If your engine uses right handed, Z up, then do not define this macro and use vpe::toPhysics/vpe::fromPhysics to swap y and z.
 
 
 //If DOUBLE_ACCURACY is defined then computations are done with double accuracy. 
@@ -43,46 +109,48 @@
 //#define VPE_DOUBLE_ACCURACY
 
 #ifdef VPE_DOUBLE_ACCURACY
-using real = double;
-using int_t = int64_t;
-using uint_t = uint64_t;
-using glmvec2 = glm::dvec2
-using glmvec3 = glm::dvec3
-using glmmat2 = glm::dmat2
-using glmmat3 = glm::dmat3
-using glmvec4 = glm::dvec4
-using glmmat4 = glm::dmat4
-using glmquat = glm::dquat
-const real c_eps = 1.0e-12;
+export using real = double;
+export using int_t = int64_t;
+export using uint_t = uint64_t;
+export using glmvec2 = glm::dvec2;
+export using glmvec3 = glm::dvec3;
+export using glmmat2 = glm::dmat2;
+export using glmmat3 = glm::dmat3;
+export using glmvec4 = glm::dvec4;
+export using glmmat4 = glm::dmat4;
+export using glmquat = glm::dquat;
+export const real c_eps = 1.0e-12;
+export const real pi = glm::pi<real>();
+export const real pi2 = 2.0 * pi;
 #else
 #ifdef VPE_SINGLE_ACCURACY
-using real = float;
-using int_t = int32_t;
-using uint_t = uint32_t;
-using glmvec2 = glm::vec2;
-using glmvec3 = glm::vec3;
-using glmvec4 = glm::vec4;
-using glmmat2 = glm::mat2;
-using glmmat3 = glm::mat3;
-using glmmat4 = glm::mat4;
-using glmquat = glm::quat;
-const real c_eps = 1.0e-8f;
-const real pi = glm::pi<real>();
-const real pi2 = 2.0f * pi;
+export using real = float;
+export using int_t = int32_t;
+export using uint_t = uint32_t;
+export using glmvec2 = glm::vec2;
+export using glmvec3 = glm::vec3;
+export using glmvec4 = glm::vec4;
+export using glmmat2 = glm::mat2;
+export using glmmat3 = glm::mat3;
+export using glmmat4 = glm::mat4;
+export using glmquat = glm::quat;
+export const real c_eps = 1.0e-8f;
+export const real pi = glm::pi<real>();
+export const real pi2 = 2.0f * pi;
 #else
 #error Must choose accuracy!
 #endif
 
 #endif
-constexpr real operator "" _real(long double val) { return (real)val; };	//define _real 
+export constexpr real operator "" _real(long double val) { return (real)val; };	//define _real 
 
 
 //Pairs of data
-using intpair_t = std::pair<int_t, int_t>;		//Pair of integers
-using voidppair_t = std::pair<void*, void*>;	//Pair of void pointers
+export using intpair_t = std::pair<int_t, int_t>;		//Pair of integers
+export using voidppair_t = std::pair<void*, void*>;	//Pair of void pointers
 
 //Algorithms from namespace geometry, defined below this file
-namespace geometry {
+export namespace geometry {
 	void computeBasis(const glmvec3& a, glmvec3& b, glmvec3& c);
 	void SutherlandHodgman(auto& subjectPolygon, auto& clipPolygon, auto& newPolygon);
 	glmvec3 orthoUnitVector(const glmvec3& vec);
@@ -98,76 +166,37 @@ namespace geometry {
 //-------------------------------------------------------------------------------------------------------------
 //Hash functions for storing stuff in maps
 
-template <typename T>
+export template <typename T>
 inline void hash_combine(std::size_t& seed, T const& v) {		//For combining hashes
 	seed ^= std::hash<T>()(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
 }
 
 namespace std {
-	template <>
-	struct hash<intpair_t> {
-		std::size_t operator()(const intpair_t& p) const {
-			size_t seed = std::hash<int_t>()(p.first);
-			hash_combine(seed, p.second);
-			return seed;
-		}
-	};
-
-	template <>
-	struct hash<voidppair_t> {
-		std::size_t operator()(const voidppair_t& p) const {
-			size_t seed = std::hash<void*>()(std::min(p.first, p.second));	//Makes sure the smaller one is always first
-			hash_combine(seed, std::max(p.first, p.second));				//Larger one second
-			return seed;
-		}
-	};
-	template<>
-	struct equal_to<voidppair_t> {
-		constexpr bool operator()(const voidppair_t& l, const voidppair_t& r) const {
-			return (l.first == r.first && l.second == r.second) || (l.first == r.second && l.second == r.first);
-		}
-	};
-
-	template <>
-	struct hash<glmvec2> {
-		std::size_t operator()(const glmvec2& p) const {
-			size_t seed = std::hash<real>()(p.x);
-			hash_combine(seed, p.y);
-			return seed;
-		}
-	};
-	template<>
-	struct less<glmvec2> {
-		bool operator()(const glmvec2& l, const glmvec2& r) const {
-			return (std::hash<glmvec2>()(l) < std::hash<glmvec2>()(r));
-		}
-	};
-
 	//For outputting vectors/matrices to a string stream
-	inline ostream& operator<<(ostream& os, const glmvec3& v) {
+	export inline ostream& operator<<(ostream& os, const glmvec3& v) {
 		os << "(" << v.x << ',' << v.y << ',' << v.z << ")";				//output 3D vector
 		return os;
 	}
 
 	//For outputting vectors/matrices to a string stream
-	inline ostream& operator<<(ostream& os, const glmvec2& v) {
+	export inline ostream& operator<<(ostream& os, const glmvec2& v) {
 		os << "(" << v.x << ',' << v.y << ")";								//output 2D vector
 		return os;
 	}
 
-	inline ostream& operator<<(ostream& os, const glmquat& q) {
+	export inline ostream& operator<<(ostream& os, const glmquat& q) {
 		os << "(" << q.x << ',' << q.y << ',' << q.z << ',' << q.w << ")";	//output quaternion
 		return os;
 	}
 
-	inline ostream& operator<<(ostream& os, const glmmat3& m) {
+	export inline ostream& operator<<(ostream& os, const glmmat3& m) {
 		os << "(" << m[0][0] << ',' << m[0][1] << ',' << m[0][2] << ")\n";	//Output a 3x3 matrix
 		os << "(" << m[1][0] << ',' << m[1][1] << ',' << m[1][2] << ")\n";
 		os << "(" << m[2][0] << ',' << m[2][1] << ',' << m[2][2] << ")\n";
 		return os;
 	}
 
-	inline ostream& operator<<(ostream& os, const glmmat4& m) {
+	export inline ostream& operator<<(ostream& os, const glmmat4& m) {
 		os << "(" << m[0][0] << ',' << m[0][1] << ',' << m[0][2] << ',' << m[0][3] << ")\n";	//Output a 4x4 matrix
 		os << "(" << m[1][0] << ',' << m[1][1] << ',' << m[1][2] << ',' << m[1][3] << ")\n";
 		os << "(" << m[2][0] << ',' << m[2][1] << ',' << m[2][2] << ',' << m[2][3] << ")\n";
@@ -175,7 +204,7 @@ namespace std {
 		return os;
 	}
 
-	inline std::string to_string(const glmvec3 v) {
+	export inline std::string to_string(const glmvec3 v) {
 		return std::to_string(v.x) + ", " + std::to_string(v.y) + ", " + std::to_string(v.z);	//Turn vector into a string
 	}
 }
@@ -217,23 +246,23 @@ namespace std {
 //-------------------------------------------------------------------------------------------------------------
 
 
-namespace vpe {
+export namespace vpe {
 
 
 	#ifndef GLM_FORCE_LEFT_HANDED
-		inline static glmmat3 C = glmmat3{{1,0,0},{0,0,1},{0,1,0}}; 
+		inline glmmat3 C = glmmat3{{1,0,0},{0,0,1},{0,1,0}}; 
 	#else
-		inline static glmmat3 C = glmmat3{1.0f};
+		inline glmmat3 C = glmmat3{1.0f};
 	#endif
 		
-	inline static glmmat3 CTrans = glm::transpose(C);
+	inline glmmat3 CTrans = glm::transpose(C);
 
-	static constexpr glmvec3 toPhysics(glmvec3 vec) { return C * vec; }
-	static constexpr glmmat3 toPhysics(glmmat3 mat) { return CTrans * mat * C; }
-	static constexpr glmmat4 toPhysics(glmmat4 mat) { return glmmat4{CTrans} * mat * glmmat4{C}; }
-	static constexpr glmvec3 fromPhysics(glmvec3 vec) { return CTrans * vec; }
-	static constexpr glmmat3 fromPhysics(glmmat3 mat) { return C * mat * CTrans; }
-	static constexpr glmmat4 fromPhysics(glmmat4 mat) { return glmmat4{C} * mat * glmmat4{CTrans};}
+	inline constexpr glmvec3 toPhysics(glmvec3 vec) { return C * vec; }
+	inline constexpr glmmat3 toPhysics(glmmat3 mat) { return CTrans * mat * C; }
+	inline constexpr glmmat4 toPhysics(glmmat4 mat) { return glmmat4{CTrans} * mat * glmmat4{C}; }
+	inline constexpr glmvec3 fromPhysics(glmvec3 vec) { return CTrans * vec; }
+	inline constexpr glmmat3 fromPhysics(glmmat3 mat) { return C * mat * CTrans; }
+	inline constexpr glmmat4 fromPhysics(glmmat4 mat) { return glmmat4{C} * mat * glmmat4{CTrans};}
 
 	/// <summary>
 	/// This class  implements a simple rigid body physics engine.
@@ -2823,7 +2852,7 @@ namespace vpe {
 			/// </summary>
 			/// <param name="pos"> Initial position of the mass point. </param>
 			/// <param name="isFixed"> Whether the point is fixed. </param>
-			ClothMassPoint(glm::vec3 pos, bool isFixed = false) : pos{ pos }, prevPos{ pos },
+			ClothMassPoint(glmvec3 pos, bool isFixed = false) : pos{ pos }, prevPos{ pos },
 				initialPos{ pos }, vel{ glmvec3(0._real) }, isFixed{ isFixed }, invMass{ 0 } {}
 
 			/// <summary>
@@ -3065,7 +3094,7 @@ namespace vpe {
 				generateConstraints(createTriangles(indices), bendingCompliance);
 				calcMaxMassPointDistance();
 				applyTransformation(glm::rotate(													// Apply a slight rotation to give the sim a degree of freedom for all three dimensions
-					glm::mat4(1.0f), glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f)), true);
+					glmmat4(1.0_real), glm::radians(0.1_real), glmvec3(0.0_real, 1.0_real, 0.0_real)), true);
 			}
 
 			/// <summary>
@@ -3256,7 +3285,7 @@ namespace vpe {
 					{
 						alreadyAddedPositions[vertexPos] = (int) m_massPoints.size();
 
-						glm::vec3 vertexPosGlm = { vertexPos[0], vertexPos[1], vertexPos[2] };		// Convert from std::vector back to glm::vec3
+						glmvec3 vertexPosGlm = { vertexPos[0], vertexPos[1], vertexPos[2] };		// Convert from std::vector back to glm::vec3
 
 						ClothMassPoint massPoint(vertexPosGlm);
 
@@ -3432,7 +3461,7 @@ namespace vpe {
 //-------------------------------------------------------------------------------------------------------
 //Geometry functions
 
-namespace geometry {
+export namespace geometry {
 
 
 	//https://box2d.org/posts/2014/02/computing-a-basis/
@@ -3535,7 +3564,7 @@ namespace geometry {
 		glmvec3 vec_abs = glm::abs(vec);
 		int min_index = vec_abs.x < vec_abs.y ? (vec_abs.x < vec_abs.z ? 0 : 2) : (vec_abs.y < vec_abs.z ? 1 : 2);
 
-		intpair_t indices(min_index == 0 ? intpair_t{1, 2} : (min_index == 1 ? intpair_t{0, 2} : std::pair<int, int>{ 0, 1 }));
+		intpair_t indices(min_index == 0 ? intpair_t{1, 2} : (min_index == 1 ? intpair_t{0, 2} : intpair_t{0, 1 }));
 		glmvec3 ortho(0.0_real);
 		ortho[indices.first] = -vec[indices.second];
 		ortho[indices.second] = vec[indices.first];
@@ -3543,42 +3572,4 @@ namespace geometry {
 		return glm::normalize(ortho);
 	}
 
-	//--------------------------------Begin-Cloth-Simulation-Stuff----------------------------------
-	// by Felix Neumann
-
-	/// <summary>
-	/// Alpha Max Plus Beta Min - Approximates square root of the sum of two squares (magnitude of a
-	/// 2d vector).
-	/// https://en.wikipedia.org/wiki/Alpha_max_plus_beta_min_algorithm
-	/// </summary>
-	inline real alphaMaxPlusBetaMin(real a, real b)
-	{
-		real absA = fabs(a);
-		real absB = fabs(b);
-		if (absA > absB)
-			return (real)(0.96043387010342 * absA + 0.397824734759316 * absB);
-
-		return (real)(0.96043387010342 * absB + 0.397824734759316 * absA);
-	}
-
-	/// <summary>
-	/// Alpha Max Plus Beta Min extented to 3 dimensions. Approximates the magnitude of a 3d vector.
-	/// https://math.stackexchange.com/questions/1282435/
-	/// https://stackoverflow.com/questions/1582356/
-	/// </summary>
-	inline real alphaMaxPlusBetaMedPlusGammaMin(real a, real b, real c)
-	{
-		real absA = fabs(a);
-		real absB = fabs(b);
-		real absC = fabs(c);
-
-		real min = std::min(absA, std::min(absB, absC));
-		real max = std::max(absA, std::max(absB, absC));
-		real med = std::max(std::min(absA, absB), std::min(std::max(absA, absB), absC));
-
-		return (real)(0.939808635172325 * max + 0.389281482723725 * med + 0.29870618761438 * min);
-	}
-	//---------------------------------End-Cloth-Simulation-Stuff-----------------------------------
 }
-
-
