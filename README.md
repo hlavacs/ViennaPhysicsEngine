@@ -44,6 +44,29 @@ The project will be updated regularly, so it makes sense to pull the newest vers
 # Using VPE
 
 You can use VPE without the VVE, just include VPE.hpp into your project, its 100% C++20 and does not depend on any external library.
+
+To compile and test VPE on Linux without installing or building VVE, run:
+
+```bash
+./build_linux.sh release --without-vve
+```
+
+The equivalent direct CMake configuration is:
+
+```bash
+cmake -S . -B build/standalone -G Ninja \
+  -DVPE_BUILD_EXAMPLES=OFF \
+  -DVPE_BUILD_TESTS=ON
+cmake --build build/standalone
+ctest --test-dir build/standalone --output-on-failure
+```
+
+When VPE is added with `add_subdirectory`, consumers can link the header-only target:
+
+```cmake
+target_link_libraries(my_app PRIVATE ViennaPhysicsEngine::ViennaPhysicsEngine)
+```
+
 The main class is called VPEWorld. This class manages rigid bodies, which themselves must be polytopes, i.e., convex mesh like objects, consisting of faces, edges and vertices. There can be arbitrary numbers of VPEWorld instances at any time. You can create bodies, erase bodies, attach forces to bodies by calling the respective member functions addBody(), eraseBody(), attachForce(). See the examples in physicsexample.cpp.
 
 When created, you can specify a plethora of parameters, like polytope type, mass, velocity, rotation, friction etc. See the constructor of the class Body for more details.

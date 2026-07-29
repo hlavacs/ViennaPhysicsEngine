@@ -2,9 +2,9 @@
 
 include(CTest)
 
-set(TARGET testlib)
+set(TARGET vpe_compile_check)
 
-set(SOURCE testlib.cpp)
+set(SOURCE vpe_compile_check.cpp)
 
 set(HEADERS )
 
@@ -12,7 +12,6 @@ add_executable(${TARGET} ${SOURCE} ${HEADERS})
 
 target_compile_features(${TARGET} PUBLIC cxx_std_20)
 
-target_include_directories(${TARGET} PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_include_directories(${TARGET} PUBLIC ${PROJECT_SOURCE_DIR}/extern)
+target_link_libraries(${TARGET} PRIVATE ViennaPhysicsEngine::ViennaPhysicsEngine)
 
-add_test(NAME ${TARGET} COMMAND testlib) # Command can be a target
+add_test(NAME ${TARGET} COMMAND ${TARGET})

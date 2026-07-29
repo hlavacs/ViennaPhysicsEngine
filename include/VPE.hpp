@@ -1669,11 +1669,12 @@ namespace vpe {
 		/// <param name="contact">Contact between the two bodies.</param>
 		/// <param name="eq">Result of edge query.</param>
 		void createEdgeContact(Contact& contact, EdgeQuery& eq) {
-			Face* ref_face = maxFaceAlignment(eq.m_normalL, eq.m_edge_ref->m_edge_face_ptrs, fabs);	//face of A best aligned with the contact normal
-			Face* inc_face = maxFaceAlignment(-RTOIN(eq.m_normalL), eq.m_edge_inc->m_edge_face_ptrs, fabs);	//face of B best aligned with the contact normal
+			const auto absolute = [](real value) { return std::fabs(value); };
+			Face* ref_face = maxFaceAlignment(eq.m_normalL, eq.m_edge_ref->m_edge_face_ptrs, absolute);	//face of A best aligned with the contact normal
+			Face* inc_face = maxFaceAlignment(-RTOIN(eq.m_normalL), eq.m_edge_inc->m_edge_face_ptrs, absolute);	//face of B best aligned with the contact normal
 
-			real dp_ref = fabs(glm::dot(eq.m_normalL, ref_face->m_normalL));	//Use the better aligned face as reference face.
-			real dp_inc = fabs(glm::dot(eq.m_normalL, inc_face->m_normalL));
+			real dp_ref = std::fabs(glm::dot(eq.m_normalL, ref_face->m_normalL));	//Use the better aligned face as reference face.
+			real dp_inc = std::fabs(glm::dot(eq.m_normalL, inc_face->m_normalL));
 			if (dp_inc > dp_ref) {
 				std::swap(contact.m_body_ref, contact.m_body_inc);	//Use incident face as reference face -> swap positions
 				std::swap(ref_face, inc_face);
@@ -1817,7 +1818,7 @@ namespace vpe {
 			/// Compute and apply constraint impulses
 			/// </summary>
 			void solveVelocity() override {
-				if (abs(m_offset) > Constraint::epsilon) {
+				if (std::abs(m_offset) > Constraint::epsilon) {
 					// Compute dot product of Jacobian and velocity vector; keep in mind that j2 = -j1, so the original expression can be simplified
 					real jv = glm::dot(m_body1->m_linear_velocityW - m_body2->m_linear_velocityW, m_j1);
 					real lambda = m_inv_constraint_mass * -(jv - m_bias);
