@@ -1,784 +1,625 @@
 /**
-* The Vienna Vulkan Engine
-*
-* (c) bei Helmut Hlavacs, University of Vienna, 2022
-*
-*/
+ * Vienna Physics Engine example rendered through the Vienna Vulkan Engine V3 facade.
+ */
+
+#include <imgui.h>
 
 #include <algorithm>
-#include <vector>
-#include <cstdio>
-#include <iterator>
-#include <ranges>
-#include <string>
-#include <iostream>
+#include <array>
+#include <charconv>
 #include <cmath>
-#include <cstdlib>
+#include <filesystem>
+#include <iostream>
+#include <expected>
+#include <memory>
+#include <optional>
 #include <random>
-
-#include "VEInclude.h"
-
-#define GLM_ENABLE_EXPERIMENTAL
-#define GLM_FORCE_LEFT_HANDED
-#include "glm/glm.hpp"
-#include "glm/gtx/matrix_operation.hpp"
-#include "glm/gtc/quaternion.hpp"
-#include "glm/gtx/quaternion.hpp"
-#include "glm/gtx/matrix_cross_product.hpp"
+#include <ranges>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include "VPE.hpp"
 #include "VPEConstraintDemos.hpp"
 
+import VEEngine;
+
+namespace {
+
 using namespace vpe;
 
+constexpr vve::PixelExtent windowExtent{.width = 1280, .height = 720};
+constexpr vve::Vec3 cubeMinimum{-0.5F, -0.5F, -0.5F};
+constexpr vve::Vec3 cubeMaximum{0.5F, 0.5F, 0.5F};
+constexpr double headlessPhysicsTimeStep = 1.0 / 60.0;
+constexpr int headlessMinimumSettleFrames = 300;
+constexpr real headlessSettleSpeedThreshold = 0.05_real;
+constexpr real headlessSettleAngularSpeedThreshold = 0.05_real;
+constexpr real headlessHorizontalDriftTolerance = 0.25_real;
 
-namespace ve {
+struct BodyVisual {
+	vve::RenderSystem render;
+	vve::RenderObjectHandle object;
+};
 
-	//---------------------------------------------------------------------------------------------------------
-	//callbacks for bodies
+struct PhysicsTickSystem {
+	VPEWorld *physics{};
 
-	/// <summary>
-	/// This callback is used for updating the visual body whenever a physics body moves.
-	/// It is also used for extrapolating the new position between two simulation slots.
-	/// </summary>
-	inline VPEWorld::callback_move onMove = [](double dt, std::shared_ptr<VPEWorld::Body> body) {
-		VESceneNode* cube = static_cast<VESceneNode*>(body->m_owner);								// Owner is a pointer to a scene node
-		glmvec3 pos = body->m_positionW;															// New position of the scene node
-		glmquat orient = body->m_orientationLW;														// New orientation of the scende node
-		body->stepPosition(dt, pos, orient, false);													// Extrapolate
-		cube->setTransform(VPEWorld::Body::computeModel(pos, orient, body->m_scale));				// Set the scene node data
-	};
+	template <typename TWorld>
+	std::expected<void, vve::Error> update(TWorld &, const vve::FrameContext &frame) {
+		physics->tick(frame.delta_time.seconds);
+		return {};
+	}
+};
 
-	/// <summary>
-	/// This callback is called if the body is intentionally deleted. It is not called if the engine
-	/// shuts down and all bodies are deleted.
-	/// </summary>
-	inline VPEWorld::callback_erase onErase = [](std::shared_ptr<VPEWorld::Body> body) {
-		VESceneNode* node = static_cast<VESceneNode*>(body->m_owner);								// Owner is a pointer to a scene node
-		getSceneManagerPointer()->deleteSceneNodeAndChildren(
-			((VESceneNode*)body->m_owner)->getName());
-	};
+[[nodiscard]] vve::Transform renderTransform(
+	const glmvec3 &position, const glmquat &orientation, const glmvec3 &scale) {
+	return vve::Transform{
+		.translation = vve::Position{
+			.value = vve::Vec3{static_cast<float>(position.x), static_cast<float>(position.y),
+									static_cast<float>(position.z)}},
+		.rotation = vve::Rotation{
+			.value = vve::Quat{static_cast<float>(orientation.w), static_cast<float>(orientation.x),
+								 static_cast<float>(orientation.y), static_cast<float>(orientation.z)}},
+		.scale = vve::Scale{
+			.value = vve::Vec3{static_cast<float>(scale.x), static_cast<float>(scale.y),
+								 static_cast<float>(scale.z)}}};
+}
 
-	/// <summary>
-	/// This is an example callback that is called if a body collides with another body.
-	/// The first parameter is the body for which this collides was set, the second body
-	/// is the body that collided with it.
-	/// </summary>
-	inline VPEWorld::callback_collide onCollide =
-		[](std::shared_ptr<VPEWorld::Body> body1, std::shared_ptr<VPEWorld::Body> body2) {
-		std::cout << "Collision " << body1->m_name << " " << body2->m_name << "\n";
-	};
+[[nodiscard]] glmvec3 physicsVector(const vve::Vec3 &value) {
+	return {static_cast<real>(value.x), static_cast<real>(value.y), static_cast<real>(value.z)};
+}
 
-	//--------------------------------Begin-Cloth-Simulation-Stuff----------------------------------
-	// by Felix Neumann
+[[nodiscard]] vve::Vec3 cameraForward(const vve::DefaultCameraController &camera) {
+	return vve::math::normalize(vve::Vec3{
+		std::cos(camera.pitch) * std::sin(camera.yaw), std::sin(camera.pitch),
+		-std::cos(camera.pitch) * std::cos(camera.yaw)});
+}
 
-	/// <summary>
-	/// Called by the cloth of it moves.
-	/// </summary>
-	/// <param name="dt"> Delta time.</param>
-	/// <param name="cloth"> Pointer to the cloth so that the owner can get the data. </param>
-	inline VPEWorld::callback_move_cloth onMoveCloth =
-		[](double dt, std::shared_ptr<VPEWorld::Cloth> cloth)
-	{
-		VEClothEntity* clothOwner = static_cast<VEClothEntity*>(cloth->m_owner);					// Owner is a pointer to a scene node
-		auto vertices = cloth->generateVertices();													// Vertices with updated position data
-		(static_cast<VEClothMesh*> (clothOwner->m_pMesh))->updateVertices(vertices);				// Update the vertices of the mesh
-	};
-
-	/// <summary>
-	/// Called by the cloth if it is erased.
-	/// </summary>
-	/// <param name="cloth"> Shared pointer to the cloth. </param>
-	inline VPEWorld::callback_erase_cloth onEraseCloth =
-		[](std::shared_ptr<VPEWorld::Cloth> cloth) {
-		VESceneNode* node = static_cast<VESceneNode*>(cloth->m_owner);								// Owner is a pointer to a scene node
-		getSceneManagerPointer()->deleteSceneNodeAndChildren(										// Delete the owner and child node
-			((VESceneNode*)cloth->m_owner)->getName());												// associated with the cloth
-	};
-
-	//---------------------------------End-Cloth-Simulation-Stuff-----------------------------------
-
-
-	//----------------------------------------------------------------------------------------------
-	//Listener for driving the simulation 
-
-	class VEEventListenerPhysics : public VEEventListener {
-	protected:
-
-		/// <summary>
-		/// This drives the simulation!!!
-		/// </summary>
-		void onFrameStarted(veEvent event) {
-			m_physics->tick(event.dt);
+[[nodiscard]] std::optional<int> frameLimit(int argc, char **argv) {
+	for (int index = 1; index + 1 < argc; ++index) {
+		if (argv[index] == nullptr || argv[index + 1] == nullptr ||
+			 std::string_view{argv[index]} != "--frames") {
+			continue;
 		}
-
-		VPEWorld* m_physics;																		//Pointer to the physics world
-
-	public:
-		///Constructor of class EventListenerCollision
-		VEEventListenerPhysics(std::string name, VPEWorld* physics)
-			: VEEventListener(name),m_physics{ physics } { };
-
-		///Destructor of class EventListenerCollision
-		virtual ~VEEventListenerPhysics() {};
-	};
-
-
-	//----------------------------------------------------------------------------------------------
-	//Listener for creating bodies with keyboard
-
-	/// <summary>
-	/// This is a callback that is called in each loop. It implements a simple rigid body 
-	/// physics engine.
-	/// </summary>
-	class VEEventListenerPhysicsKeys : public VEEventListener {
-
-		std::default_random_engine rnd_gen{ 12345 };					//Random numbers
-		std::uniform_real_distribution<> rnd_unif{ 0.0f, 1.0f };		//Random numbers
-
-	public:
-
-		/// <summary>
-		/// Callback for event key stroke. Depending on the key pressed, bodies are created.
-		/// </summary>
-		/// <param name="event"> The keyboard event. </param>
-		/// <returns> False, so the key is not consumed. </returns>
-		bool onKeyboard(veEvent event) {
-
-			if (event.idata1 == GLFW_KEY_B && event.idata3 == GLFW_PRESS) {
-				glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
-				glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
-				glmvec3 vel = (30.0_real + 5.0_real * (real)rnd_unif(rnd_gen)) * dir / glm::length(dir);
-				glmvec3 scale{ 1,1,1 }; // = rnd_unif(rnd_gen) * 10;
-				real angle = (real)rnd_unif(rnd_gen) * 10 * 3 * (real)M_PI / 180.0_real;
-				glmvec3 orient{ rnd_unif(rnd_gen), rnd_unif(rnd_gen), rnd_unif(rnd_gen) };
-				glmvec3 vrot{ rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5 };
-				VESceneNode* cube;
-				VECHECKPOINTER(cube = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/crate0", "cube.obj", 0, getRoot()));
-				auto body = std::make_shared<VPEWorld::Body>( m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube, & m_physics->g_cube, scale, positionCamera + 2.0_real * dir, glm::rotate(angle, glm::normalize(orient)), vel, vrot, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
-				body->setForce( 0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} } );
-				body->m_on_move = onMove;
-				body->m_on_erase = onErase;
-				m_physics->addBody(body);
-			}
-
-			if (event.idata1 == GLFW_KEY_SPACE && event.idata3 == GLFW_PRESS) {
-				glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
-
-				for (int i = 0; i < 1; ++i) {
-					VESceneNode* cube0;
-					static real dy = 0.5_real;
-					VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/crate0", "cube.obj", 0, getRoot()));
-					auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_cube, glmvec3{ 1.0_real }, glmvec3{positionCamera.x, dy++, positionCamera.z + 4}, glmquat{ 1,0,0,0 }, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction );
-					body->setForce( 0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} } );
-					body->m_on_move = onMove;
-					body->m_on_erase = onErase;
-					m_physics->addBody(body);
-				}
-			}
-
-			if (event.idata1 == GLFW_KEY_Y && event.idata3 == GLFW_PRESS) {
-				glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
-
-				for (int dy = 0; dy < 15; ++dy) {
-					for (int dx = 0; dx < 15 - dy; ++dx) {
-						VESceneNode* cube0;
-						VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/crate0", "cube.obj", 0, getRoot()));
-						auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_cube, glmvec3{1.0_real}, glmvec3{dx + 0.4 * dy, 0.5_real + dy, 0.0_real}, glmquat{1,0,0,0}, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction);
-						body->setForce( 0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} } );
-						body->m_on_move = onMove;
-						body->m_on_erase = onErase;
-						m_physics->addBody(body);
-					}
-				}
-			}
-
-			if (event.idata1 == GLFW_KEY_Z && event.idata3 == GLFW_PRESS) {
-				glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
-				glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
-				VESceneNode* cube0;
-				VECHECKPOINTER(cube0 = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/crate0", "cube.obj", 0, getRoot()));
-				auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube0, &m_physics->g_cube, glmvec3{1.0_real}, positionCamera + 2.0_real * dir, glmquat{1,0,0,0}, glmvec3{0.0_real}, glmvec3{0.0_real}, 1.0_real / 100.0_real, m_physics->m_restitution, m_physics->m_friction );
-				body->setForce( 0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} } );
-				body->m_on_move = onMove;
-				body->m_on_erase = onErase;
-				m_physics->addBody(body);
-			}
-
-			return false;
-		};
-
-		VPEWorld* m_physics;	//Pointer to the physics world
-
-	public:
-		/// Constructor of class EventListenerCollision
-		VEEventListenerPhysicsKeys(std::string name, VPEWorld* physics)
-			: VEEventListener(name), m_physics{physics} { };
-
-		///Destructor of class EventListenerCollision
-		virtual ~VEEventListenerPhysicsKeys() {};
-	};
-
-
-	//----------------------------------------------------------------------------------------------
-	//Listener for creating the debug GUI
-
-	class VEEventListenerPhysicsGUI : public VEEventListener
-	{
-
-	protected:
-		std::default_random_engine rnd_gen{ 12345 };												// Random number generator
-		std::uniform_real_distribution<> rnd_unif{ 0.0f, 1.0f };									// Random number distribution
-
-		virtual void onDrawOverlay(veEvent event) {
-			VESubrender_Nuklear* pSubrender =
-				(VESubrender_Nuklear*)getEnginePointer()->getRenderer()->getOverlay();
-			if (pSubrender == nullptr)
-				return;
-
-			struct nk_context* ctx = pSubrender->getContext();
-
-			/* GUI */
-			if (nk_begin(ctx, "Physics Panel", nk_rect(20, 20, 550, 990),
-				NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
-				NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE))
-			{
-				std::stringstream str;
-				str << std::setprecision(5);
-
-				nk_layout_row_dynamic(ctx, 60, 2);
-				if (nk_option_label(ctx, "Solver A", m_physics->m_solver == 0))
-					m_physics->m_solver = 0;
-				if (nk_option_label(ctx, "Solver B", m_physics->m_solver == 1))
-					m_physics->m_solver = 1;
-
-				str << "Sim Freq " << m_physics->m_sim_frequency;
-				nk_layout_row_dynamic(ctx, 30, 4);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "-10")) {
-					m_physics->m_sim_frequency = std::max(10.0_real,
-						(real)m_physics->m_sim_frequency - 10.0_real);
-					m_physics->m_sim_delta_time = 1.0_real / m_physics->m_sim_frequency;
-				}
-				if (nk_button_label(ctx, "+10")) {
-					m_physics->m_sim_frequency += 10;
-					m_physics->m_sim_delta_time = 1.0_real / m_physics->m_sim_frequency;
-				}
-				if (nk_button_label(ctx, "Next time slot")) {
-					m_physics->m_current_time += m_physics->m_sim_delta_time;
-				}
-
-				nk_layout_row_dynamic(ctx, 30, 2);
-				if (nk_option_label(ctx, "Realtime",
-					m_physics->m_mode == VPEWorld::simulation_mode_t::SIMULATION_MODE_REALTIME))
-					m_physics->m_mode = VPEWorld::simulation_mode_t::SIMULATION_MODE_REALTIME;
-				if (nk_option_label(ctx, "Debug",
-					m_physics->m_mode == VPEWorld::simulation_mode_t::SIMULATION_MODE_DEBUG))
-					m_physics->m_mode = VPEWorld::simulation_mode_t::SIMULATION_MODE_DEBUG;
-
-				nk_layout_row_begin(ctx, NK_STATIC, 30, 2);
-				nk_layout_row_push(ctx, 60);
-				nk_label(ctx, "Time (s)", NK_TEXT_LEFT);
-				str.str("");
-				str << m_physics->m_current_time;
-				nk_layout_row_push(ctx, 60);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				nk_layout_row_end(ctx);
-
-				static real fps = 0.0;
-				fps = 0.05_real * m_physics->m_fps + 0.95_real * fps;
-				str.str("");
-				str << "FPS " << fps;
-				nk_layout_row_dynamic(ctx, 30, 1);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-
-				str.str("");
-				str << "Loops " << m_physics->m_loops;
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "-5")) { m_physics->m_loops = std::max(5,
-					m_physics->m_loops - 5); }
-				if (nk_button_label(ctx, "+5")) { m_physics->m_loops += 5; }
-
-				str.str("");
-				str << "Resting Fac " << m_physics->m_resting_factor;
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "-0.2")) { m_physics->m_resting_factor = std::max(0.2_real,
-					m_physics->m_resting_factor - 0.2_real); }
-				if (nk_button_label(ctx, "+0.2")) { m_physics->m_resting_factor += 0.2_real; }
-
-				str.str("");
-				str << "Damp Incr " << m_physics->m_damping_incr;
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "-5")) { m_physics->m_damping_incr = std::max(0.0_real,
-					m_physics->m_damping_incr - 5.0_real); }
-				if (nk_button_label(ctx, "+5")) { m_physics->m_damping_incr += 5.0_real; }
-
-				str.str("");
-				str << "PBias Fac " << m_physics->m_pbias_factor;
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "-0.1")) { m_physics->m_pbias_factor =
-					glm::clamp(m_physics->m_pbias_factor - 0.1_real, 0.0_real, 1.0_real); }
-				if (nk_button_label(ctx, "+0.1")) { m_physics->m_pbias_factor =
-					glm::clamp(m_physics->m_pbias_factor + 0.1_real, 0.0_real, 1.0_real); }
-
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, "Align PBias", NK_TEXT_LEFT);
-				if (nk_option_label(ctx, "Yes", m_physics->m_align_position_bias == 1))
-					m_physics->m_align_position_bias = 1;
-				if (nk_option_label(ctx, "No", m_physics->m_align_position_bias == 0))
-					m_physics->m_align_position_bias = 0;
-
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, "Use VBias", NK_TEXT_LEFT);
-				if (nk_option_label(ctx, "Yes", m_physics->m_use_vbias == 1))
-					m_physics->m_use_vbias = 1;
-				if (nk_option_label(ctx, "No", m_physics->m_use_vbias == 0))
-					m_physics->m_use_vbias = 0;
-
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, "Warmstart All", NK_TEXT_LEFT);
-				if (nk_option_label(ctx, "Yes", m_physics->m_use_warmstart == 1))
-					m_physics->m_use_warmstart = 1;
-				if (nk_option_label(ctx, "No", m_physics->m_use_warmstart == 0))
-					m_physics->m_use_warmstart = 0;
-
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, "Warmstart Single", NK_TEXT_LEFT);
-				if (nk_option_label(ctx, "Yes", m_physics->m_use_warmstart_single == 1))
-					m_physics->m_use_warmstart_single = 1;
-				if (nk_option_label(ctx, "No", m_physics->m_use_warmstart_single == 0))
-					m_physics->m_use_warmstart_single = 0;
-
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, "Deactivate", NK_TEXT_LEFT);
-				if (nk_option_label(ctx, "Yes", m_physics->m_deactivate))
-					m_physics->m_deactivate = true;
-				if (nk_option_label(ctx, "No", !m_physics->m_deactivate))
-					m_physics->m_deactivate = false;
-
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, "Clamp Pos", NK_TEXT_LEFT);
-				if (nk_option_label(ctx, "Yes", m_physics->m_clamp_position == 1))
-					m_physics->m_clamp_position = 1;
-				if (nk_option_label(ctx, "No", m_physics->m_clamp_position == 0))
-					m_physics->m_clamp_position = 0;
-
-				str.str("");
-				str << "Num Bodies " << m_physics->m_bodies.size();
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "Create Bodies")) {
-					createRandomBodies(20);
-				}
-				if (nk_button_label(ctx, "Clear Bodies")) {
-					m_physics->clear();
-				}
-
-				str.str("");
-				str << "Num Contacts " << m_physics->m_contacts.size();
-				nk_layout_row_dynamic(ctx, 30, 1);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-
-				str.str("");
-				str << "Num Active " << m_physics->m_num_active;
-				nk_layout_row_dynamic(ctx, 30, 1);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-
-				str.str("");
-				str << "Cell width " << m_physics->m_width;
-				nk_layout_row_dynamic(ctx, 30, 3);
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-				if (nk_button_label(ctx, "-1")) {
-					m_physics->m_grid.clear();
-					m_physics->m_width = std::max(1.0_real, m_physics->m_width - 1);
-					for (auto body : m_physics->m_bodies) m_physics->addGrid(body.second);
-				}
-				if (nk_button_label(ctx, "+1")) {
-					m_physics->m_grid.clear();
-					m_physics->m_width++;
-					for (auto body : m_physics->m_bodies) m_physics->addGrid(body.second);
-				}
-
-				nk_layout_row_dynamic(ctx, 30, 5);
-				str.str("Current Body ");
-				if (m_physics->m_body) { str << "Current Body " << m_physics->m_body->m_name; }
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-
-				if (nk_button_label(ctx, "Pick body")) { 
-					glmvec3 pos{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->
-						getWorldTransform()[3] };
-					glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->
-						getWorldTransform()[2] };
-					m_physics->m_body = m_physics->pickBody( pos, dir );
-				}
-				if (nk_button_label(ctx, "Delete body")) {
-					glmvec3 pos{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->
-						getWorldTransform()[3] };
-					glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->
-						getWorldTransform()[2] };
-					auto b = m_physics->pickBody( pos, dir );
-					if(b) m_physics->eraseBody(b);
-				}
-				if (nk_button_label(ctx, "Add collider")) {
-					if (m_physics->m_body)
-						m_physics->addCollider(m_physics->m_body, onCollide);
-				}
-				if (nk_button_label(ctx, "Remove colliders")) {
-					m_physics->clearCollider();
-				}
-
-				real vel = 5.0;
-				real m_dx, m_dy, m_dz, m_da, m_db, m_dc;
-				m_dx = m_dy = m_dz = m_da = m_db = m_dc = 0.0;
-
-				nk_layout_row_static(ctx, 30, 100, 2);
-				if (nk_button_label(ctx, "+X")) {m_dx = vel; }
-				if (nk_button_label(ctx, "-X")) { m_dx = -vel; }
-				nk_layout_row_static(ctx, 30, 100, 2);
-				if (nk_button_label(ctx, "+Y")) { m_dy = vel; }
-				if (nk_button_label(ctx, "-Y")) { m_dy = -vel; }
-				nk_layout_row_static(ctx, 30, 100, 2);
-				if (nk_button_label(ctx, "+Z")) { m_dz = vel; }
-				if (nk_button_label(ctx, "-Z")) {m_dz = -vel; }
-
-				nk_layout_row_static(ctx, 30, 100, 2);
-				if (nk_button_label(ctx, "RX")) { m_da = vel; }
-				if (nk_button_label(ctx, "-RX")) { m_da = -vel; }
-				nk_layout_row_static(ctx, 30, 100, 2);
-				if (nk_button_label(ctx, "+RY")) { m_db = vel; }
-				if (nk_button_label(ctx, "-RY")) { m_db = -vel; }
-				nk_layout_row_static(ctx, 30, 100, 2);
-				if (nk_button_label(ctx, "+RZ")) { m_dc = vel; }
-				if (nk_button_label(ctx, "-RZ")) { m_dc = -vel; }
-
-				if (m_physics->m_body) {
-					real dt = (real)m_physics->m_sim_delta_time;
-					m_physics->m_body->m_positionW += (real)dt * glmvec3{ m_dx, m_dy, m_dz };
-					m_physics->m_body->m_orientationLW =
-						glm::rotate(glmquat{ 1,0,0,0 }, (real)dt * m_da, glmvec3{ 1, 0, 0 }) *
-						glm::rotate(glmquat{ 1,0,0,0 }, (real)dt * m_db, glmvec3{ 0, 1, 0 }) *
-						glm::rotate(glmquat{ 1,0,0,0 }, (real)dt * m_dc, glmvec3{ 0, 0, 1 }) *
-						m_physics->m_body->m_orientationLW;
-
-					m_physics->m_body->updateMatrices();
-					m_dx = m_dy = m_dz = m_da = m_db = m_dc = 0.0_real;
-				}
-
-				nk_layout_row_dynamic(ctx, 30, 1);
-				nk_label(ctx, "New Cloth: C, Switch Cloth: N, Cloth Controls: I, K, J, L, U, O",
-					NK_TEXT_LEFT);
-			}
-			nk_end(ctx);
+		int value{};
+		const std::string_view text{argv[index + 1]};
+		const auto result = std::from_chars(text.data(), text.data() + text.size(), value);
+		if (result.ec == std::errc{} && value >= 0) {
+			return value;
 		}
+	}
+	return std::nullopt;
+}
 
-		/// <summary>
-		/// Create a number of bodies at random places to populate the scene.
-		/// </summary>
-		/// <param name="n">Number of bodies to create.</param>
-		void createRandomBodies(int n) {
-			for (int i = 0; i < n; ++i) {
-				glmvec3 pos =
-					{ rnd_unif(rnd_gen), 20 * rnd_unif(rnd_gen) + 10.0_real, rnd_unif(rnd_gen) };
-				glmvec3 vel = { rnd_unif(rnd_gen), rnd_unif(rnd_gen), rnd_unif(rnd_gen) };
-				glmvec3 scale{ 1,1,1 }; // = rnd_unif(rnd_gen) * 10;
-				real angle = (real)rnd_unif(rnd_gen) * 10 * 3 * (real)M_PI / 180.0_real;
-				glmvec3 orient{ rnd_unif(rnd_gen), rnd_unif(rnd_gen), rnd_unif(rnd_gen) };
-				glmvec3 vrot{ rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5, rnd_unif(rnd_gen) * 5 };
-				VESceneNode* cube;
-				VECHECKPOINTER(cube = getSceneManagerPointer()->loadModel(
-					"The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/crate0",
-					"cube.obj", 0, getRoot()));
-
-				auto body = std::make_shared<VPEWorld::Body>(
-					m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube,
-					&VPEWorld::g_cube, scale, pos, glm::rotate(angle, glm::normalize(orient)),
-					vel, vrot, 1.0_real / 100.0_real, m_physics->m_restitution,
-					m_physics->m_friction);
-
-				body->m_forces.insert({ 0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} } });
-				body->m_on_move = onMove;
-				body->m_on_erase = onErase;
-				m_physics->addBody(m_physics->m_body = body);
-			}
+[[nodiscard]] bool hasArgument(int argc, char **argv, std::string_view argument) {
+	for (int index = 1; index < argc; ++index) {
+		if (argv[index] != nullptr && std::string_view{argv[index]} == argument) {
+			return true;
 		}
+	}
+	return false;
+}
 
-		VPEWorld* m_physics;	//pointer to the physics world
+[[nodiscard]] std::filesystem::path crateTexture() {
+#ifdef VVE_V3_ROOT_PATH
+	return std::filesystem::path{VVE_V3_ROOT_PATH} / "assets/game/crate0/diffuse.png";
+#else
+	return std::filesystem::path{"../ViennaVulkanEngine/assets/game/crate0/diffuse.png"};
+#endif
+}
 
-	public:
-
-		///Constructor of class VEEventListenerPhysicsGUI
-		VEEventListenerPhysicsGUI(std::string name, VPEWorld* phy) : VEEventListener{ name }, m_physics{ phy } {};
-
-		///Destructor of class VEEventListenerPhysicsGUI
-		virtual ~VEEventListenerPhysicsGUI() {};
-	};
-
-	//----------------------------------------------------------------------------------------------
-	//Listener for creating constraint demo GUI
-
-	/// <summary>
-	/// Provides a window with buttons to spawn a few constraint demonstrations
-	/// To edit the constraint demos, see class ConstraintDemos
-	/// </summary>
-	class VEEventListenerConstraintsGUI : public VEEventListener
-	{
-
-	protected:
-		virtual void onDrawOverlay(veEvent event) {
-			VESubrender_Nuklear* pSubrender =
-				(VESubrender_Nuklear*)getEnginePointer()->getRenderer()->getOverlay();
-			if (pSubrender == nullptr)
-				return;
-
-			struct nk_context* ctx = pSubrender->getContext();
-
-			/* GUI */
-			if (nk_begin(ctx, "Constraints Panel", nk_rect(580, 20, 400, 160),
-				NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
-				NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE))
-			{
-				std::stringstream str;
-				str << std::setprecision(5);
-
-				nk_layout_row_dynamic(ctx, 30, 1);
-				str.str("Constraint Demos");
-				nk_label(ctx, str.str().c_str(), NK_TEXT_LEFT);
-
-				nk_layout_row_dynamic(ctx, 30, 4);
-				if (nk_button_label(ctx, "Ball-Socket")) { m_constraintDemos.ballSocketJoint(); }
-				if (nk_button_label(ctx, "Hinge")) { m_constraintDemos.hingeJoint(); }
-				if (nk_button_label(ctx, "Slider")) { m_constraintDemos.sliderJoint(); }
-				if (nk_button_label(ctx, "Fixed")) { m_constraintDemos.fixedJoint(); }
-
-				nk_layout_row_dynamic(ctx, 30, 5);
-				if (nk_button_label(ctx, "Bridge")) { m_constraintDemos.bridge(); }
-				if (nk_button_label(ctx, "Ragdoll")) { m_constraintDemos.ragdoll(); }
-				if (nk_button_label(ctx, "Cannon")) { m_constraintDemos.sliderCannon(); }
-				if (nk_button_label(ctx, "Wheel")) { m_constraintDemos.wheel(); }
-				if (nk_button_label(ctx, "Chain")) { m_constraintDemos.hingeChain(); }
-			}
-			nk_end(ctx);
+[[nodiscard]] VPEWorld::callback_move makeMoveCallback(vve::RenderSystem render) {
+	return [render](double dt, std::shared_ptr<VPEWorld::Body> body) mutable {
+		auto *visual = static_cast<BodyVisual *>(body->m_owner);
+		if (visual == nullptr) {
+			return;
 		}
-
-		VPEWorld* m_physics;	//pointer to the physics world
-		ConstraintDemos m_constraintDemos; // class to create the constraint demos
-	public:
-
-		/// <summary>
-		/// Constructor of class VEEventListenerConstraintsGUI
-		/// </summary>
-		/// <param name="name">Name for the eventlistener</param>
-		/// <param name="phy">Pointer to physics world to be used</param>
-		VEEventListenerConstraintsGUI(std::string name, VPEWorld* phy) : VEEventListener{ name }, m_physics{ phy }, m_constraintDemos{ phy, onMove, onErase } {};
-
-		///Destructor of class VEEventListenerConstraintsGUI
-		virtual ~VEEventListenerConstraintsGUI() {};
-	};
-
-
-	//--------------------------------Begin-Cloth-Simulation-Stuff----------------------------------
-	// by Felix Neumann
-	// Cloth Simulation Demo
-	// Listener for creating and controlling cloths
-
-	/// <summary>
-	/// An demo on how one can use the cloth simulation features. Allows for spawning and moving
-	/// cloths.
-	/// </summary>
-	class VEEventListenerClothControls : public VEEventListener
-	{
-		VPEWorld* m_physics;																		// Pointer to the physics world
-		int m_currentClothIndex = 0;																// Index of currently selected Cloth
-		const float c_speed = 3.0f;																	// Speed of cloth movement
-	public:
-		/// <summary>
-		/// Callback for event key stroke. Depending on the key pressed, a cloth is created or
-		/// moved.
-		/// </summary>
-		/// <param name="event"> The keyboard event. </param>
-		/// <returns> False, so the key is not consumed. </returns>
-		bool onKeyboard(veEvent event) {
-			VESceneNode* cloth = getSceneManagerPointer()->getSceneNode(							// A cloth in the physics world can be gotten with a pointer to its owner
-				"Cloth" + std::to_string(m_currentClothIndex));
-
-			if (event.idata1 == GLFW_KEY_L)
-			{
-				m_physics->getCloth(cloth)->applyTransformation(glm::translate(glm::mat4(1.0f),		// The cloth can be moved by applying a transformation
-					glm::vec3(c_speed * event.dt, 0.0f, 0.0f)), true);
-			}
-
-			if (event.idata1 == GLFW_KEY_J)
-			{
-				m_physics->getCloth(cloth)->applyTransformation(glm::translate(glm::mat4(1.0f),
-					glm::vec3(-c_speed * event.dt, 0.0f, 0.0f)), true);
-			}
-
-			if (event.idata1 == GLFW_KEY_O)
-			{
-				m_physics->getCloth(cloth)->applyTransformation(glm::translate(glm::mat4(1.0f),
-					glm::vec3(0.0f, c_speed * event.dt, 0.0f)), true);
-			}
-
-			if (event.idata1 == GLFW_KEY_U)
-			{
-				m_physics->getCloth(cloth)->applyTransformation(glm::translate(glm::mat4(1.0f),
-					glm::vec3(0.0f, -c_speed * event.dt, 0.0f)), true);
-			}
-
-			if (event.idata1 == GLFW_KEY_I)
-			{
-				m_physics->getCloth(cloth)->applyTransformation(glm::translate(glm::mat4(1.0f),
-					glm::vec3(0.0f, 0.0f, c_speed * event.dt)), true);
-			}
-
-			if (event.idata1 == GLFW_KEY_K)
-			{
-				m_physics->getCloth(cloth)->applyTransformation(glm::translate(glm::mat4(1.0f),
-					glm::vec3(0.0f, 0.0f, -c_speed * event.dt)), false);
-			}
-
-			if (event.idata1 == GLFW_KEY_C && event.idata3 == GLFW_PRESS)							// Create a new cloth
-			{
-				VESceneNode* pScene;																// Get the scene root 
-				VECHECKPOINTER(pScene =
-					getSceneManagerPointer()->createSceneNode("Level 1", getRoot()));
-				
-				VEClothEntity* clothEntity;															// Create a new cloth Entity and load the desired model
-				VECHECKPOINTER(clothEntity = 
-					getSceneManagerPointer()->loadClothModel(
-						"Cloth" + std::to_string(m_physics->m_cloths.size()),
-						"../../media/models/cloths/cloth0", "cloth.obj"));
-
-				pScene->addChild(clothEntity);														// Add the entity to the scene
-
-				auto vertices = ((VEClothMesh*) (clothEntity->m_pMesh))->getInitialVertices();		// Get the vertices of the model
-				auto indices = ((VEClothMesh*) (clothEntity->m_pMesh))->getIndices();				// Get the indices of the model
-				std::vector<glm::vec3> fixedPoints =												// Choose the points where the cloth should be fixed
-				{ {-1.000000, 2.000000, -0.000000}, {1.000000, 2.000000, 0.000000} };				// Left and right top in this case
-
-				auto physicsCloth = std::make_shared<VPEWorld::Cloth>(m_physics,					// Create the cloth
-					"Cloth" + std::to_string(m_physics->m_cloths.size()), clothEntity, onMoveCloth,
-					onEraseCloth, vertices, indices, fixedPoints, 50, 4, 0.8);
-
-				m_physics->addCloth(physicsCloth);													// Add the cloth to the physics world
-			}
-
-			if (event.idata1 == GLFW_KEY_N && event.idata3 == GLFW_PRESS)							// Switch between cloths
-			{
-				m_currentClothIndex = (m_currentClothIndex + 1) % m_physics->m_cloths.size();
-			}
-
-			return false;
+		glmvec3 position = body->m_positionW;
+		glmquat orientation = body->m_orientationLW;
+		body->stepPosition(dt, position, orientation, false);
+		if (const auto result = render.setObjectTransform(
+				visual->object, renderTransform(position, orientation, body->m_scale));
+			 !result) {
+			std::cerr << "[physicsexample] transform update failed: error="
+						 << vve::errorName(result.error()) << '\n';
 		}
-
-		/// <summary>
-		/// 
-		/// </summary>
-		/// <param name="name"> Name of the listener. </param>
-		/// <param name="physics"> Pointer to the physics world. </param>
-		VEEventListenerClothControls(std::string name, VPEWorld* physics)
-			: VEEventListener(name), m_physics{ physics } { };
-	};
-
-
-	//----------------------------------------------------------------------------------------------
-	// My custom engine
-
-	/// User defined manager class, derived from VEEngine
-	class MyVulkanEngine : public VEEngine {
-	public:
-
-		VPEWorld m_physics;
-		VEEventListenerPhysics*	m_physics_listener;
-		VEEventListenerPhysicsKeys* m_physics_listener_keys;
-		VEEventListenerPhysicsGUI* m_physics_listener_gui;
-		VEEventListenerConstraintsGUI* m_physics_listener_constraints_gui;
-		VEEventListenerClothControls* m_physics_listener_cloth;
-
-		MyVulkanEngine(veRendererType type = veRendererType::VE_RENDERER_TYPE_FORWARD,
-			bool debug = false) : VEEngine(type, debug) {};
-
-		/// Register an event listener to interact with the user
-		virtual void registerEventListeners() {
-			VEEngine::registerEventListeners();
-
-			registerEventListener(m_physics_listener = new VEEventListenerPhysics(
-				"Physics", &m_physics), { veEvent::VE_EVENT_FRAME_STARTED });
-			registerEventListener(m_physics_listener_keys = new VEEventListenerPhysicsKeys(
-				"Physics Keys", &m_physics), { veEvent::VE_EVENT_KEYBOARD });
-			registerEventListener(m_physics_listener_gui = new VEEventListenerPhysicsGUI(
-				"Physics GUI",&m_physics), { veEvent::VE_EVENT_DRAW_OVERLAY });
-			registerEventListener(m_physics_listener_constraints_gui = new VEEventListenerConstraintsGUI(
-				"Constraints GUI", &m_physics), { veEvent::VE_EVENT_DRAW_OVERLAY });
-			registerEventListener(m_physics_listener_cloth = new VEEventListenerClothControls(
-				"Cloth Controls", &m_physics), { veEvent::VE_EVENT_KEYBOARD });
-		};
-		
-
-		/// Load the first level into the game engine
-		/// The engine uses Y-UP, Left-handed
-		virtual void loadLevel( uint32_t numLevel = 1) {
-
-			VEEngine::loadLevel(numLevel );															// Create standard cameras and lights
-
-			VESceneNode *pScene;																	// Get Root Node
-			VECHECKPOINTER( pScene =
-				getSceneManagerPointer()->createSceneNode("Level 1", getRoot()) );
-	
-			// Scene models
-
-			VESceneNode *sp1;
-			VECHECKPOINTER( sp1 = 
-				getSceneManagerPointer()->createSkybox( "The Sky", "../../media/models/test/sky/cloudy",
-				{ "bluecloud_ft.jpg", "bluecloud_bk.jpg", "bluecloud_up.jpg", "bluecloud_dn.jpg",
-				"bluecloud_rt.jpg", "bluecloud_lf.jpg" }, pScene) );
-
-			VESceneNode *e4;
-			VECHECKPOINTER( e4 = getSceneManagerPointer()->loadModel(
-				"The Plane", "../../media/models/test/plane", "plane_t_n_s.obj",0, pScene) );
-			e4->setTransform(glm::scale( glm::translate( glm::vec3{ 0,0,0,}),
-				glm::vec3(1000.0f, 1.0f, 1000.0f)));
-
-			VEEntity *pE4;
-			VECHECKPOINTER( pE4 = (VEEntity*)getSceneManagerPointer()->getSceneNode(
-				"The Plane/plane_t_n_s.obj/plane/Entity_0") );
-			pE4->setParam( glm::vec4(1000.0f, 1000.0f, 0.0f, 0.0f) );
-
-			getSceneManagerPointer()->getSceneNode("StandardCameraParent")->setPosition({0,1,-4});
-
-			/*
-			VESceneNode* e1, * eParent;
-			eParent = getSceneManagerPointer()->createSceneNode(
-				"The Cube Parent", pScene, glm::mat4(1.0));
-			VECHECKPOINTER(e1 = getSceneManagerPointer()->loadModel(
-				"The Cube0", "../../media/models/test/crate0", "cube.obj"));
-			eParent->multiplyTransform(glm::translate(
-				glm::mat4(1.0f), glm::vec3(-10.0f, 1.0f, 10.0f)));
-			eParent->addChild(e1);
-			*/
-		};
 	};
 }
 
+[[nodiscard]] VPEWorld::callback_erase makeEraseCallback(vve::RenderSystem render) {
+	return [render](std::shared_ptr<VPEWorld::Body> body) mutable {
+		auto *visual = static_cast<BodyVisual *>(body->m_owner);
+		if (visual == nullptr) {
+			return;
+		}
+		if (const auto result = render.removeObject(visual->object); !result) {
+			std::cerr << "[physicsexample] render-object removal failed: error="
+						 << vve::errorName(result.error()) << '\n';
+		}
+		delete visual;
+	};
+}
 
-//--------------------------------------------------------------------------------------------------
+[[nodiscard]] ve::ConstraintDemos::create_visual_callback makeVisualFactory(
+	vve::RenderSystem render, std::filesystem::path texture) {
+	return [render, texture = std::move(texture)](
+				  glmvec3 scale, glmvec3 position, glmquat orientation) mutable -> void * {
+		const auto object = render.addTexturedCuboid(
+			cubeMinimum, cubeMaximum, texture, renderTransform(position, orientation, scale));
+		if (!object) {
+			std::cerr << "[physicsexample] cube creation failed: error="
+						 << vve::errorName(object.error()) << '\n';
+			throw std::runtime_error{"VVE V3 could not create a physics cube"};
+		}
+		return new BodyVisual{render, *object};
+	};
+}
 
-using namespace ve;
+[[nodiscard]] std::shared_ptr<VPEWorld::Body> addCube(
+	VPEWorld &physics, const ve::ConstraintDemos::create_visual_callback &create_visual,
+	const VPEWorld::callback_move &on_move, const VPEWorld::callback_erase &on_erase,
+	glmvec3 scale, glmvec3 position, glmquat orientation = glmquat{1, 0, 0, 0},
+	glmvec3 velocity = glmvec3{0.0_real}, glmvec3 angular_velocity = glmvec3{0.0_real},
+	real inverse_mass = 1.0_real / 100.0_real, bool gravity = true,
+	real friction = 1.0_real) {
+	void *visual = create_visual(scale, position, orientation);
+	if (visual == nullptr) {
+		return {};
+	}
+	auto body = std::make_shared<VPEWorld::Body>(
+		&physics, "Body" + std::to_string(physics.m_bodies.size()), visual, &physics.g_cube,
+		scale, position, orientation, velocity, angular_velocity, inverse_mass,
+		physics.m_restitution, friction);
+	body->m_on_move = on_move;
+	body->m_on_erase = on_erase;
+	if (gravity) {
+		body->setForce(0ul, VPEWorld::Force{{0, physics.c_gravity, 0}});
+	}
+	physics.addBody(body);
+	on_move(0.0, body);
+	return body;
+}
 
+void addStack(
+	VPEWorld &physics, const ve::ConstraintDemos::create_visual_callback &create_visual,
+	const VPEWorld::callback_move &on_move, const VPEWorld::callback_erase &on_erase) {
+	for (int y = 0; y < 15; ++y) {
+		for (int x = 0; x < 15 - y; ++x) {
+			(void)addCube(physics, create_visual, on_move, on_erase, glmvec3{1.0_real},
+						glmvec3{x + 0.4_real * y, 0.5_real + y, 0.0_real});
+		}
+	}
+}
 
+int runHeadlessStack(VPEWorld &physics, int frames) {
+	struct InitialBodyState {
+		std::shared_ptr<VPEWorld::Body> body;
+		glmvec2 horizontal_position;
+	};
 
+	const ve::ConstraintDemos::create_visual_callback create_visual =
+		[](glmvec3, glmvec3, glmquat) -> void * { return new int{}; };
+	const VPEWorld::callback_move on_move = [](double, std::shared_ptr<VPEWorld::Body>) {};
+	const VPEWorld::callback_erase on_erase = [](std::shared_ptr<VPEWorld::Body> body) {
+		delete static_cast<int *>(body->m_owner);
+	};
+	addStack(physics, create_visual, on_move, on_erase);
 
-int main() {
-	bool debug = false;
+	std::vector<InitialBodyState> initial_states;
+	initial_states.reserve(physics.m_bodies.size());
+	real initial_stack_height{};
+	for (const auto &entry : physics.m_bodies) {
+		const auto &body = entry.second;
+		initial_states.push_back(
+			{body, glmvec2{body->m_positionW.x, body->m_positionW.z}});
+		initial_stack_height = std::max(
+			initial_stack_height, body->m_positionW.y + 0.5_real * body->m_scale.y);
+	}
 
-	MyVulkanEngine mve(veRendererType::VE_RENDERER_TYPE_FORWARD, debug);							// Enable or disable debugging (callback, validation layers)
-	mve.initEngine();
-	mve.loadLevel(1);
-	mve.run();
+	if (frames > 0) {
+		// tick() first establishes VPE's fixed-slot clock. Each following fixed-delta call
+		// advances one complete 1/60 s solver slot, independent of render timing.
+		physics.tick(headlessPhysicsTimeStep);
+		for (int frame = 0; frame < frames; ++frame) {
+			physics.tick(headlessPhysicsTimeStep);
+		}
+	}
 
+	const bool completed =
+		frames >= headlessMinimumSettleFrames &&
+		physics.m_loop >= static_cast<decltype(physics.m_loop)>(frames);
+	real max_linear_speed{};
+	real max_angular_speed{};
+	real max_horizontal_drift{};
+	real min_final_y = initial_stack_height;
+	real max_final_y{};
+	bool bodies_settled = initial_states.size() == physics.m_bodies.size();
+	for (const auto &initial : initial_states) {
+		const auto &position = initial.body->m_positionW;
+		const real linear_speed = glm::length(initial.body->m_linear_velocityW);
+		const real angular_speed = glm::length(initial.body->m_angular_velocityW);
+		const real horizontal_drift =
+			glm::length(glmvec2{position.x, position.z} - initial.horizontal_position);
+		max_linear_speed = std::max(max_linear_speed, linear_speed);
+		max_angular_speed = std::max(max_angular_speed, angular_speed);
+		max_horizontal_drift = std::max(max_horizontal_drift, horizontal_drift);
+		min_final_y = std::min(min_final_y, position.y);
+		max_final_y = std::max(max_final_y, position.y);
+
+		const bool finite_position =
+			std::isfinite(position.x) && std::isfinite(position.y) &&
+			std::isfinite(position.z);
+		bodies_settled =
+			bodies_settled && finite_position &&
+			linear_speed <= headlessSettleSpeedThreshold &&
+			angular_speed <= headlessSettleAngularSpeedThreshold &&
+			position.y >= 0.0_real && position.y <= initial_stack_height &&
+			horizontal_drift <= headlessHorizontalDriftTolerance;
+	}
+	const bool stable = completed && bodies_settled;
+	std::cout << "[physicsexample] settle max_residual_speed=" << max_linear_speed
+				 << " max_angular_speed=" << max_angular_speed
+				 << " max_horizontal_drift=" << max_horizontal_drift
+				 << " final_y=[" << min_final_y << ',' << max_final_y << "]\n";
+	std::cout << "[physicsexample] stack=" << (stable ? "stable" : "unstable")
+				 << " bodies=" << physics.m_bodies.size() << '\n';
+	physics.clear();
+	std::cout << "[physicsexample] frames=" << frames << '\n';
+	return stable ? 0 : 4;
+}
+
+void addRandomBodies(
+	VPEWorld &physics, const ve::ConstraintDemos::create_visual_callback &create_visual,
+	const VPEWorld::callback_move &on_move, const VPEWorld::callback_erase &on_erase,
+	std::default_random_engine &generator, std::uniform_real_distribution<real> &random,
+	int count) {
+	for (int index = 0; index < count; ++index) {
+		const glmvec3 position{
+			random(generator), 20.0_real * random(generator) + 10.0_real, random(generator)};
+		const glmvec3 velocity{random(generator), random(generator), random(generator)};
+		const real angle = random(generator) * 10.0_real * 3.0_real * pi / 180.0_real;
+		const glmvec3 axis = glm::normalize(
+			glmvec3{random(generator), random(generator), random(generator)});
+		const glmvec3 angular_velocity{
+			random(generator) * 5.0_real, random(generator) * 5.0_real,
+			random(generator) * 5.0_real};
+		(void)addCube(physics, create_visual, on_move, on_erase, glmvec3{1.0_real}, position,
+					glm::rotate(glmquat{1, 0, 0, 0}, angle, axis), velocity, angular_velocity);
+	}
+}
+
+void drawBooleanSetting(const char *label, bool &value) {
+	ImGui::TextUnformatted(label);
+	ImGui::SameLine();
+	if (ImGui::RadioButton((std::string{"Yes##"} + label).c_str(), value)) {
+		value = true;
+	}
+	ImGui::SameLine();
+	if (ImGui::RadioButton((std::string{"No##"} + label).c_str(), !value)) {
+		value = false;
+	}
+}
+
+} // namespace
+
+int main(int argc, char **argv) {
+	std::cout << std::unitbuf;
+	std::cerr << std::unitbuf;
+	std::cout << "[physicsexample] engine=" << vve::engineImplementationNamespaceName << '\n';
+
+	VPEWorld physics;
+	const bool startup_stack = hasArgument(argc, argv, "--stack");
+	const auto frame_limit = frameLimit(argc, argv);
+	if (startup_stack && frame_limit) {
+		return runHeadlessStack(physics, *frame_limit);
+	}
+
+	auto engine = vve::EngineBuilder<PhysicsTickSystem>{}
+						 .applicationName("physicsexample")
+						 .addWindow(vve::WindowSetup{}
+										 .id("main")
+										 .title("Vienna Physics Engine")
+										 .extent(windowExtent)
+										 .renderer(vve::RendererId{.value = "forward"})
+										 .resizable(true))
+						 .userSystems(vve::makeUserSystems(PhysicsTickSystem{.physics = &physics}))
+						 .build();
+
+	if (const auto result = engine.init(); !result) {
+		std::cerr << "[physicsexample] engine init failed: error="
+					 << vve::errorName(result.error()) << '\n';
+		return 1;
+	}
+	auto render = engine.world().get<vve::RenderSystem>();
+	render.clearScene();
+	if (const auto plane = render.addPlane(
+			vve::Vec2{500.0F, 500.0F},
+			vve::LinearColor{.value = vve::Vec3{0.16F, 0.42F, 0.18F}});
+		 !plane) {
+		std::cerr << "[physicsexample] ground-plane creation failed: error="
+					 << vve::errorName(plane.error()) << '\n';
+		return 2;
+	}
+	render.setDirectionalLight(
+		vve::Direction{.value = vve::Vec3{-0.45F, -0.8F, 0.35F}},
+		vve::LinearColor{.value = vve::Vec3{0.95F, 0.98F, 1.0F}},
+		vve::LightIntensity{.value = 1.05F},
+		vve::LinearColor{.value = vve::Vec3{0.04F, 0.04F, 0.04F}});
+	render.setPointLight(
+		vve::Position{.value = vve::Vec3{2.0F, 8.0F, -4.0F}},
+		vve::LinearColor{.value = vve::Vec3{1.0F, 0.96F, 0.82F}},
+		vve::LightIntensity{.value = 3.0F}, vve::LightRange{.value = 30.0F},
+		vve::LinearColor{.value = vve::Vec3{0.08F, 0.08F, 0.08F}});
+
+	vve::DefaultCameraController camera;
+	camera.eye = vve::Position{.value = vve::Vec3{0.0F, 6.0F, -14.0F}};
+	const auto startup_forward =
+		vve::math::normalize(vve::math::subtract(vve::Vec3{0.0F, 3.0F, 2.0F}, camera.eye.value));
+	camera.yaw = std::atan2(startup_forward.x, -startup_forward.z);
+	camera.pitch = std::asin(startup_forward.y);
+
+	const auto on_move = makeMoveCallback(render);
+	const auto on_erase = makeEraseCallback(render);
+	const auto create_visual = makeVisualFactory(render, crateTexture());
+	auto camera_position = [&camera] { return physicsVector(camera.eye.value); };
+	auto camera_direction = [&camera] { return physicsVector(cameraForward(camera)); };
+	ve::ConstraintDemos constraints{
+		&physics, on_move, on_erase, create_visual, camera_position, camera_direction};
+
+	std::default_random_engine random_generator{12345};
+	std::uniform_real_distribution<real> random{0.0_real, 1.0_real};
+	VPEWorld::callback_collide on_collide =
+		[](std::shared_ptr<VPEWorld::Body> first, std::shared_ptr<VPEWorld::Body> second) {
+			std::cout << "Collision " << first->m_name << ' ' << second->m_name << '\n';
+		};
+	real smoothed_fps{};
+	if (startup_stack) {
+		addStack(physics, create_visual, on_move, on_erase);
+	}
+
+	engine.world().get<vve::GuiSystem>().draw([&] {
+		ImGui::SetNextWindowSize(ImVec2{470.0F, 680.0F}, ImGuiCond_FirstUseEver);
+		if (ImGui::Begin("Physics Panel")) {
+			if (ImGui::RadioButton("Solver A", physics.m_solver == 0)) physics.m_solver = 0;
+			ImGui::SameLine();
+			if (ImGui::RadioButton("Solver B", physics.m_solver == 1)) physics.m_solver = 1;
+
+			ImGui::Text("Simulation frequency: %.1f", static_cast<double>(physics.m_sim_frequency));
+			if (ImGui::Button("-10 Hz")) {
+				physics.m_sim_frequency =
+					std::max(10.0, physics.m_sim_frequency - 10.0);
+				physics.m_sim_delta_time = 1.0_real / physics.m_sim_frequency;
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("+10 Hz")) {
+				physics.m_sim_frequency += 10.0_real;
+				physics.m_sim_delta_time = 1.0_real / physics.m_sim_frequency;
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Next time slot")) {
+				physics.m_current_time += physics.m_sim_delta_time;
+			}
+
+			if (ImGui::RadioButton(
+					"Realtime",
+					physics.m_mode == VPEWorld::simulation_mode_t::SIMULATION_MODE_REALTIME)) {
+				physics.m_mode = VPEWorld::simulation_mode_t::SIMULATION_MODE_REALTIME;
+			}
+			ImGui::SameLine();
+			if (ImGui::RadioButton(
+					"Debug",
+					physics.m_mode == VPEWorld::simulation_mode_t::SIMULATION_MODE_DEBUG)) {
+				physics.m_mode = VPEWorld::simulation_mode_t::SIMULATION_MODE_DEBUG;
+			}
+
+			smoothed_fps = 0.05_real * physics.m_fps + 0.95_real * smoothed_fps;
+			ImGui::Text("Time: %.5f s", physics.m_current_time);
+			ImGui::Text("Physics FPS: %.1f", static_cast<double>(smoothed_fps));
+			ImGui::Text("Bodies: %zu   Contacts: %zu   Active: %.1f",
+							physics.m_bodies.size(), physics.m_contacts.size(),
+							static_cast<double>(physics.m_num_active));
+
+			ImGui::Text("Solver loops: %d", physics.m_loops);
+			if (ImGui::Button("-5 loops")) physics.m_loops = std::max(5, physics.m_loops - 5);
+			ImGui::SameLine();
+			if (ImGui::Button("+5 loops")) physics.m_loops += 5;
+
+			ImGui::Text("Resting factor: %.2f", static_cast<double>(physics.m_resting_factor));
+			if (ImGui::Button("-0.2 resting")) {
+				physics.m_resting_factor =
+					std::max(0.2_real, physics.m_resting_factor - 0.2_real);
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("+0.2 resting")) physics.m_resting_factor += 0.2_real;
+
+			ImGui::Text("Damping increment: %.2f", static_cast<double>(physics.m_damping_incr));
+			if (ImGui::Button("-5 damping")) {
+				physics.m_damping_incr =
+					std::max(0.0_real, physics.m_damping_incr - 5.0_real);
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("+5 damping")) physics.m_damping_incr += 5.0_real;
+
+			ImGui::Text("Position bias: %.2f", static_cast<double>(physics.m_pbias_factor));
+			if (ImGui::Button("-0.1 bias")) {
+				physics.m_pbias_factor =
+					glm::clamp(physics.m_pbias_factor - 0.1_real, 0.0_real, 1.0_real);
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("+0.1 bias")) {
+				physics.m_pbias_factor =
+					glm::clamp(physics.m_pbias_factor + 0.1_real, 0.0_real, 1.0_real);
+			}
+
+			bool align_position_bias = physics.m_align_position_bias == 1;
+			drawBooleanSetting("Align position bias", align_position_bias);
+			physics.m_align_position_bias = align_position_bias ? 1 : 0;
+			bool use_velocity_bias = physics.m_use_vbias == 1;
+			drawBooleanSetting("Use velocity bias", use_velocity_bias);
+			physics.m_use_vbias = use_velocity_bias ? 1 : 0;
+			bool warmstart = physics.m_use_warmstart == 1;
+			drawBooleanSetting("Warmstart all", warmstart);
+			physics.m_use_warmstart = warmstart ? 1 : 0;
+			bool warmstart_single = physics.m_use_warmstart_single == 1;
+			drawBooleanSetting("Warmstart single", warmstart_single);
+			physics.m_use_warmstart_single = warmstart_single ? 1 : 0;
+			drawBooleanSetting("Deactivate resting bodies", physics.m_deactivate);
+			bool clamp_position = physics.m_clamp_position == 1;
+			drawBooleanSetting("Clamp position", clamp_position);
+			physics.m_clamp_position = clamp_position ? 1 : 0;
+
+			if (ImGui::Button("Create 20 bodies")) {
+				addRandomBodies(physics, create_visual, on_move, on_erase, random_generator, random, 20);
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Create stack")) {
+				addStack(physics, create_visual, on_move, on_erase);
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Clear bodies")) physics.clear();
+
+			if (ImGui::Button("Pick body") && physics.m_bodies.size() != 0) {
+				physics.m_body = physics.pickBody(camera_position(), camera_direction());
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Delete body") && physics.m_bodies.size() != 0) {
+				if (auto body = physics.pickBody(camera_position(), camera_direction())) {
+					physics.eraseBody(body);
+				}
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Add collider") && physics.m_body) {
+				physics.addCollider(physics.m_body, on_collide);
+			}
+			if (ImGui::Button("Remove colliders")) physics.clearCollider();
+
+			if (physics.m_body) {
+				ImGui::Text("Current body: %s", physics.m_body->m_name.c_str());
+				const real step = 5.0_real * static_cast<real>(physics.m_sim_delta_time);
+				glmvec3 translation{0.0_real};
+				glmvec3 rotation{0.0_real};
+				if (ImGui::Button("+X")) translation.x = step;
+				ImGui::SameLine();
+				if (ImGui::Button("-X")) translation.x = -step;
+				ImGui::SameLine();
+				if (ImGui::Button("+Y")) translation.y = step;
+				ImGui::SameLine();
+				if (ImGui::Button("-Y")) translation.y = -step;
+				ImGui::SameLine();
+				if (ImGui::Button("+Z")) translation.z = step;
+				ImGui::SameLine();
+				if (ImGui::Button("-Z")) translation.z = -step;
+				if (ImGui::Button("+RX")) rotation.x = step;
+				ImGui::SameLine();
+				if (ImGui::Button("-RX")) rotation.x = -step;
+				ImGui::SameLine();
+				if (ImGui::Button("+RY")) rotation.y = step;
+				ImGui::SameLine();
+				if (ImGui::Button("-RY")) rotation.y = -step;
+				ImGui::SameLine();
+				if (ImGui::Button("+RZ")) rotation.z = step;
+				ImGui::SameLine();
+				if (ImGui::Button("-RZ")) rotation.z = -step;
+
+				physics.m_body->m_positionW += translation;
+				physics.m_body->m_orientationLW =
+					glm::rotate(glmquat{1, 0, 0, 0}, rotation.x, glmvec3{1, 0, 0}) *
+					glm::rotate(glmquat{1, 0, 0, 0}, rotation.y, glmvec3{0, 1, 0}) *
+					glm::rotate(glmquat{1, 0, 0, 0}, rotation.z, glmvec3{0, 0, 1}) *
+					physics.m_body->m_orientationLW;
+				physics.m_body->updateMatrices();
+				on_move(0.0, physics.m_body);
+			}
+		}
+		ImGui::End();
+
+		ImGui::SetNextWindowSize(ImVec2{420.0F, 150.0F}, ImGuiCond_FirstUseEver);
+		if (ImGui::Begin("Constraint Demos")) {
+			if (ImGui::Button("Ball-Socket")) constraints.ballSocketJoint();
+			ImGui::SameLine();
+			if (ImGui::Button("Hinge")) constraints.hingeJoint();
+			ImGui::SameLine();
+			if (ImGui::Button("Slider")) constraints.sliderJoint();
+			ImGui::SameLine();
+			if (ImGui::Button("Fixed")) constraints.fixedJoint();
+			if (ImGui::Button("Bridge")) constraints.bridge();
+			ImGui::SameLine();
+			if (ImGui::Button("Ragdoll")) constraints.ragdoll();
+			ImGui::SameLine();
+			if (ImGui::Button("Cannon")) constraints.sliderCannon();
+			ImGui::SameLine();
+			if (ImGui::Button("Wheel")) constraints.wheel();
+			ImGui::SameLine();
+			if (ImGui::Button("Chain")) constraints.hingeChain();
+		}
+		ImGui::End();
+	});
+
+	const int max_frames = frame_limit.value_or(0);
+	int frame{};
+	bool running = true;
+	while (running && (max_frames == 0 || frame < max_frames)) {
+		const auto frame_input = engine.world().get<vve::WindowSystem>().input();
+		render.setCamera(camera.update(frame_input), windowExtent);
+
+		const auto status = engine.step();
+		if (!status) {
+			std::cerr << "[physicsexample] frame failed: error="
+						 << vve::errorName(status.error()) << '\n';
+			physics.clear();
+			return 3;
+		}
+		++frame;
+		if (*status == vve::FrameStatus::stopped) break;
+
+		const auto input = engine.world().get<vve::WindowSystem>().input();
+		if (input.wasKeyPressed(vve::Key::escape)) running = false;
+		if (input.wasKeyPressed(static_cast<std::int32_t>('b'))) {
+			const auto direction = camera_direction();
+			const glmvec3 velocity =
+				(30.0_real + 5.0_real * random(random_generator)) * direction /
+				glm::length(direction);
+			const real angle = random(random_generator) * 10.0_real * 3.0_real * pi / 180.0_real;
+			const glmvec3 axis = glm::normalize(glmvec3{
+				random(random_generator), random(random_generator), random(random_generator)});
+			(void)addCube(physics, create_visual, on_move, on_erase, glmvec3{1.0_real},
+						camera_position() + 2.0_real * direction,
+						glm::rotate(glmquat{1, 0, 0, 0}, angle, axis), velocity,
+						glmvec3{random(random_generator) * 5.0_real,
+								 random(random_generator) * 5.0_real,
+								 random(random_generator) * 5.0_real});
+		}
+		if (input.wasKeyPressed(static_cast<std::int32_t>('y'))) {
+			addStack(physics, create_visual, on_move, on_erase);
+		}
+		if (input.wasKeyPressed(static_cast<std::int32_t>('z'))) {
+			(void)addCube(physics, create_visual, on_move, on_erase, glmvec3{1.0_real},
+						camera_position() + 2.0_real * camera_direction());
+		}
+		if (input.wasKeyPressed(32)) {
+			static real height = 0.5_real;
+			const glmvec3 position = camera_position();
+			(void)addCube(physics, create_visual, on_move, on_erase, glmvec3{1.0_real},
+						glmvec3{position.x, height++, position.z + 4.0_real});
+		}
+	}
+
+	if (startup_stack) {
+		const bool stable = std::ranges::all_of(physics.m_bodies, [](const auto &entry) {
+			const auto &position = entry.second->m_positionW;
+			return std::isfinite(position.x) && std::isfinite(position.y) &&
+					 std::isfinite(position.z) && glm::length(position) < 1000.0_real;
+		});
+		std::cout << "[physicsexample] stack=" << (stable ? "stable" : "unstable")
+					 << " bodies=" << physics.m_bodies.size() << '\n';
+		if (!stable) {
+			physics.clear();
+			return 4;
+		}
+	}
+	physics.clear();
+	std::cout << "[physicsexample] frames=" << frame << '\n';
 	return 0;
 }

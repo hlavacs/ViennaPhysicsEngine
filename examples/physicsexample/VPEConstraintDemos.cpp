@@ -1,16 +1,18 @@
 #include "VPEConstraintDemos.hpp"
 
+#include <thread>
+
 using namespace vpe;
 
 namespace ve {
 	std::shared_ptr<VPEWorld::Body> ConstraintDemos::createAndAddCube(glmvec3 scale, glmvec3 position, glmquat orientation, real inv_mass, bool gravity, real friction) {
-		VESceneNode* cube;
-		VECHECKPOINTER(cube = getSceneManagerPointer()->loadModel("The Cube" + std::to_string(m_physics->m_body_id), "../../media/models/test/crate0", "cube.obj", 0, getRoot()));
-		auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), cube, &m_physics->g_cube, scale, position, orientation, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, inv_mass, m_physics->m_restitution, friction);
+		void *visual = m_createVisual(scale, position, orientation);
+		auto body = std::make_shared<VPEWorld::Body>(m_physics, "Body" + std::to_string(m_physics->m_bodies.size()), visual, &m_physics->g_cube, scale, position, orientation, glmvec3{ 0.0_real }, glmvec3{ 0.0_real }, inv_mass, m_physics->m_restitution, friction);
 		body->m_on_move = m_onMove;
 		body->m_on_erase = m_onErase;
 		m_physics->addBody(body);
 		if (gravity) body->setForce(0ul, VPEWorld::Force{ {0, m_physics->c_gravity, 0} });
+		m_onMove(0.0, body);
 
 		return body;
 	}
@@ -31,7 +33,8 @@ namespace ve {
 			bodies.push_back(body);
 
 			pos -= init_pos;
-			pos = glm::rotate(rot_amount, glmvec3(0, 0, 1)) * glmvec4(pos, 1.0_real);
+			pos = glm::rotate(glmmat4{1.0_real}, rot_amount, glmvec3(0, 0, 1)) *
+					 glmvec4(pos, 1.0_real);
 			pos += init_pos;
 		}
 
@@ -45,8 +48,8 @@ namespace ve {
 	}
 
 	void ConstraintDemos::bridge() {
-		glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
-		glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
+		glmvec3 positionCamera = m_cameraPosition();
+		glmvec3 dir = m_cameraDirection();
 
 		positionCamera = positionCamera + 2.0_real * dir;
 		real cubeMass = 0;
@@ -70,8 +73,8 @@ namespace ve {
 	}
 
 	void ConstraintDemos::hingeJoint() {
-		glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
-		glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
+		glmvec3 positionCamera = m_cameraPosition();
+		glmvec3 dir = m_cameraDirection();
 		positionCamera[1] += 2.0_real;
 
 		glmvec3 cubePos1 = positionCamera + 2.0_real * dir;
@@ -90,8 +93,8 @@ namespace ve {
 	}
 
 	void ConstraintDemos::ballSocketJoint() {
-		glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
-		glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
+		glmvec3 positionCamera = m_cameraPosition();
+		glmvec3 dir = m_cameraDirection();
 		positionCamera[1] += 3.0_real;
 
 		glmvec3 cubePos1 = positionCamera + 2.0_real * dir;
@@ -107,8 +110,8 @@ namespace ve {
 	}
 
 	void ConstraintDemos::wheel() {
-		glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
-		glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
+		glmvec3 positionCamera = m_cameraPosition();
+		glmvec3 dir = m_cameraDirection();
 
 		glmvec3 centerPos = positionCamera + 2.0_real * dir;
 		centerPos[1] += 7.0_real;
@@ -150,8 +153,8 @@ namespace ve {
 	}
 
 	void ConstraintDemos::fixedJoint() {
-		glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
-		glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
+		glmvec3 positionCamera = m_cameraPosition();
+		glmvec3 dir = m_cameraDirection();
 		positionCamera[1] += 3.0_real;
 
 		glmvec3 cubePos1 = positionCamera + 2.0_real * dir;
@@ -168,8 +171,8 @@ namespace ve {
 	}
 
 	void ConstraintDemos::sliderCannon() {
-		glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
-		glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
+		glmvec3 positionCamera = m_cameraPosition();
+		glmvec3 dir = m_cameraDirection();
 
 		glmvec3 cubePos1 = positionCamera + 2.0_real * dir;
 		glmvec3 cubePos2 = cubePos1;
@@ -231,8 +234,8 @@ namespace ve {
 	}
 
 	void ConstraintDemos::hingeChain() {
-		glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
-		glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
+		glmvec3 positionCamera = m_cameraPosition();
+		glmvec3 dir = m_cameraDirection();
 
 		glmvec3 pos = positionCamera + 2.0_real * dir;
 		pos[1] += 14.0_real;
@@ -273,8 +276,8 @@ namespace ve {
 	}
 
 	void ConstraintDemos::sliderJoint() {
-		glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
-		glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
+		glmvec3 positionCamera = m_cameraPosition();
+		glmvec3 dir = m_cameraDirection();
 
 		glmvec3 cubePos1 = positionCamera + 2.0_real * dir;
 		glmvec3 cubePos2 = cubePos1;
@@ -291,8 +294,8 @@ namespace ve {
 	}
 
 	void ConstraintDemos::ragdoll() {
-		glmvec3 positionCamera{ getSceneManagerPointer()->getSceneNode("StandardCameraParent")->getWorldTransform()[3] };
-		glmvec3 dir{ getSceneManagerPointer()->getSceneNode("StandardCamera")->getWorldTransform()[2] };
+		glmvec3 positionCamera = m_cameraPosition();
+		glmvec3 dir = m_cameraDirection();
 
 		glmvec3 centerPos = positionCamera + 2.0_real * dir;
 		centerPos[1] += 2;

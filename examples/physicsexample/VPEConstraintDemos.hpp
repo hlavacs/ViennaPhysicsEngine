@@ -1,81 +1,45 @@
 #pragma once
 
-#include "VEInclude.h"
 #include "VPE.hpp"
 
-using namespace vpe;
-
 namespace ve {
-	/// <summary>
-	/// Class that implements a few demos for constraints
-	/// I put all the code in here to not clutter main.cpp and the keybinds too much
-	/// </summary>
-	class ConstraintDemos {
-		VPEWorld* m_physics;
-		VPEWorld::callback_move m_onMove;
-		VPEWorld::callback_erase m_onErase;
 
-	public:
-		ConstraintDemos(VPEWorld* physics, VPEWorld::callback_move onMove, VPEWorld::callback_erase onErase) : m_physics{ physics }, m_onMove{ onMove }, m_onErase{ onErase } {}
-		~ConstraintDemos() {}
+/// Creates the rigid-body constraint demonstrations used by the example GUI.
+class ConstraintDemos {
+public:
+	using create_visual_callback = std::function<void *(glmvec3, glmvec3, glmquat)>;
+	using camera_callback = std::function<glmvec3()>;
 
-		/// <summary>
-		/// Creates a cube object with the given paramteres, adds it to physics world and returns the pointer to the VPEWorld::Body created
-		/// </summary>
-		/// <param name="scale"></param>
-		/// <param name="position"></param>
-		/// <param name="orientation"></param>
-		/// <param name="inv_mass"></param>
-		/// <param name="gravity"></param>
-		/// <param name="friction"></param>
-		/// <returns></returns>
-		std::shared_ptr<VPEWorld::Body> createAndAddCube(glmvec3 scale, glmvec3 position, glmquat orientation, real inv_mass, bool gravity, real friction = 1.0_real);
+	ConstraintDemos(vpe::VPEWorld *physics, vpe::VPEWorld::callback_move on_move,
+						 vpe::VPEWorld::callback_erase on_erase, create_visual_callback create_visual,
+						 camera_callback camera_position, camera_callback camera_direction)
+		: m_physics{physics}, m_onMove{std::move(on_move)}, m_onErase{std::move(on_erase)},
+		  m_createVisual{std::move(create_visual)}, m_cameraPosition{std::move(camera_position)},
+		  m_cameraDirection{std::move(camera_direction)} {}
 
-		/// <summary>
-		/// Creates a wheel-like structure with one center cube at init_pos and num_cubes rotated equally around it
-		/// </summary>
-		/// <param name="init_pos"></param>
-		/// <param name="num_cubes"></param>
-		/// <returns>Returns a pointer to the center cube's body</returns>
-		std::shared_ptr<VPEWorld::Body> createWheel(glmvec3 init_pos, int num_cubes);
+	std::shared_ptr<vpe::VPEWorld::Body> createAndAddCube(
+		glmvec3 scale, glmvec3 position, glmquat orientation, real inv_mass, bool gravity,
+		real friction = 1.0_real);
 
-		/// <summary>
-		/// Spawns a bridge using distance constraints
-		/// </summary>
-		void bridge();
-		/// <summary>
-		/// Spawns a simple hinge joint
-		/// </summary>
-		void hingeJoint();
-		/// <summary>
-		/// Spawns a simple ball-and-socket joint
-		/// </summary>
-		void ballSocketJoint();
-		/// <summary>
-		/// Spawns a automatically moving wheel using hinge and fixed joints
-		/// The motor will revert every 10 seconds
-		/// </summary>
-		void wheel();
-		/// <summary>
-		/// Spawns a simple fixed joint
-		/// </summary>
-		void fixedJoint();
-		/// <summary>
-		/// Spawns a slider cannon. Un-comment the not-thread safe code here if you want to spawn things to shoot away as well
-		/// </summary>
-		void sliderCannon();
-		/// <summary>
-		/// Spawns a hinge chain. After some time, a motor will kick in
-		/// </summary>
-		void hingeChain();
-		/// <summary>
-		/// Spawns a simple slider joint
-		/// </summary>
-		void sliderJoint();
-		/// <summary>
-		/// Spawns a (rather sad) attempt at ragdoll physics
-		/// </summary>
-		void ragdoll();
-	};
-}
+	std::shared_ptr<vpe::VPEWorld::Body> createWheel(glmvec3 init_pos, int num_cubes);
 
+	void bridge();
+	void hingeJoint();
+	void ballSocketJoint();
+	void wheel();
+	void fixedJoint();
+	void sliderCannon();
+	void hingeChain();
+	void sliderJoint();
+	void ragdoll();
+
+private:
+	vpe::VPEWorld *m_physics;
+	vpe::VPEWorld::callback_move m_onMove;
+	vpe::VPEWorld::callback_erase m_onErase;
+	create_visual_callback m_createVisual;
+	camera_callback m_cameraPosition;
+	camera_callback m_cameraDirection;
+};
+
+} // namespace ve
