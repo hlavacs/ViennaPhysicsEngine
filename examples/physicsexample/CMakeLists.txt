@@ -11,21 +11,34 @@ if(NOT EXISTS "${VVE_V3_ROOT}/src/Engine.ixx"
     # layout; keep the documented sibling layout as the primary location.
     set(VVE_V3_ROOT "${CMAKE_SOURCE_DIR}/../../ViennaVulkanEngine")
 endif()
-set(VVE_V3_VCPKG_ROOT "${VVE_V3_ROOT}/vcpkg_installed/x64-linux")
+if(APPLE)
+    set(VVE_V3_PLATFORM_BUILD_DIR "macos-release")
+    set(VVE_V3_VCPKG_TRIPLET "arm64-osx")
+    set(VVE_V3_LIBRARY_NAME "libViennaVulkanEngine.dylib")
+    set(VVE_V3_VULKAN_LIBRARY_NAME "libvulkan.dylib")
+else()
+    set(VVE_V3_PLATFORM_BUILD_DIR "release-linux")
+    set(VVE_V3_VCPKG_TRIPLET "x64-linux")
+    set(VVE_V3_LIBRARY_NAME "libViennaVulkanEngine.so")
+    set(VVE_V3_VULKAN_LIBRARY_NAME "libvulkan.so")
+endif()
+
+set(VVE_V3_VCPKG_ROOT
+    "${VVE_V3_ROOT}/vcpkg_installed/${VVE_V3_VCPKG_TRIPLET}")
 set(VVE_V3_LIBRARY
-    "${VVE_V3_ROOT}/bin/release/lib/libViennaVulkanEngine.so")
+    "${VVE_V3_ROOT}/bin/release/lib/${VVE_V3_LIBRARY_NAME}")
 set(VVE_V3_MODULE_DIR
-    "${VVE_V3_ROOT}/build/release-linux/src/CMakeFiles/ViennaVulkanEngine.dir")
+    "${VVE_V3_ROOT}/build/${VVE_V3_PLATFORM_BUILD_DIR}/src/CMakeFiles/ViennaVulkanEngine.dir")
 set(VVE_V3_STD_MODULE_DIR
-    "${VVE_V3_ROOT}/build/release-linux/src/CMakeFiles/__cmake_cxx_std_23.dir")
+    "${VVE_V3_ROOT}/build/${VVE_V3_PLATFORM_BUILD_DIR}/src/CMakeFiles/__cmake_cxx_std_23.dir")
 set(VVE_V3_STD_MODULE_LIBRARY
-    "${VVE_V3_ROOT}/build/release-linux/src/lib__cmake_cxx_std_23.a")
+    "${VVE_V3_ROOT}/build/${VVE_V3_PLATFORM_BUILD_DIR}/src/lib__cmake_cxx_std_23.a")
 
 # FindVulkan does not discover the loader in VVE's local vcpkg installation
 # automatically. Set both cache entries before find_package so the example uses
 # the same Vulkan headers and loader as the prebuilt VVE V3 library.
 set(Vulkan_LIBRARY
-    "${VVE_V3_VCPKG_ROOT}/lib/libvulkan.so"
+    "${VVE_V3_VCPKG_ROOT}/lib/${VVE_V3_VULKAN_LIBRARY_NAME}"
     CACHE FILEPATH "Vulkan loader from the VVE V3 vcpkg installation" FORCE)
 set(Vulkan_INCLUDE_DIR
     "${VVE_V3_VCPKG_ROOT}/include"
