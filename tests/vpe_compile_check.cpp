@@ -98,7 +98,7 @@ int main()
 
 	vpe::VPEWorld::ClothMassPoint damped({ 0, 1, 0 });
 	damped.vel = { -1, 0, 0 };
-	damped.damp(1._real);
+	damped.damp(1._real, 0.1_real, 0._real);
 	success &= check(damped.vel.x < 0._real && damped.vel.x > -1._real,
 		"damping did not reduce a negative velocity");
 
@@ -113,9 +113,9 @@ int main()
 	vpe::VPEWorld::ClothMassPoint second({ 1, 0, 0 });
 	first.invMass = 1._real;
 	second.invMass = 1._real;
-	vpe::VPEWorld::ClothConstraint constraint(&first, &second, 0._real);
+	vpe::VPEWorld::ClothConstraint constraint(&first, &second, false);
 	second.pos = first.pos;
-	constraint.solve(1._real / 60._real);
+	constraint.solve(1._real / 60._real, 0._real);
 	success &= check(std::isfinite(first.pos.x) && std::isfinite(second.pos.x),
 		"zero-length constraint produced a non-finite position");
 
