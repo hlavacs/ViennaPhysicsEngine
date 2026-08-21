@@ -43,6 +43,11 @@ struct BodyVisual {
 	vve::RenderObjectHandle object;
 };
 
+struct ClothVisual {
+	vve::RenderSystem render;
+	vve::RenderObjectHandle surface;
+};
+
 struct PhysicsTickSystem {
 	VPEWorld *physics{};
 
@@ -88,6 +93,16 @@ struct PhysicsTickSystem {
 		const auto result = std::from_chars(text.data(), text.data() + text.size(), value);
 		if (result.ec == std::errc{} && value >= 0) {
 			return value;
+		}
+	}
+	return std::nullopt;
+}
+
+[[nodiscard]] std::optional<std::filesystem::path> capturePath(int argc, char **argv) {
+	for (int index = 1; index + 1 < argc; ++index) {
+		if (argv[index] != nullptr && argv[index + 1] != nullptr &&
+			std::string_view{argv[index]} == "--capture") {
+			return std::filesystem::path{argv[index + 1]};
 		}
 	}
 	return std::nullopt;
@@ -140,6 +155,124 @@ struct PhysicsTickSystem {
 		}
 		delete visual;
 	};
+}
+
+[[nodiscard]] VPEWorld::callback_move_cloth makeClothMoveCallback() {
+	return [](double, std::shared_ptr<VPEWorld::Cloth> cloth) {
+		auto *visual = static_cast<ClothVisual *>(cloth->m_owner);
+		if (visual == nullptr) return;
+
+		const auto vertices = cloth->generateVertices();
+		vve::Vector<vve::Vec3> positions;
+		positions.reserve(vertices.size());
+		for (const glmvec3 &vertex : vertices) {
+			positions.push_back(vve::Vec3{static_cast<float>(vertex.x),
+				static_cast<float>(vertex.y), static_cast<float>(vertex.z)});
+		}
+		if (const auto result = visual->render.setObjectMeshPositions(
+			visual->surface, std::move(positions)); !result) {
+			std::cerr << "[physicsexample] cloth update failed: error="
+					 << vve::errorName(result.error()) << '\n';
+		}
+	};
+}
+
+[[nodiscard]] VPEWorld::callback_erase_cloth makeClothEraseCallback() {
+	return [](std::shared_ptr<VPEWorld::Cloth> cloth) {
+		auto *visual = static_cast<ClothVisual *>(cloth->m_owner);
+		if (visual == nullptr) return;
+		if (const auto result = visual->render.removeObject(visual->surface); !result) {
+			std::cerr << "[physicsexample] cloth removal failed: error="
+					 << vve::errorName(result.error()) << '\n';
+		}
+		delete visual;
+	};
+}
+
+[[nodiscard]] std::shared_ptr<VPEWorld::Cloth> addClothGrid(
+	VPEWorld &physics, vve::RenderSystem render, glmvec3 center, glmvec3 right) {
+	constexpr std::size_t columns = 13;
+	constexpr std::size_t rows = 10;
+	constexpr real width = 4.0_real;
+	constexpr real height = 3.0_real;
+
+	std::vector<glmvec3> vertices;
+	std::vector<glmvec3> fixed_points;
+	std::vector<std::uint32_t> indices;
+	vertices.reserve(columns * rows);
+	fixed_points.reserve(columns);
+	indices.reserve((columns - 1) * (rows - 1) * 6);
+
+	for (std::size_t row = 0; row < rows; ++row) {
+		const real vertical = height * (0.5_real - static_cast<real>(row) /
+			static_cast<real>(rows - 1));
+		for (std::size_t column = 0; column < columns; ++column) {
+			const real horizontal = width * (static_cast<real>(column) /
+				static_cast<real>(columns - 1) - 0.5_real);
+			vertices.push_back(center + horizontal * right + glmvec3{0, vertical, 0});
+			if (row == 0 && (column == 0 || column + 1 == columns)) {
+				fixed_points.push_back(vertices.back());
+			}
+		}
+	}
+
+	for (std::size_t row = 0; row + 1 < rows; ++row) {
+		for (std::size_t column = 0; column + 1 < columns; ++column) {
+			const auto top_left = static_cast<std::uint32_t>(row * columns + column);
+			const auto top_right = top_left + 1;
+			const auto bottom_left = static_cast<std::uint32_t>((row + 1) * columns + column);
+			const auto bottom_right = bottom_left + 1;
+			indices.insert(indices.end(), {
+				top_left, bottom_left, top_right,
+				top_right, bottom_left, bottom_right
+			});
+		}
+	}
+
+	vve::Vector<vve::Vec3> render_positions;
+	render_positions.reserve(vertices.size());
+	for (const glmvec3 &vertex : vertices) {
+		render_positions.push_back(vve::Vec3{static_cast<float>(vertex.x),
+			static_cast<float>(vertex.y), static_cast<float>(vertex.z)});
+	}
+	vve::Vector<std::uint32_t> render_indices;
+	render_indices.reserve(indices.size() * 2U);
+	for (std::size_t index = 0; index < indices.size(); index += 3U) {
+		const auto first = indices[index];
+		const auto second = indices[index + 1U];
+		const auto third = indices[index + 2U];
+		render_indices.push_back(first);
+		render_indices.push_back(second);
+		render_indices.push_back(third);
+		render_indices.push_back(third);
+		render_indices.push_back(second);
+		render_indices.push_back(first);
+	}
+
+	const auto surface = render.addTriangleMesh(
+		std::move(render_positions), std::move(render_indices),
+		vve::LinearColor{.value = vve::Vec3{0.88F, 0.22F, 0.18F}});
+	if (!surface) {
+		throw std::runtime_error{
+			"cloth surface creation failed: " + std::string{vve::errorName(surface.error())}};
+	}
+
+	auto visual = std::make_unique<ClothVisual>(
+		ClothVisual{.render = render, .surface = *surface});
+	try {
+		const auto on_move = makeClothMoveCallback();
+		const auto on_erase = makeClothEraseCallback();
+		auto cloth = std::make_shared<VPEWorld::Cloth>(
+			&physics, "Cloth" + std::to_string(physics.m_cloths.size()), visual.get(),
+			on_move, on_erase, vertices, indices, fixed_points, 0.0005_real, 8, 0.8_real);
+		on_move(0.0, cloth);
+		physics.addCloth(cloth);
+		visual.release();
+		return cloth;
+	} catch (...) {
+		(void)render.removeObject(*surface);
+		throw;
+	}
 }
 
 [[nodiscard]] ve::ConstraintDemos::create_visual_callback makeVisualFactory(
@@ -404,7 +537,9 @@ int main(int argc, char **argv) {
 
 	VPEWorld physics;
 	const bool startup_stack = hasArgument(argc, argv, "--stack");
+	const bool startup_cloth = hasArgument(argc, argv, "--cloth");
 	const auto frame_limit = frameLimit(argc, argv);
+	const auto capture_path = capturePath(argc, argv);
 	if (startup_stack && frame_limit) {
 		return runHeadlessStack(physics, *frame_limit);
 	}
@@ -450,6 +585,27 @@ int main(int argc, char **argv) {
 	const auto create_visual = makeVisualFactory(render, crateTexture());
 	auto camera_position = [&camera] { return physicsVector(camera.eye.value); };
 	auto camera_direction = [&camera] { return physicsVector(cameraForward(camera)); };
+	auto create_cloth = [&] {
+		try {
+			const glmvec3 forward = camera_direction();
+			glmvec3 horizontal_forward{forward.x, 0, forward.z};
+			if (glm::dot(horizontal_forward, horizontal_forward) <= c_eps) {
+				horizontal_forward = {0, 0, 1};
+			} else {
+				horizontal_forward = glm::normalize(horizontal_forward);
+			}
+			const glmvec3 right = glm::normalize(
+				glm::cross(glmvec3{0, 1, 0}, horizontal_forward));
+			glmvec3 center = camera_position() + 6.0_real * forward;
+			center.y = std::max(center.y, 3.5_real);
+			(void)addClothGrid(physics, render, center, right);
+			std::cout << "[physicsexample] cloth created; count="
+					 << physics.m_cloths.size() << '\n';
+		} catch (const std::exception &error) {
+			std::cerr << "[physicsexample] cloth creation failed: " << error.what() << '\n';
+		}
+	};
+	if (startup_cloth) create_cloth();
 	ve::ConstraintDemos constraints{
 		&physics, on_move, on_erase, create_visual, camera_position, camera_direction};
 
@@ -564,6 +720,9 @@ int main(int argc, char **argv) {
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("Clear bodies")) physics.clear();
+			if (ImGui::Button("Create cloth")) create_cloth();
+			ImGui::SameLine();
+			if (ImGui::Button("Clear cloths")) physics.clearCloths();
 
 			if (ImGui::Button("Pick body") && physics.m_bodies.size() != 0) {
 				physics.m_body = physics.pickBody(camera_position(), camera_direction());
@@ -661,6 +820,7 @@ int main(int argc, char **argv) {
 		if (!status) {
 			std::cerr << "[physicsexample] frame failed: error="
 						 << vve::errorName(status.error()) << '\n';
+			physics.clearCloths();
 			physics.clear();
 			return 3;
 		}
@@ -669,6 +829,9 @@ int main(int argc, char **argv) {
 
 		const auto input = engine.world().get<vve::WindowSystem>().input();
 		if (input.wasKeyPressed(vve::Key::escape)) running = false;
+		if (input.wasKeyPressed(static_cast<std::int32_t>('c'))) {
+			create_cloth();
+		}
 		if (input.wasKeyPressed(static_cast<std::int32_t>('b'))) {
 			const auto direction = camera_direction();
 			const glmvec3 velocity =
@@ -708,11 +871,23 @@ int main(int argc, char **argv) {
 		std::cout << "[physicsexample] stack=" << (stable ? "stable" : "unstable")
 					 << " bodies=" << physics.m_bodies.size() << '\n';
 		if (!stable) {
+			physics.clearCloths();
 			physics.clear();
 			return 4;
 		}
 	}
+	int result_code{};
+	if (capture_path) {
+		if (const auto captured = render.captureFrameToPng(*capture_path); !captured) {
+			std::cerr << "[physicsexample] frame capture failed: error="
+					 << vve::errorName(captured.error()) << '\n';
+			result_code = 5;
+		} else {
+			std::cout << "[physicsexample] capture=" << capture_path->string() << '\n';
+		}
+	}
+	physics.clearCloths();
 	physics.clear();
 	std::cout << "[physicsexample] frames=" << frame << '\n';
-	return 0;
+	return result_code;
 }
