@@ -2915,7 +2915,6 @@ export namespace vpe {
 			const real c_verySmall = c_small / 50.0_real;											// Even smaller threshold value
 			const real c_collisionMargin = 0.045_real;												// Margin for collision detection with polytopes to avoid glitches
 			const real c_groundFriction = 300._real;												// Velocity decay rate when sliding on the ground
-			const real c_damping = 0.1_real;														// Amount of damping
 
 		public:
 			/// <summary>
@@ -2975,10 +2974,15 @@ export namespace vpe {
 			/// avoid losing a degree of freedom.
 			/// </summary>
 			/// <param name="dt"> Delta time. </param>
-			void damp(real dt)
+			/// <param name="coefficient"> Linear decay rate per second, Cloth::m_air_damping. </param>
+			/// <param name="quadratic"> Speed proportional extra decay, Cloth::m_air_damping_quadratic.
+			/// Real aerodynamic drag grows with the square of speed, so this term is what slows a
+			/// violently flapping cloth quickly while leaving a gentle sway almost untouched. </param>
+			void damp(real dt, real coefficient, real quadratic)
 			{
 				if (glm::dot(vel, vel) > c_verySmall * c_verySmall) {
-					real factor = std::clamp(c_damping * std::max(dt, 0._real), 0._real, 1._real);
+					const real rate = coefficient + quadratic * glm::length(vel);
+					real factor = std::clamp(rate * std::max(dt, 0._real), 0._real, 1._real);
 					vel *= 1._real - factor;
 				}
 			}
@@ -3004,15 +3008,26 @@ export namespace vpe {
 
 					glmvec3 normalW{};
 					real depth{ 0._real };
-					if (queryPolytopeContact(*body, pos, pos, c_collisionMargin, normalW, depth))
+					if (queryPolytopeContact(*body, pos, pos, body->m_model_inv,
+						c_collisionMargin, normalW, depth))
 						applyPositionCorrection(depth * normalW);
 				}
 			}
 
 			/// <summary>
 			/// Test a point against a convex polytope. Reports the minimum translation that frees
-			/// the point, in world space. The segment the point travelled along during the substep
-			/// is tested as well, so a thin cloth cannot tunnel through a fast moving body.
+			/// the point, in world space.
+			///
+			/// The test is swept in RELATIVE terms: the point's previous position is transformed
+			/// with the body's PREVIOUS model matrix, its current position with the current one, so
+			/// the segment between them describes the true relative motion of point and body. This
+			/// matters for a fast body hitting a slow cloth. In body local space a resting cloth
+			/// point then appears to rush INTO the polytope, and the entry face tells us which side
+			/// it came from. Without this (the previous version transformed both endpoints with the
+			/// current matrix) the body's own travel was invisible: a cube moving half its own
+			/// thickness per frame put resting cloth points past its midplane in one step, the
+			/// minimum translation then pointed out the BACK face, the sheet was ejected behind the
+			/// body, and the body flew straight through the cloth.
 			///
 			/// This only reports a contact, it does not resolve it. Resolving is the job of
 			/// Cloth::resolveBodyContacts, which applies the reaction to the body too.
@@ -3020,33 +3035,55 @@ export namespace vpe {
 			/// <param name="body"> Body to test against. </param>
 			/// <param name="currentPos"> Current world position of the point. </param>
 			/// <param name="previousPos"> World position of the point before the substep. Pass
-			/// currentPos to disable the swept test. </param>
+			/// currentPos to reduce this to a static test. </param>
+			/// <param name="previousModelInv"> Inverse model matrix of the body BEFORE its last
+			/// integration step (from m_previous_positionW / m_previous_orientationLW). Pass
+			/// body.m_model_inv when the body's own motion should be ignored, e.g. in the
+			/// kinematic path. </param>
 			/// <param name="margin"> Collision margin. Keeps the cloth slightly off the surface. </param>
 			/// <param name="normalW"> Out: unit escape direction in world space, pointing out of
 			/// the body. </param>
 			/// <param name="depth"> Out: distance the point must travel along normalW to be free. </param>
 			/// <returns> True if there is a contact. </returns>
 			static bool queryPolytopeContact(const Body& body, const glmvec3& currentPos,
-				const glmvec3& previousPos, real margin, glmvec3& normalW, real& depth)
+				const glmvec3& previousPos, const glmmat4& previousModelInv, real margin,
+				glmvec3& normalW, real& depth)
 			{
 				if (!body.m_polytope || body.m_polytope->m_faces.empty()) return false;
 
 				const glmvec3 currentL = glmvec3{ body.m_model_inv * glmvec4{ currentPos, 1._real } };
-				const glmvec3 previousL = glmvec3{ body.m_model_inv * glmvec4{ previousPos, 1._real } };
+				const glmvec3 previousL = glmvec3{ previousModelInv * glmvec4{ previousPos, 1._real } };
 
 				const Face* contactFace = nullptr;
 				real separation = -std::numeric_limits<real>::infinity();
+				bool previousOutside = false;
 
 				for (const Face& face : body.m_polytope->m_faces)									// Signed distance to every inflated face plane.
 				{																					// The polytope is convex, so the point is inside
 					const real distance = glm::dot(currentL -										// only if it is behind every single one of them.
 						face.m_face_vertex_ptrs[0]->m_positionL, face.m_normalL) - margin;
+					if (glm::dot(previousL - face.m_face_vertex_ptrs[0]->m_positionL,
+						face.m_normalL) - margin >= 0._real)
+						previousOutside = true;														// The relative motion started outside the body
 					if (distance >= 0._real) { contactFace = nullptr; break; }						// In front of a face means outside
 					if (distance > separation) { separation = distance; contactFace = &face; }		// Least penetrating face = minimum translation
 				}
 
-				if (!contactFace)																	// Outside right now, but the point may have
-				{																					// swept clean through the body during the substep
+				if (contactFace && previousOutside)													// Inside now but outside a step ago: push the point
+				{																					// back out the face it ENTERED through, never the
+					const Face* entryFace = nullptr;												// nearest one. For a fast body the nearest face is
+					if (sweptEntryFace(body, previousL, currentL, margin, entryFace) &&				// soon the far one, which would hand the point to
+						entryFace)																	// the wrong side of the body.
+					{
+						contactFace = entryFace;
+						separation = glm::dot(currentL -
+							contactFace->m_face_vertex_ptrs[0]->m_positionL,
+							contactFace->m_normalL) - margin;
+					}
+				}
+
+				if (!contactFace)																	// Outside right now, but the relative motion may
+				{																					// have swept clean through the body this substep
 					if (!sweptEntryFace(body, previousL, currentL, margin, contactFace))
 						return false;
 					separation = glm::dot(currentL -												// Measure against the face it entered through,
@@ -3126,17 +3163,21 @@ export namespace vpe {
 			ClothMassPoint* point0;
 			ClothMassPoint* point1;
 			real length;																			// The inital legnth between the points
-			real compliance;																		// The inverse of stiffness. So if compliance is 0, the cloth is infinitely stiff
-			const real c_threshold = 0.0001_real;													// Points are only modified if the length difference is greater tthan this
+			bool isBending;																			// Bending constraints take Cloth::m_bending_compliance, stretch
+			const real c_threshold = 0.0001_real;													// constraints take Cloth::m_stretch_compliance. The compliance is
+																										// passed in at solve time rather than stored, so that both can be
+																										// tuned while the simulation is running.
 
 			/// <summary>
-			/// Constructor that calculates the length of the constraint and sets the compliance.
+			/// Constructor that calculates the rest length of the constraint.
 			/// </summary>
 			/// <param name="point0"> First mass point. </param>
 			/// <param name="point1"> Second mass point. </param>
-			/// <param name="compliance"> Compliance. The inverse of stiffness. </param>
-			ClothConstraint(ClothMassPoint* point0, ClothMassPoint* point1, real compliance)
-				: point0{ point0 }, point1{ point1 }, compliance{ compliance }
+			/// <param name="isBending"> True for a bending constraint across a shared edge, false
+			/// for a stretch constraint along a mesh edge. Decides which of the cloth's two
+			/// compliance values applies. </param>
+			ClothConstraint(ClothMassPoint* point0, ClothMassPoint* point1, bool isBending)
+				: point0{ point0 }, point1{ point1 }, isBending{ isBending }
 			{
 				length = glm::distance(point0->pos, point1->pos);
 			}
@@ -3149,7 +3190,10 @@ export namespace vpe {
 			/// https://matthias-research.github.io/pages/publications/XPBD.pdf
 			/// </summary>
 			/// <param name="dt"> Delta time. </param>
-			void solve(real dt) const
+			/// <param name="compliance"> Inverse stiffness. 0 makes the constraint perfectly rigid.
+			/// Its influence is compliance / dt^2, so with the default 8 substeps at 60 Hz a value
+			/// around 1e-4 is roughly as strong as the mass terms themselves. </param>
+			void solve(real dt, real compliance) const
 			{
 				if (dt <= c_eps || (point0->isFixed && point1->isFixed))
 					return;
@@ -3197,6 +3241,48 @@ export namespace vpe {
 					}
 				}
 			}
+
+			/// <summary>
+			/// Viscous damping along the constraint. Removes a fraction of the rate at which the
+			/// two points are moving towards or away from each other.
+			///
+			/// This is what takes the violence out of an impact. A position based solver with stiff
+			/// constraints turns a hard hit into a lot of high frequency stretching energy: the
+			/// constraint solve corrects a large position error and then derives the velocity from
+			/// that correction, so a cloth struck by a fast body ends up with mass points moving
+			/// several times faster than the body that hit it. Damping the stretch rate bleeds
+			/// exactly that energy away.
+			///
+			/// It deliberately does not touch motion in which the whole sheet moves together: for
+			/// rigid body like motion the relative velocity along every constraint is zero, so the
+			/// pendulum swing of a hanging cloth survives untouched. Use Cloth::m_air_damping to
+			/// slow that down instead. Momentum is conserved either way.
+			/// </summary>
+			/// <param name="factor"> Fraction of the relative velocity to remove, 0 to 1. </param>
+			void dampVelocity(real factor) const
+			{
+				if (factor <= 0._real || (point0->isFixed && point1->isFixed))
+					return;
+
+				const glmvec3 delta = point1->pos - point0->pos;
+				const real length = glm::length(delta);
+				if (length <= c_eps) return;
+				const glmvec3 direction = delta / length;
+
+				const real stretchRate = glm::dot(point1->vel - point0->vel, direction);
+				if (fabs(stretchRate) <= c_eps) return;
+
+				const real inverseMass0 = point0->isFixed ? 0._real : point0->invMass;
+				const real inverseMass1 = point1->isFixed ? 0._real : point1->invMass;
+				const real inverseMassSum = inverseMass0 + inverseMass1;
+				if (inverseMassSum <= c_eps) return;
+
+				const glmvec3 impulse = (std::clamp(factor, 0._real, 1._real) *
+					stretchRate / inverseMassSum) * direction;
+
+				if (!point0->isFixed) point0->vel += inverseMass0 * impulse;
+				if (!point1->isFixed) point1->vel -= inverseMass1 * impulse;
+			}
 		};
 
 		/// <summary>
@@ -3209,14 +3295,68 @@ export namespace vpe {
 		{
 		public:
 			std::string	m_name;										// Name of the cloth
-			void* m_owner;											// Pointer to owner of this body, must be unique (owner is called if cloth moves)									
+			void* m_owner;											// Pointer to owner of this body, must be unique (owner is called if cloth moves)
 			callback_move_cloth m_on_move;							// Called if the cloth moves
 			callback_erase_cloth m_on_erase;						// Called if the cloth is erased
+
+			//---------------------------------------------------------------------------------
+			// Tunable material parameters. Safe to change at any time, also from a GUI.
+
+			/// Air resistance: fraction of the absolute velocity removed per second. This is the
+			/// knob that slows down the overall swinging of a hanging cloth. 0 is a cloth in a
+			/// vacuum which will swing forever, 1.5 is a fairly light fabric, 4 and above reads as
+			/// something heavy and airless like a wet towel. Never set it to exactly 0 or the sheet
+			/// keeps every bit of energy it is ever given. The default settles a struck curtain in about
+			/// six seconds; raise it towards 2 for a heavier fabric, lower it towards 0.3 for a livelier one.
+			real m_air_damping{ 0.8_real };
+
+			/// Quadratic part of the air resistance: decay rate per second grows by this much per
+			/// m/s of point speed. Aerodynamic drag really does grow with the square of speed, and
+			/// this is the knob that separates the two regimes the eye cares about: a curtain
+			/// billowing at 20 m/s after a hard hit sheds its energy in a second or two, while the
+			/// slow settling sway (below ~1 m/s) is barely affected, because there the linear term
+			/// dominates. Set to 0 for the pure linear behaviour.
+			real m_air_damping_quadratic{ 0.06_real };
+
+			/// Internal viscosity: fraction of the stretch rate removed per substep along every
+			/// constraint. This is what stops a cloth from ringing and whipping after it is hit,
+			/// without slowing down the swing. 0 reproduces the old undamped behaviour, 0.2 to 0.4
+			/// looks like real fabric, 1 is completely inelastic and makes the cloth feel like
+			/// rubber sheeting.
+			real m_constraint_damping{ 0.3_real };
+
+			/// Bounciness of the cloth surface. Combined with the body's own restitution by taking
+			/// the smaller of the two, so a bouncy ball still does not bounce off a blanket. Real
+			/// fabric is close to perfectly inelastic, which is why this defaults to 0.
+			real m_restitution{ 0._real };
+
+			/// Coulomb friction coefficient of the cloth surface, combined with the body's friction
+			/// as sqrt(mu_cloth * mu_body).
+			real m_friction{ 0.6_real };
+
+			/// Compliance (inverse stiffness) of the stretch constraints that run along every mesh
+			/// edge. This used to be hard wired to 0, which made the sheet perfectly inextensible.
+			/// A perfectly stiff sheet transmits an impact straight through the constraint network
+			/// and it comes out the far side as bulk motion: hit a curtain at the bottom hem and
+			/// the whole thing swings up as if it were a rigid plate. A little compliance lets the
+			/// struck area deform locally instead, so the energy goes into a travelling bulge that
+			/// m_constraint_damping and m_air_damping can absorb, rather than into the swing.
+			///
+			/// The effective strength is compliance / dt^2 with dt the substep, so the useful range
+			/// depends on the substep count. At the default 8 substeps at 60 Hz: 0 is inextensible,
+			/// 1e-4 is a firm woven fabric, 1e-3 (the default) is soft and drapey, and beyond about 3e-3 the sheet
+			/// starts to look like rubber and will visibly sag under its own weight.
+			real m_stretch_compliance{ 1.0e-3_real };
+
+			/// Compliance of the bending constraints across shared edges: how easily the sheet
+			/// folds. Seeded from the bendingCompliance constructor argument and tunable afterwards.
+			/// Higher is floppier. This is the other half of "hit it and it folds instead of
+			/// swinging", and it is usually worth raising together with m_stretch_compliance.
+			real m_bending_compliance{ 0.1_real };
 
 		private:
 			inline static constexpr real c_positionTolerance = 1.0e-6_real;
 			inline static constexpr real c_collisionMargin = 0.045_real;
-			inline static constexpr real c_friction = 0.6_real;		// Coulomb friction coefficient of the cloth surface
 			VPEWorld* m_physics;									// Pointer to the physics world to access parameters
 			std::vector<ClothMassPoint> m_massPoints{};				// All mass points of the cloth
 			std::vector<ClothTriangle> m_triangles{};				// Collision surface and topology of the cloth
@@ -3257,13 +3397,14 @@ export namespace vpe {
 				std::vector<uint32_t> indices, std::vector<glmvec3> fixedPointsPositions,
 				real bendingCompliance = 1, int substeps = 4, real movementSimulation = 0.8)
 				: m_physics{ physics }, m_name{ name }, m_owner{ owner }, m_on_move{ on_move },
-				m_on_erase{ on_erase }, m_vertices{ vertices }, c_substeps{ substeps },
+				m_on_erase{ on_erase }, m_bending_compliance{ bendingCompliance },
+				m_vertices{ vertices }, c_substeps{ substeps },
 				c_movementSimulation{ movementSimulation }
 			{
 				validateInput(physics, vertices, indices, bendingCompliance, substeps, movementSimulation);
 				createMassPoints(vertices, fixedPointsPositions);
 				m_triangles = createTriangles(indices);
-				generateConstraints(m_triangles, bendingCompliance);
+				generateConstraints(m_triangles);
 				calcMaxMassPointDistance();
 				applyTransformation(glm::rotate(													// Apply a slight rotation to give the sim a degree of freedom for all three dimensions
 					glmmat4(1.0_real), glm::radians(0.1_real), glmvec3(0.0_real, 1.0_real, 0.0_real)), true);
@@ -3294,14 +3435,19 @@ export namespace vpe {
 
 				for (int i = 0; i < c_substeps; ++i)												// Solve amount of substep times
 				{
-					for (ClothMassPoint& massPoint : m_massPoints)									// Apply gravity and damping to all mass points
-					{
-						massPoint.damp(rDt);
+					for (ClothMassPoint& massPoint : m_massPoints)									// Apply gravity and air resistance to all mass
+					{																				// points. m_air_damping is what slows down the
+						massPoint.damp(rDt, m_air_damping, m_air_damping_quadratic);					// overall swinging of the sheet.
 						massPoint.applyExternalForce(glmvec3{ 0, m_physics->c_gravity, 0 }, rDt);
 					}
 
-					for (const ClothConstraint& constraint : m_constraints)							// Solve all constraints
-						constraint.solve(rDt);
+					for (const ClothConstraint& constraint : m_constraints)							// Solve all constraints, each with the compliance for
+						constraint.solve(rDt, constraint.isBending ?									// its kind, so both can be tuned at run time
+							m_bending_compliance : m_stretch_compliance);
+
+					for (const ClothConstraint& constraint : m_constraints)							// Bleed off the stretching energy that solving
+						constraint.dampVelocity(m_constraint_damping);								// stiff constraints injects on a hard impact.
+																										// Leaves the pendulum swing alone.
 
 					resolveBodyContacts(i == c_substeps - 1);										// Two way coupling with the rigid bodies. Inside
 																										// the substep loop, so cloth and bodies see the
@@ -3485,9 +3631,16 @@ export namespace vpe {
 					if (!body || !body->m_polytope || body->m_polytope->m_faces.empty()) continue;
 
 					const bool bodyIsDynamic = body->m_mass_inv > c_eps;
-					const real boundingRadius = body->boundingSphereRadius() + c_collisionMargin;
+					glmvec3 previousPosition = body->m_previous_positionW;							// The body's pose before its last integration
+					glmquat previousOrientation = body->m_previous_orientationLW;					// step, for the relative swept test. computeModel
+					glmvec3 bodyScale = body->m_scale;												// takes non const refs, hence the locals.
+					const glmmat4 previousModelInv = glm::inverse(
+						Body::computeModel(previousPosition, previousOrientation, bodyScale));
+					const real bodyTravel = glm::length(body->m_positionW - previousPosition);		// Widen the broad phase by the distance the body
+					const real boundingRadius =														// moved, otherwise a fast body has already carried
+						body->boundingSphereRadius() + c_collisionMargin + bodyTravel;				// its bounding sphere past the points it ran over
 					const real friction = std::sqrt(
-						std::max(0._real, body->m_friction) * c_friction);
+						std::max(0._real, body->m_friction) * std::max(0._real, m_friction));
 					glmvec3 accumulatedBias{ 0._real };
 					uint32_t contactCount = 0;
 
@@ -3502,7 +3655,7 @@ export namespace vpe {
 						glmvec3 normalW{};
 						real depth{ 0._real };
 						if (!ClothMassPoint::queryPolytopeContact(*body, massPoint.pos,
-							massPoint.prevPos, c_collisionMargin, normalW, depth))
+							massPoint.prevPos, previousModelInv, c_collisionMargin, normalW, depth))
 							continue;
 
 						++contactCount;
@@ -3538,7 +3691,7 @@ export namespace vpe {
 						if (effectiveMass <= c_eps) continue;
 
 						const real restitution = separatingSpeed < -restingSpeed ?
-							body->m_restitution : 0._real;
+							std::min(body->m_restitution, std::max(0._real, m_restitution)) : 0._real;
 						const real normalImpulse =
 							-(1._real + restitution) * separatingSpeed / effectiveMass;
 						applyContactImpulse(massPoint, body, lever, normalImpulse * normalW);
@@ -3740,9 +3893,7 @@ export namespace vpe {
 			/// The algorithm for finding neighboring triangles is from this video:
 			/// https://www.youtube.com/watch?v=z5oWopN39OU
 			/// </summary>
-			/// <param name="bendingCompliance"> The inverse of stiffness. 0 = max stiff </param>
-			void generateConstraints(const std::vector<ClothTriangle>& triangles,
-				real bendingCompliance)
+			void generateConstraints(const std::vector<ClothTriangle>& triangles)
 			{
 				std::vector<std::array<uint32_t, 3>> edges;											// Edge List: Each entry contains the indices of two mass points of an
 																									// edge in sorted order and the third mass point index of the triangle
@@ -3782,14 +3933,14 @@ export namespace vpe {
 						edges[edgeIndex][1] != edges[edgeIndex + 1][1])
 					{
 						ClothConstraint newEdgeConstraint(&m_massPoints[edges[edgeIndex][0]],		// Create edge constraint between the points of the edge
-							&m_massPoints[edges[edgeIndex][1]], 0);
+							&m_massPoints[edges[edgeIndex][1]], false);
 
 						m_constraints.push_back(newEdgeConstraint);
 					}
 					else																			// Elsewise the edge is shared between triangles
 					{
 						ClothConstraint newBendingConstraint(&m_massPoints[edges[edgeIndex][2]],	// Create bending constraint between the points not part of the edge
-							&m_massPoints[edges[edgeIndex + 1][2]], bendingCompliance);
+							&m_massPoints[edges[edgeIndex + 1][2]], true);
 
 						m_constraints.push_back(newBendingConstraint);
 					}

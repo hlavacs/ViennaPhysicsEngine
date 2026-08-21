@@ -264,7 +264,13 @@ struct PhysicsTickSystem {
 		const auto on_erase = makeClothEraseCallback();
 		auto cloth = std::make_shared<VPEWorld::Cloth>(
 			&physics, "Cloth" + std::to_string(physics.m_cloths.size()), visual.get(),
-			on_move, on_erase, vertices, indices, fixed_points, 0.0005_real, 8, 0.8_real);
+			// Bending compliance 0.1 rather than the near rigid 0.0005 this used to pass. A sheet
+			// that cannot fold behaves like a rigid plate: a body hitting the bottom hem sends its
+			// momentum straight through the constraint network and the whole curtain rotates up
+			// over the top rail. With a foldable sheet the impact stays local and the energy goes
+			// into a bulge that the damping absorbs. See Cloth::m_bending_compliance and
+			// Cloth::m_stretch_compliance, both of which can also be changed while running.
+			on_move, on_erase, vertices, indices, fixed_points, 0.1_real, 8, 0.8_real);
 		on_move(0.0, cloth);
 		physics.addCloth(cloth);
 		visual.release();
