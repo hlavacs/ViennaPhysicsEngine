@@ -502,6 +502,8 @@ export namespace vpe {
 			uint32_t	m_num_resting{ 0 };				//number resting contact points
 			uint32_t	m_num_resting_cloth{ 0 };		//number of support points contributed by cloths
 			uint64_t	m_cloth_contact_loop{ 0 };		//loop in which m_num_resting_cloth was counted
+			glmvec3		m_cloth_position_deltaW{ 0, 0, 0 };	//same-slot motion caused by cloth impulses
+			glmvec3		m_cloth_rotation_deltaW{ 0, 0, 0 };	//world-space angular displacement from cloth
 			real		m_damping{ 0 };					//damping velocity of resting contact points
 
 			/// <summary>
@@ -1259,6 +1261,47 @@ export namespace vpe {
 
 				for (auto& cloth : m_cloths)														// Integrate all cloths which means solve their constraints
 					cloth.second->integrate(m_grid, (real) m_sim_delta_time);						// and resolve their collisions
+
+				// Finish the part of this slot that remains after each cloth impulse, then apply
+				// cloth penetration recovery. Rigid contacts consumed their bias above.
+				for (auto& body : m_bodies)
+				{
+					auto& currentBody = *body.second;
+					bool transformChanged = false;
+
+					if (glm::dot(currentBody.m_cloth_position_deltaW,
+						currentBody.m_cloth_position_deltaW) > c_eps * c_eps)
+					{
+						currentBody.m_positionW += currentBody.m_cloth_position_deltaW;
+						transformChanged = true;
+					}
+
+					if (glm::dot(currentBody.m_cloth_rotation_deltaW,
+						currentBody.m_cloth_rotation_deltaW) > c_eps * c_eps)
+					{
+						const glmmat3 worldToLocal = glm::transpose(
+							glmmat3{ glm::mat4_cast(currentBody.m_orientationLW) });
+						const glmvec3 rotationL =
+							worldToLocal * currentBody.m_cloth_rotation_deltaW;
+						const real angle = glm::length(rotationL);
+						if (angle > c_eps)
+							currentBody.m_orientationLW = glm::rotate(
+								currentBody.m_orientationLW, angle, rotationL / angle);
+						transformChanged = true;
+					}
+
+					if (glm::dot(currentBody.m_pbias, currentBody.m_pbias) > c_eps * c_eps)
+					{
+						currentBody.m_positionW +=
+							m_pbias_factor * currentBody.m_pbias * (real)m_sim_delta_time;
+						transformChanged = true;
+					}
+
+					currentBody.m_cloth_position_deltaW = glmvec3{ 0._real };
+					currentBody.m_cloth_rotation_deltaW = glmvec3{ 0._real };
+					currentBody.m_pbias = glmvec3{ 0._real };
+					if (transformChanged) currentBody.updateMatrices();
+				}
 
 				//---------------------------End-Cloth-Simulation-Stuff-----------------------------
 
@@ -3009,7 +3052,7 @@ export namespace vpe {
 					glmvec3 normalW{};
 					real depth{ 0._real };
 					if (queryPolytopeContact(*body, pos, pos, body->m_model_inv,
-						c_collisionMargin, normalW, depth))
+						body->m_model, body->m_model_inv, c_collisionMargin, normalW, depth))
 						applyPositionCorrection(depth * normalW);
 				}
 			}
@@ -3036,22 +3079,22 @@ export namespace vpe {
 			/// <param name="currentPos"> Current world position of the point. </param>
 			/// <param name="previousPos"> World position of the point before the substep. Pass
 			/// currentPos to reduce this to a static test. </param>
-			/// <param name="previousModelInv"> Inverse model matrix of the body BEFORE its last
-			/// integration step (from m_previous_positionW / m_previous_orientationLW). Pass
-			/// body.m_model_inv when the body's own motion should be ignored, e.g. in the
-			/// kinematic path. </param>
+			/// <param name="previousModelInv"> Inverse body model at the start of the sweep. </param>
+			/// <param name="currentModel"> Body model at the end of the sweep. </param>
+			/// <param name="currentModelInv"> Inverse body model at the end of the sweep. </param>
 			/// <param name="margin"> Collision margin. Keeps the cloth slightly off the surface. </param>
 			/// <param name="normalW"> Out: unit escape direction in world space, pointing out of
 			/// the body. </param>
 			/// <param name="depth"> Out: distance the point must travel along normalW to be free. </param>
 			/// <returns> True if there is a contact. </returns>
 			static bool queryPolytopeContact(const Body& body, const glmvec3& currentPos,
-				const glmvec3& previousPos, const glmmat4& previousModelInv, real margin,
-				glmvec3& normalW, real& depth)
+				const glmvec3& previousPos, const glmmat4& previousModelInv,
+				const glmmat4& currentModel, const glmmat4& currentModelInv,
+				real margin, glmvec3& normalW, real& depth)
 			{
 				if (!body.m_polytope || body.m_polytope->m_faces.empty()) return false;
 
-				const glmvec3 currentL = glmvec3{ body.m_model_inv * glmvec4{ currentPos, 1._real } };
+				const glmvec3 currentL = glmvec3{ currentModelInv * glmvec4{ currentPos, 1._real } };
 				const glmvec3 previousL = glmvec3{ previousModelInv * glmvec4{ previousPos, 1._real } };
 
 				const Face* contactFace = nullptr;
@@ -3093,9 +3136,9 @@ export namespace vpe {
 				}
 
 				const glmvec3 correctedL = currentL - separation * contactFace->m_normalL;			// Projection onto the inflated face plane
-				const glmvec3 correctedW = glmvec3{ body.m_model * glmvec4{ correctedL, 1._real } };
+				const glmvec3 correctedW = glmvec3{ currentModel * glmvec4{ correctedL, 1._real } };
 
-				const glmmat3 normalMatrix = glm::transpose(glmmat3{ body.m_model_inv });			// inverse transpose of the linear part, so that
+				const glmmat3 normalMatrix = glm::transpose(glmmat3{ currentModelInv });			// inverse transpose of the linear part, so that
 				normalW = normalMatrix * contactFace->m_normalL;									// non uniform scaling gives a correct world normal
 				const real normalLength = glm::length(normalW);										// (Body::m_model_it deliberately ignores scale)
 				if (normalLength <= c_eps) return false;
@@ -3368,6 +3411,21 @@ export namespace vpe {
 			const real c_movementSimulation;						// How much mass points not fixed should be moved by transformation (0 to 1)
 			std::vector<std::shared_ptr<Body>> m_bodiesNearby;		// A vector that stores all bodies nearby for collision detection
 
+			struct BodySubstepPose
+			{
+				glmvec3 position;
+				glmmat4 model;
+				glmmat4 modelInv;
+				glmmat3 inertiaInvW;
+			};
+
+			struct BodyBiasAccumulator
+			{
+				std::shared_ptr<Body> body;
+				glmvec3 correction{ 0._real };
+				uint64_t contactSamples{ 0 };
+			};
+
 		public:
 			/// <summary>
 			/// Constructs a cloth from a mesh (vector of vertices and vector of indices).
@@ -3431,6 +3489,7 @@ export namespace vpe {
 
 				updateBodiesNearby(rigidBodyGrid);													// Check which bodies from the grid are within the cell and nearby
 
+				std::unordered_map<Body*, BodyBiasAccumulator> bodyBiases;
 				real rDt = dt / c_substeps;															// Split up the delta time depending on how many substeps there are
 
 				for (int i = 0; i < c_substeps; ++i)												// Solve amount of substep times
@@ -3449,11 +3508,19 @@ export namespace vpe {
 						constraint.dampVelocity(m_constraint_damping);								// stiff constraints injects on a hard impact.
 																										// Leaves the pendulum swing alone.
 
-					resolveBodyContacts(i == c_substeps - 1);										// Two way coupling with the rigid bodies. Inside
+					resolveBodyContacts(i, dt, bodyBiases);										// Two way coupling with the rigid bodies. Inside
 																										// the substep loop, so cloth and bodies see the
 					for (ClothMassPoint& massPoint : m_massPoints)									// same iteration count instead of the cloth being
 						massPoint.resolveGroundCollision(rDt);										// solved 'substeps' times against a body that got
 				}																					// exactly one unconverged correction per frame.
+				for (auto& bodyBias : bodyBiases)
+				{
+					auto& accumulator = bodyBias.second;
+					if (!accumulator.body || accumulator.contactSamples == 0) continue;
+					glmvec3 bias = accumulator.correction / (real)accumulator.contactSamples *
+						(real)m_physics->m_sim_frequency;
+					m_physics->addPositionBias(accumulator.body->m_pbias, bias);
+				}
 			}
 
 			/// <summary>
@@ -3527,6 +3594,22 @@ export namespace vpe {
 			}
 
 		private:
+			static BodySubstepPose interpolateBodyPose(const Body& body, real fraction)
+			{
+				glmvec3 position = glm::mix(body.m_previous_positionW, body.m_positionW, fraction);
+				glmquat orientation = glm::normalize(glm::slerp(
+					body.m_previous_orientationLW, body.m_orientationLW, fraction));
+				glmvec3 scale = body.m_scale;
+				glmmat4 model = Body::computeModel(position, orientation, scale);
+				glmmat3 rotation{ glm::mat4_cast(orientation) };
+				return {
+					position,
+					model,
+					glm::inverse(model),
+					rotation * body.m_inertia_invL * glm::transpose(rotation)
+				};
+			}
+
 			static bool samePosition(const glmvec3& first, const glmvec3& second)
 			{
 				glmvec3 difference = first - second;
@@ -3592,7 +3675,10 @@ export namespace vpe {
 							continue;
 
 						glmvec3 centerOffset = center - body->m_positionW;
-						real combinedRadius = radius + body->boundingSphereRadius() + c_collisionMargin;
+						real bodyTravel = glm::distance(
+							body->m_previous_positionW, body->m_positionW);
+						real combinedRadius = radius + body->boundingSphereRadius() +
+							c_collisionMargin + bodyTravel;
 						if (glm::dot(centerOffset, centerOffset) <= combinedRadius * combinedRadius)
 							m_bodiesNearby.push_back(body);
 					}
@@ -3617,9 +3703,12 @@ export namespace vpe {
 			/// the engine's own m_pbias channel, the same soft Baumgarte style correction that
 			/// rigid-rigid contacts use, so the cloth never fights the body's integrator.
 			/// </summary>
-			/// <param name="applyBodyPositionBias"> Only the last substep feeds the position bias,
-			/// because a body integrates its position once per simulation step. </param>
-			void resolveBodyContacts(bool applyBodyPositionBias)
+			/// <param name="substep"> Current cloth substep. Used to interpolate the rigid-body
+			/// sweep over the same time interval as the cloth point. </param>
+			/// <param name="dt"> Full fixed-step duration. </param>
+			/// <param name="bodyBiases"> Penetration recovery accumulated across all substeps. </param>
+			void resolveBodyContacts(int substep, real dt,
+				std::unordered_map<Body*, BodyBiasAccumulator>& bodyBiases)
 			{
 				if (m_bodiesNearby.empty()) return;
 
@@ -3632,13 +3721,14 @@ export namespace vpe {
 
 					const bool bodyIsDynamic = body->m_mass_inv > c_eps;
 					glmvec3 previousPosition = body->m_previous_positionW;							// The body's pose before its last integration
-					glmquat previousOrientation = body->m_previous_orientationLW;					// step, for the relative swept test. computeModel
-					glmvec3 bodyScale = body->m_scale;												// takes non const refs, hence the locals.
-					const glmmat4 previousModelInv = glm::inverse(
-						Body::computeModel(previousPosition, previousOrientation, bodyScale));
 					const real bodyTravel = glm::length(body->m_positionW - previousPosition);		// Widen the broad phase by the distance the body
 					const real boundingRadius =														// moved, otherwise a fast body has already carried
 						body->boundingSphereRadius() + c_collisionMargin + bodyTravel;				// its bounding sphere past the points it ran over
+					const real startFraction = (real)substep / (real)c_substeps;
+					const real endFraction = (real)(substep + 1) / (real)c_substeps;
+					const BodySubstepPose previousPose = interpolateBodyPose(*body, startFraction);
+					const BodySubstepPose currentPose = interpolateBodyPose(*body, endFraction);
+					const real remainingTime = dt * (1._real - endFraction);
 					const real friction = std::sqrt(
 						std::max(0._real, body->m_friction) * std::max(0._real, m_friction));
 					glmvec3 accumulatedBias{ 0._real };
@@ -3655,13 +3745,14 @@ export namespace vpe {
 						glmvec3 normalW{};
 						real depth{ 0._real };
 						if (!ClothMassPoint::queryPolytopeContact(*body, massPoint.pos,
-							massPoint.prevPos, previousModelInv, c_collisionMargin, normalW, depth))
+							massPoint.prevPos, previousPose.modelInv, currentPose.model,
+							currentPose.modelInv, c_collisionMargin, normalW, depth))
 							continue;
 
 						++contactCount;
 
 						const glmvec3 contactPointW = massPoint.pos + depth * normalW;			// The point on the body's surface
-						const glmvec3 lever = contactPointW - body->m_positionW;
+						const glmvec3 lever = contactPointW - currentPose.position;
 						const real pointInverseMass = massPoint.invMass;
 
 						//------------------------------------------------------------------ position
@@ -3677,7 +3768,8 @@ export namespace vpe {
 							accumulatedBias -= normalW * depth * (1._real - pointShare);
 
 						//------------------------------------------------------------------ velocity
-						const glmvec3 bodyVelocity = body->totalVelocityW(contactPointW);
+						const glmvec3 bodyVelocity = body->m_linear_velocityW +
+							glm::cross(body->m_angular_velocityW, lever);
 						const real separatingSpeed =
 							glm::dot(massPoint.vel - bodyVelocity, normalW);
 						if (separatingSpeed >= 0._real) continue;								// Already moving apart
@@ -3685,7 +3777,7 @@ export namespace vpe {
 						real bodyInverseMass = 0._real;
 						if (bodyIsDynamic)
 							bodyInverseMass = body->m_mass_inv + glm::dot(normalW, glm::cross(
-								body->m_inertia_invW * glm::cross(lever, normalW), lever));
+								currentPose.inertiaInvW * glm::cross(lever, normalW), lever));
 
 						const real effectiveMass = pointInverseMass + bodyInverseMass;
 						if (effectiveMass <= c_eps) continue;
@@ -3694,7 +3786,9 @@ export namespace vpe {
 							std::min(body->m_restitution, std::max(0._real, m_restitution)) : 0._real;
 						const real normalImpulse =
 							-(1._real + restitution) * separatingSpeed / effectiveMass;
-						applyContactImpulse(massPoint, body, lever, normalImpulse * normalW);
+						applyContactImpulse(
+							massPoint, body, currentPose.inertiaInvW, lever,
+							normalImpulse * normalW, remainingTime);
 
 						//------------------------------------------------------------------ friction
 						// Coulomb friction, clamped to mu * normalImpulse. The old code applied no
@@ -3702,8 +3796,8 @@ export namespace vpe {
 						// velocity decay of 300 per second) while the body skated across it.
 						if (friction <= 0._real) continue;
 
-						const glmvec3 relativeVelocity =
-							massPoint.vel - body->totalVelocityW(contactPointW);
+						const glmvec3 relativeVelocity = massPoint.vel -
+							(body->m_linear_velocityW + glm::cross(body->m_angular_velocityW, lever));
 						glmvec3 tangent = relativeVelocity -
 							glm::dot(relativeVelocity, normalW) * normalW;
 						const real tangentSpeed = glm::length(tangent);
@@ -3713,25 +3807,28 @@ export namespace vpe {
 						real tangentInverseMass = pointInverseMass;
 						if (bodyIsDynamic)
 							tangentInverseMass += body->m_mass_inv + glm::dot(tangent, glm::cross(
-								body->m_inertia_invW * glm::cross(lever, tangent), lever));
+								currentPose.inertiaInvW * glm::cross(lever, tangent), lever));
 						if (tangentInverseMass <= c_eps) continue;
 
 						real frictionImpulse = -tangentSpeed / tangentInverseMass;				// Always opposes the tangential motion
 						frictionImpulse = std::max(frictionImpulse, -friction * normalImpulse);	// Coulomb cone
-						applyContactImpulse(massPoint, body, lever, frictionImpulse * tangent);
+						applyContactImpulse(
+							massPoint, body, currentPose.inertiaInvW, lever,
+							frictionImpulse * tangent, remainingTime);
 					}
 
 					if (contactCount == 0) continue;
 
-					// Feed penetration recovery into the engine's own soft position bias rather
-					// than teleporting m_positionW. Averaged over the contacts, because all of them
-					// describe the same contact patch and summing would overshoot badly.
-					if (applyBodyPositionBias && bodyIsDynamic &&
+					// Accumulate all substep samples and average once after the cloth solve. This
+					// keeps an early swept impact from losing its penetration recovery, without
+					// multiplying the correction by the number of cloth substeps.
+					if (bodyIsDynamic &&
 						glm::dot(accumulatedBias, accumulatedBias) > c_eps * c_eps)
 					{
-						glmvec3 bias = accumulatedBias / (real)contactCount *
-							(real)m_physics->m_sim_frequency;
-						m_physics->addPositionBias(body->m_pbias, bias);
+						auto& accumulator = bodyBiases[body.get()];
+						accumulator.body = body;
+						accumulator.correction += accumulatedBias;
+						accumulator.contactSamples += contactCount;
 					}
 
 					// Tell the body how many support points the cloth is giving it, so that
@@ -3755,16 +3852,23 @@ export namespace vpe {
 			/// </summary>
 			/// <param name="massPoint"> The colliding mass point. </param>
 			/// <param name="body"> The colliding body. </param>
+			/// <param name="inertiaInvW"> Body inverse inertia at the contact substep. </param>
 			/// <param name="lever"> Contact point relative to the body's center of mass. </param>
 			/// <param name="impulse"> Impulse applied to the mass point. </param>
+			/// <param name="remainingTime"> Time left in the fixed step after this substep. </param>
 			static void applyContactImpulse(ClothMassPoint& massPoint,
-				const std::shared_ptr<Body>& body, const glmvec3& lever, const glmvec3& impulse)
+				const std::shared_ptr<Body>& body, const glmmat3& inertiaInvW,
+				const glmvec3& lever, const glmvec3& impulse, real remainingTime)
 			{
 				massPoint.vel += massPoint.invMass * impulse;
 
 				if (body->m_mass_inv <= c_eps) return;
-				body->m_linear_velocityW -= body->m_mass_inv * impulse;
-				body->m_angular_velocityW -= body->m_inertia_invW * glm::cross(lever, impulse);
+				const glmvec3 linearDelta = -body->m_mass_inv * impulse;
+				const glmvec3 angularDelta = -inertiaInvW * glm::cross(lever, impulse);
+				body->m_linear_velocityW += linearDelta;
+				body->m_angular_velocityW += angularDelta;
+				body->m_cloth_position_deltaW += remainingTime * linearDelta;
+				body->m_cloth_rotation_deltaW += remainingTime * angularDelta;
 			}
 
 			/// <summary>

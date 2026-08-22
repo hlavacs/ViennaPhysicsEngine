@@ -149,8 +149,28 @@ int main()
 		glmvec3{ 0._real, 0._real, 30._real }, glmvec3{ 0._real },
 		0.01_real, 0._real, 1._real);
 	collisionPhysics.addBody(projectile);
+	bool sawSameSlotResponse = false;
 	for (int frame = 0; frame < 5; ++frame)
+	{
+		const real positionBefore = projectile->m_positionW.z;
+		const real velocityBefore = projectile->m_linear_velocityW.z;
+		const uint64_t loopBefore = collisionPhysics.m_loop;
 		collisionPhysics.tick(1.0 / 60.0);
+		const uint64_t slotsAdvanced = collisionPhysics.m_loop - loopBefore;
+		if (slotsAdvanced > 0 && projectile->m_linear_velocityW.z < velocityBefore - c_eps)
+		{
+			sawSameSlotResponse = true;
+			const real ballisticPosition = positionBefore + velocityBefore *
+				(real)collisionPhysics.m_sim_delta_time * (real)slotsAdvanced;
+			success &= check(projectile->m_positionW.z < ballisticPosition - c_eps,
+				"cloth impulse did not affect rigid-body motion in the contact step");
+		}
+		const glmvec3 bias = projectile->m_pbias;
+		const real biasLengthSquared = bias.x * bias.x + bias.y * bias.y + bias.z * bias.z;
+		success &= check(biasLengthSquared <= c_eps * c_eps,
+			"cloth contact position bias was deferred to the next fixed step");
+	}
+	success &= check(sawSameSlotResponse, "cloth test did not observe an impact response");
 	const std::vector<glmvec3> deformedVertices = collisionCloth->generateVertices();
 	const real impactSurfaceZ = deformedVertices[4].z;
 	const real projectileFrontZ =
