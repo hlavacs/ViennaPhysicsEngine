@@ -546,7 +546,7 @@ int main(int argc, char **argv) {
 	const bool startup_cloth = hasArgument(argc, argv, "--cloth");
 	const auto frame_limit = frameLimit(argc, argv);
 	const auto capture_path = capturePath(argc, argv);
-	if (startup_stack && frame_limit) {
+	if (startup_stack && frame_limit && !capture_path) {
 		return runHeadlessStack(physics, *frame_limit);
 	}
 
