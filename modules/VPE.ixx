@@ -172,32 +172,35 @@ inline void hash_combine(std::size_t& seed, T const& v) {		//For combining hashe
 	seed ^= std::hash<T>()(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
 }
 
-namespace std {
+// Stream/string helpers for glm types. These deliberately live in namespace vpe
+// (not std): a named module must not add declarations to namespace std, and MSVC
+// hides the standard std::to_string overloads from importers if it does.
+export namespace vpe {
 	//For outputting vectors/matrices to a string stream
-	export inline ostream& operator<<(ostream& os, const glmvec3& v) {
+	inline std::ostream& operator<<(std::ostream& os, const glmvec3& v) {
 		os << "(" << v.x << ',' << v.y << ',' << v.z << ")";				//output 3D vector
 		return os;
 	}
 
 	//For outputting vectors/matrices to a string stream
-	export inline ostream& operator<<(ostream& os, const glmvec2& v) {
+	inline std::ostream& operator<<(std::ostream& os, const glmvec2& v) {
 		os << "(" << v.x << ',' << v.y << ")";								//output 2D vector
 		return os;
 	}
 
-	export inline ostream& operator<<(ostream& os, const glmquat& q) {
+	inline std::ostream& operator<<(std::ostream& os, const glmquat& q) {
 		os << "(" << q.x << ',' << q.y << ',' << q.z << ',' << q.w << ")";	//output quaternion
 		return os;
 	}
 
-	export inline ostream& operator<<(ostream& os, const glmmat3& m) {
+	inline std::ostream& operator<<(std::ostream& os, const glmmat3& m) {
 		os << "(" << m[0][0] << ',' << m[0][1] << ',' << m[0][2] << ")\n";	//Output a 3x3 matrix
 		os << "(" << m[1][0] << ',' << m[1][1] << ',' << m[1][2] << ")\n";
 		os << "(" << m[2][0] << ',' << m[2][1] << ',' << m[2][2] << ")\n";
 		return os;
 	}
 
-	export inline ostream& operator<<(ostream& os, const glmmat4& m) {
+	inline std::ostream& operator<<(std::ostream& os, const glmmat4& m) {
 		os << "(" << m[0][0] << ',' << m[0][1] << ',' << m[0][2] << ',' << m[0][3] << ")\n";	//Output a 4x4 matrix
 		os << "(" << m[1][0] << ',' << m[1][1] << ',' << m[1][2] << ',' << m[1][3] << ")\n";
 		os << "(" << m[2][0] << ',' << m[2][1] << ',' << m[2][2] << ',' << m[2][3] << ")\n";
@@ -205,7 +208,7 @@ namespace std {
 		return os;
 	}
 
-	export inline std::string to_string(const glmvec3 v) {
+	inline std::string to_string(const glmvec3 v) {
 		return std::to_string(v.x) + ", " + std::to_string(v.y) + ", " + std::to_string(v.z);	//Turn vector into a string
 	}
 }

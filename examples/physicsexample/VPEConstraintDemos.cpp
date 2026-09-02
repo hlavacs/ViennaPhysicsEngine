@@ -1,6 +1,8 @@
-#include "VPEConstraintDemos.hpp"
-
+// Standard headers must precede any module import (MSVC rejects std headers
+// included after an import that already pulled them into its global module fragment).
 #include <thread>
+
+#include "VPEConstraintDemos.hpp"
 
 using namespace vpe;
 

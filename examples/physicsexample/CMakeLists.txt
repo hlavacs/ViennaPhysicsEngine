@@ -4,13 +4,40 @@ add_executable(physicsexample
     VPEConstraintDemos.hpp
 )
 
-set(VVE_V3_ROOT "${CMAKE_SOURCE_DIR}/../ViennaVulkanEngine")
-if(NOT EXISTS "${VVE_V3_ROOT}/src/Engine.ixx"
-   AND EXISTS "${CMAKE_SOURCE_DIR}/../../ViennaVulkanEngine/src/Engine.ixx")
-    # Controller worktrees live one directory below the normal repository
-    # layout; keep the documented sibling layout as the primary location.
-    set(VVE_V3_ROOT "${CMAKE_SOURCE_DIR}/../../ViennaVulkanEngine")
+set(VVE_V3_ROOT "${VPE_VVE_ROOT}")
+
+if(VPE_VVE_IN_TREE)
+    # ------------------------------------------------------------------
+    # In-tree: ViennaVulkanEngine was added as a subdirectory by the root
+    # CMakeLists.txt, so its targets, module interfaces and vcpkg packages
+    # are all part of this build. Link exactly like VVE's own examples do.
+    # ------------------------------------------------------------------
+    find_package(imgui CONFIG REQUIRED)
+
+    target_compile_definitions(physicsexample PRIVATE
+        VVE_V3_ROOT_PATH="${VVE_V3_ROOT}"
+    )
+
+    target_link_libraries(physicsexample PRIVATE
+        ViennaPhysicsEngine::ViennaPhysicsEngine
+        ViennaVulkanEngine::ViennaVulkanEngine
+        imgui::imgui
+    )
+
+    add_dependencies(physicsexample
+        ViennaVulkanEngine
+        vve_simple_shaders
+    )
+
+    # Output goes to ViennaVulkanEngine/bin/<config>/exe, next to the VVE
+    # runtime DLLs (SDL3, assimp, slang, ...) and the compiled shaders.
+    vve_set_output_dirs(physicsexample)
+    return()
 endif()
+
+# ----------------------------------------------------------------------
+# Prebuilt: consume VVE's already-built Clang release tree (Linux/macOS).
+# ----------------------------------------------------------------------
 if(APPLE)
     set(VVE_V3_PLATFORM_BUILD_DIR "macos-release")
     set(VVE_V3_VCPKG_TRIPLET "arm64-osx")

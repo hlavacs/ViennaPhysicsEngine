@@ -24,20 +24,19 @@ VPE features are:
 
 # Set up for Windows 11
 
-The engine is exposed as the `VEPhysicsEngine` C++ module. The provided example program uses Vienna Vulkan Engine V3 for rendering.
-- Make sure you have an up to date CMake, MS Visual Studio 22 and the Vulkan SDK installed.
+The engine is exposed as the `VEPhysicsEngine` C++23 module. The provided example program uses Vienna Vulkan Engine V3 for rendering. On Windows, VVE is built *together with* VPE: the VPE CMake project adds `..\ViennaVulkanEngine` as a subdirectory, so one Ninja build compiles the VVE modules, the VPE module and the example with the same compiler flags (this is required for MSVC C++ modules and `import std`).
+
+- Make sure you have an up to date CMake (>= 3.31.8), MS Visual Studio 2022 or newer (with the "C++ CMake tools" component, which provides Ninja), the Vulkan SDK (`VULKAN_SDK` set), and vcpkg on the PATH.
 - Clone the Vienna Vulkan Engine: *git clone https://github.com/hlavacs/ViennaVulkanEngine.git*
 - Clone the Vienna Physics Engine into the same directory, next to each other: *git clone https://github.com/hlavacs/ViennaPhysicsEngine.git*
-- Cd into Vienna Vulkan Engine and run CMake. Alternatively run the msvc bat file. CMake creates an sln project file.
-- Open the sln file and compile the project. Sometimes compile it twice to make sure everything is done correctly.
-- You might also manually compile the doxyfile subproject to create the documentation. For this you must have Doxygen installed.
-- Cd into the Vienna Physics Engine directory and run CMake (or the msvc bat file).
-- Open the sln file and compile the project.
-- Note that the physicsexample.exe file is copied to the bin directory of the Vienna Vulkan Engine!
-- Make sure the physicsexample.exe file is in the same directory as the assimp lib file (e.g., Vienna Vulkan Engine/bin/Release). 
-- Now you can run the example.
+- Cd into Vienna Vulkan Engine and run `build_windows.cmd release` once. This installs VVE's vcpkg dependencies (SDL3, assimp, imgui, glm, ...) into `ViennaVulkanEngine\vcpkg_installed`. VPE reuses that directory.
+- Cd into the Vienna Physics Engine directory and run `build_cmake.cmd release` (or `debug`). The script configures with Ninja + MSVC, builds VVE and VPE, and links the example.
+- The binary is written to `ViennaVulkanEngine\bin\release\exe\physicsexample.exe` (or `bin\debug\exe`), next to the VVE runtime DLLs and compiled shaders. Run it from there.
+- `build_cmake.cmd --without-vve` builds and (with `--tests`) tests only the VPE module; `--clean` wipes the build directory first.
 
-For Windows 11, all non-Vulkan dependencies are in the external directory. The Vulkan SDK is supposed to be pointed at by the VULKAN_SDK environment variable.
+Do **not** generate a Visual Studio solution for this project: the VS generator cannot build `import std`, which VVE requires. Open the folder in Visual Studio or VS Code as a CMake project instead, or use the build script.
+
+On Linux/macOS the example instead links VVE's already-built Clang release tree (see `build_linux.sh`, `build_macos.sh` and `VVE_V3_MIGRATION_NOTES.md`). The CMake option `VPE_VVE_IN_TREE` selects between the two modes; it defaults to ON on Windows and OFF elsewhere.
 
 The project will be updated regularly, so it makes sense to pull the newest version regularly.
 
@@ -85,7 +84,7 @@ The simulation is advanced by dt seconds calling tick(dt). See how the debug pan
 
 # The Debug Panel
 
-physicsexample.cpp contains code that uses Nuklear to create two debug panels, for plan rigid body simulation and body constraints. The rigid body panel lets you monitor and change many values of the simulation. This is done simply by changing the respective member variables of the VPEWorld instance.
+physicsexample.cpp contains code that uses ImGui (via the VVE GUI system) to create two debug panels, for plan rigid body simulation and body constraints. The rigid body panel lets you monitor and change many values of the simulation. This is done simply by changing the respective member variables of the VPEWorld instance.
 
 In debug mode, the simulation pauses and can be stepped through manually. This can be mixed with debugging and setting breakpoints, and outputting values.
 

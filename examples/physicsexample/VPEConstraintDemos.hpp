@@ -2,6 +2,9 @@
 
 #include <functional>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include "glm/glm.hpp"
