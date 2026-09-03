@@ -88,7 +88,6 @@ set_target_properties(VVEV3StdModule PROPERTIES
 )
 
 set_target_properties(physicsexample PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${VVE_V3_ROOT}/bin/${VPE_OUTPUT_CONFIG_DIR}/exe"
     BUILD_RPATH "${VVE_V3_ROOT}/bin/release/lib"
 )
 

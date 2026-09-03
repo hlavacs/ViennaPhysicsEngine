@@ -124,15 +124,24 @@ if(VPE_BUILD_EXAMPLES AND VPE_VVE_IN_TREE)
   endif()
 endif()
 
-# Keep build-tree artifacts isolated per configuration, then mirror public
-# runtime artifacts to the source-tree bin layout used by VVE.
+# Keep build-tree artifacts isolated per configuration.  When VVE-backed
+# examples are enabled, put every VPE executable directly beside VVE's
+# executables and runtime libraries; standalone VPE test builds retain the
+# local source-tree bin layout.
 set(VPE_OUTPUT_CONFIG_DIR "$<LOWER_CASE:$<CONFIG>>")
 set(VPE_BUILD_LIBRARY_OUTPUT_DIRECTORY
     "${CMAKE_BINARY_DIR}/bin/${VPE_OUTPUT_CONFIG_DIR}/lib")
 set(VPE_PROJECT_LIBRARY_OUTPUT_DIRECTORY
     "${CMAKE_SOURCE_DIR}/bin/${VPE_OUTPUT_CONFIG_DIR}/lib")
+if(VPE_BUILD_EXAMPLES)
+  set(VPE_PROJECT_RUNTIME_OUTPUT_DIRECTORY
+      "${VPE_VVE_ROOT}/bin/${VPE_OUTPUT_CONFIG_DIR}/exe")
+else()
+  set(VPE_PROJECT_RUNTIME_OUTPUT_DIRECTORY
+      "${CMAKE_SOURCE_DIR}/bin/${VPE_OUTPUT_CONFIG_DIR}/exe")
+endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY
-    "${CMAKE_SOURCE_DIR}/bin/${VPE_OUTPUT_CONFIG_DIR}/exe")
+    "${VPE_PROJECT_RUNTIME_OUTPUT_DIRECTORY}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY
     "${VPE_BUILD_LIBRARY_OUTPUT_DIRECTORY}")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY
