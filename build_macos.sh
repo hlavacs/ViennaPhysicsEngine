@@ -137,7 +137,11 @@ if [ "$WITHOUT_VVE" -eq 1 ]; then
 fi
 
 printf '\n%s build complete.\n' "$VARIANT"
-printf 'Executables: bin/%s/exe\n' "$VARIANT_LOWER"
+if [ "$WITHOUT_VVE" -eq 1 ]; then
+  printf 'Executables: bin/%s/exe\n' "$VARIANT_LOWER"
+else
+  printf 'Executables: %s/bin/%s/exe\n' "$VVE_ROOT" "$VARIANT_LOWER"
+fi
 printf 'Libraries:   bin/%s/lib\n' "$VARIANT_LOWER"
 if [ "$WITHOUT_VVE" -eq 1 ]; then
   printf 'VPE target:   ViennaPhysicsEngine::ViennaPhysicsEngine (C++ module)\n'

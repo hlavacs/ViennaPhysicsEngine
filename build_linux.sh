@@ -85,7 +85,7 @@ else
   VVE_LIBRARY="$VVE_ROOT/bin/release/lib/libViennaVulkanEngine.so"
   VVE_MODULE="$VVE_ROOT/build/release-linux/src/CMakeFiles/ViennaVulkanEngine.dir/VEEngine.pcm"
   VVE_STD_MODULE="$VVE_ROOT/build/release-linux/src/CMakeFiles/__cmake_cxx_std_23.dir/std.pcm"
-  VVE_VULKAN="$VVE_ROOT/vcpkg_installed/x64-linux/lib/libvulkan.so"
+  VVE_VULKAN="$VVE_ROOT/vcpkg_installed/x64-linux-llvm/lib/libvulkan.so"
   for artifact in "$VVE_LIBRARY" "$VVE_MODULE" "$VVE_STD_MODULE" "$VVE_VULKAN"; do
     if [ ! -e "$artifact" ]; then
       printf 'Required VVE artifact is missing: %s\n' "$artifact" >&2
@@ -137,7 +137,11 @@ if [ "$WITHOUT_VVE" -eq 1 ]; then
 fi
 
 printf '\n%s build complete.\n' "$VARIANT"
-printf 'Executables: bin/%s/exe\n' "$VARIANT_LOWER"
+if [ "$WITHOUT_VVE" -eq 1 ]; then
+  printf 'Executables: bin/%s/exe\n' "$VARIANT_LOWER"
+else
+  printf 'Executables: %s/bin/%s/exe\n' "$VVE_ROOT" "$VARIANT_LOWER"
+fi
 printf 'Libraries:   bin/%s/lib\n' "$VARIANT_LOWER"
 if [ "$WITHOUT_VVE" -eq 1 ]; then
   printf 'VPE target:   ViennaPhysicsEngine::ViennaPhysicsEngine (C++ module)\n'

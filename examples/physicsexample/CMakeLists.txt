@@ -45,7 +45,7 @@ if(APPLE)
     set(VVE_V3_VULKAN_LIBRARY_NAME "libvulkan.dylib")
 else()
     set(VVE_V3_PLATFORM_BUILD_DIR "release-linux")
-    set(VVE_V3_VCPKG_TRIPLET "x64-linux")
+    set(VVE_V3_VCPKG_TRIPLET "x64-linux-llvm")
     set(VVE_V3_LIBRARY_NAME "libViennaVulkanEngine.so")
     set(VVE_V3_VULKAN_LIBRARY_NAME "libvulkan.so")
 endif()
@@ -88,6 +88,7 @@ set_target_properties(VVEV3StdModule PROPERTIES
 )
 
 set_target_properties(physicsexample PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${VVE_V3_ROOT}/bin/${VPE_OUTPUT_CONFIG_DIR}/exe"
     BUILD_RPATH "${VVE_V3_ROOT}/bin/release/lib"
 )
 
