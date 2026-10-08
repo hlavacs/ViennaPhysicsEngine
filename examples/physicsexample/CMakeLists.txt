@@ -14,6 +14,13 @@ if(VPE_VVE_IN_TREE)
     # ------------------------------------------------------------------
     find_package(imgui CONFIG REQUIRED)
 
+    # Current VVE uses VVEngine; older V3/prebuilt checkouts use VEEngine.
+    file(STRINGS "${VVE_V3_ROOT}/src/Engine.ixx" VPE_VVE_MODULE_DECLARATION
+        REGEX "^export module VVEngine;")
+    if(VPE_VVE_MODULE_DECLARATION)
+        target_compile_definitions(physicsexample PRIVATE VPE_VVE_USES_VVENGINE)
+    endif()
+
     target_compile_definitions(physicsexample PRIVATE
         VVE_V3_ROOT_PATH="${VVE_V3_ROOT}"
     )

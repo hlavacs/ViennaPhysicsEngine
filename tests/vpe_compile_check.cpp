@@ -12,6 +12,9 @@
 
 import VEPhysicsEngine;
 
+// GLM types use the stream helpers exported in namespace vpe.
+using vpe::operator<<;
+
 namespace {
 	using Cloth = vpe::VPEWorld::Cloth;
 

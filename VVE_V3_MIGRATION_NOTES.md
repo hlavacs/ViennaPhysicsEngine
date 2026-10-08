@@ -13,12 +13,15 @@ by the CMake option `VPE_VVE_IN_TREE`:
   `vve_set_output_dirs`, so `physicsexample.exe` lands in
   `ViennaVulkanEngine/bin/<config>/exe` next to the runtime DLLs. VPE uses
   VVE's vcpkg `glm` in this mode so both modules see the same glm
-  declarations. `build_cmake.cmd` drives this mode. VVE's own examples and
+  declarations. `build_windows.cmd` drives this mode. VVE's own examples and
   tests are not built unless `VPE_BUILD_VVE_EXAMPLES` / `VPE_BUILD_VVE_TESTS`
   are enabled. VVE had to be made subdirectory-safe for this: it now uses
   `CMAKE_CURRENT_SOURCE_DIR` for its vcpkg and `bin/` paths, exports the
   output-directory variables to the parent scope, and guards its example
   build behind `VVE_BUILD_EXAMPLES`.
+
+  The in-tree example detects whether the VVE checkout exports `VVEngine` or the
+  older `VEEngine` module and uses its matching camera API.
 
 - **Prebuilt (Linux/macOS default).** The example consumes the already-built
   ViennaVulkanEngine V3 release tree and does not configure or rebuild VVE.

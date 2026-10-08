@@ -22,7 +22,11 @@
 
 #include "VPEConstraintDemos.hpp"
 
+#ifdef VPE_VVE_USES_VVENGINE
+import VVEngine;
+#else
 import VEEngine;
+#endif
 import VEPhysicsEngine;
 
 namespace {
@@ -820,7 +824,11 @@ int main(int argc, char **argv) {
 	bool running = true;
 	while (running && (max_frames == 0 || frame < max_frames)) {
 		const auto frame_input = engine.world().get<vve::WindowSystem>().input();
+#ifdef VPE_VVE_USES_VVENGINE
+		render.setCamera(camera.update(frame_input, engine.frameContext().delta_time));
+#else
 		render.setCamera(camera.update(frame_input), windowExtent);
+#endif
 
 		const auto status = engine.step();
 		if (!status) {

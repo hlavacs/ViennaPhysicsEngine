@@ -26,13 +26,13 @@ VPE features are:
 
 The engine is exposed as the `VEPhysicsEngine` C++23 module. The provided example program uses Vienna Vulkan Engine V3 for rendering. On Windows, VVE is built *together with* VPE: the VPE CMake project adds `..\ViennaVulkanEngine` as a subdirectory, so one Ninja build compiles the VVE modules, the VPE module and the example with the same compiler flags (this is required for MSVC C++ modules and `import std`).
 
-- Make sure you have an up to date CMake (>= 3.31.8), MS Visual Studio 2022 or newer (with the "C++ CMake tools" component, which provides Ninja), the Vulkan SDK (`VULKAN_SDK` set), and vcpkg on the PATH.
+- Make sure you have an up to date CMake (>= 3.31.8), MS Visual Studio 2022 or newer (with the "C++ CMake tools" component, which provides Ninja), the Vulkan SDK (`VULKAN_SDK` set), and vcpkg on the PATH or `VCPKG_ROOT` set to its installation directory.
 - Clone the Vienna Vulkan Engine: *git clone https://github.com/hlavacs/ViennaVulkanEngine.git*
 - Clone the Vienna Physics Engine into the same directory, next to each other: *git clone https://github.com/hlavacs/ViennaPhysicsEngine.git*
-- Cd into Vienna Vulkan Engine and run `build_windows.cmd release` once. This installs VVE's vcpkg dependencies (SDL3, assimp, imgui, glm, ...) into `ViennaVulkanEngine\vcpkg_installed`. VPE reuses that directory.
-- Cd into the Vienna Physics Engine directory and run `build_cmake.cmd release` (or `debug`). The script configures with Ninja + MSVC, builds VVE and VPE, and links the example.
+- Cd into the Vienna Physics Engine directory and run `build_windows.cmd release` (or `debug`). The script first synchronizes VVE's complete vcpkg manifest (SDL3, assimp, imgui, glm, ...), installing dependencies into `ViennaVulkanEngine\vcpkg_installed`. It then configures with Ninja + MSVC, builds VVE and VPE, and links the example.
 - The binary is written to `ViennaVulkanEngine\bin\release\exe\physicsexample.exe` (or `bin\debug\exe`), next to the VVE runtime DLLs and compiled shaders. Run it from there.
-- `build_cmake.cmd --without-vve` builds and (with `--tests`) tests only the VPE module; `--clean` wipes the build directory first.
+- `build_windows.cmd --without-vve` (or `--standalone`) builds and tests only the VPE module, without Vulkan or VVE dependencies. `--tests` also enables VPE tests for the VVE-backed build; `--clean` recreates only the selected build directory.
+- The default configuration is release. Builds use `build\release-windows` / `build\debug-windows`, with a `-standalone` suffix for VPE-only builds. Set `CMAKE_BUILD_PARALLEL_LEVEL` to override the number of build jobs. The old `build_cmake.cmd` and `build_msvc.cmd` names forward to `build_windows.cmd`.
 
 Do **not** generate a Visual Studio solution for this project: the VS generator cannot build `import std`, which VVE requires. Open the folder in Visual Studio or VS Code as a CMake project instead, or use the build script.
 
