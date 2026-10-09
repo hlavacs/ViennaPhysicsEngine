@@ -11,7 +11,8 @@ option(VPE_DOUBLE_ACCURACY "Build VPE with double-precision physics math" OFF)
 #    exactly like VVE's own build_windows.cmd). Binaries land in
 #    ../ViennaVulkanEngine/bin/<config>/exe next to the VVE runtime DLLs.
 #  * prebuilt (default on Linux/macOS): the example links VVE's already-built
-#    release tree and reuses its Clang .pcm module files.
+#    module tree and reuses its Clang .pcm module files (matching the requested
+#    configuration on macOS, Release on Linux).
 if(WIN32)
   set(VPE_VVE_IN_TREE_DEFAULT ON)
 else()
@@ -189,6 +190,14 @@ target_compile_definitions(ViennaPhysicsEngine PRIVATE
 target_compile_options(ViennaPhysicsEngine PUBLIC
     "$<$<CXX_COMPILER_ID:Clang>:-stdlib=libc++>"
 )
+if(APPLE AND VPE_BUILD_EXAMPLES AND NOT VPE_VVE_IN_TREE)
+  # A translation unit cannot import PCMs built with different aligned-allocation
+  # modes. Match the setting used by VVE's macOS module and propagate it to users.
+  target_compile_options(ViennaPhysicsEngine PUBLIC
+      -fno-aligned-allocation
+      -Werror=over-aligned
+  )
+endif()
 target_link_options(ViennaPhysicsEngine PUBLIC
     "$<$<CXX_COMPILER_ID:Clang>:-stdlib=libc++>"
 )

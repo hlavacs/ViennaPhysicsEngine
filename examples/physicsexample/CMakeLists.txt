@@ -43,24 +43,30 @@ if(VPE_VVE_IN_TREE)
 endif()
 
 # ----------------------------------------------------------------------
-# Prebuilt: consume VVE's already-built Clang release tree (Linux/macOS).
+# Prebuilt: consume VVE's already-built Clang module tree (Linux/macOS).
 # ----------------------------------------------------------------------
+set(VVE_V3_CONFIG_DIR "release")
 if(APPLE)
-    set(VVE_V3_PLATFORM_BUILD_DIR "macos-release")
+    string(TOLOWER "${CMAKE_BUILD_TYPE}" VVE_V3_CONFIG_DIR)
+    set(VVE_V3_PLATFORM_BUILD_DIR "macos-${VVE_V3_CONFIG_DIR}")
     set(VVE_V3_VCPKG_TRIPLET "arm64-osx")
     set(VVE_V3_LIBRARY_NAME "libViennaVulkanEngine.dylib")
-    set(VVE_V3_VULKAN_LIBRARY_NAME "libvulkan.dylib")
 else()
     set(VVE_V3_PLATFORM_BUILD_DIR "release-linux")
     set(VVE_V3_VCPKG_TRIPLET "x64-linux-llvm")
     set(VVE_V3_LIBRARY_NAME "libViennaVulkanEngine.so")
-    set(VVE_V3_VULKAN_LIBRARY_NAME "libvulkan.so")
 endif()
 
 set(VVE_V3_VCPKG_ROOT
     "${VVE_V3_ROOT}/vcpkg_installed/${VVE_V3_VCPKG_TRIPLET}")
+set(VVE_V3_VCPKG_LIBRARY_DIR "${VVE_V3_VCPKG_ROOT}/lib")
+set(VVE_V3_IMGUI_LIBRARY_NAME "libimgui.a")
+if(APPLE AND VVE_V3_CONFIG_DIR STREQUAL "debug")
+    set(VVE_V3_VCPKG_LIBRARY_DIR "${VVE_V3_VCPKG_ROOT}/debug/lib")
+    set(VVE_V3_IMGUI_LIBRARY_NAME "libimguid.a")
+endif()
 set(VVE_V3_LIBRARY
-    "${VVE_V3_ROOT}/bin/release/lib/${VVE_V3_LIBRARY_NAME}")
+    "${VVE_V3_ROOT}/bin/${VVE_V3_CONFIG_DIR}/lib/${VVE_V3_LIBRARY_NAME}")
 set(VVE_V3_MODULE_DIR
     "${VVE_V3_ROOT}/build/${VVE_V3_PLATFORM_BUILD_DIR}/src/CMakeFiles/ViennaVulkanEngine.dir")
 set(VVE_V3_STD_MODULE_DIR
@@ -68,15 +74,24 @@ set(VVE_V3_STD_MODULE_DIR
 set(VVE_V3_STD_MODULE_LIBRARY
     "${VVE_V3_ROOT}/build/${VVE_V3_PLATFORM_BUILD_DIR}/src/lib__cmake_cxx_std_23.a")
 
-# FindVulkan does not discover the loader in VVE's local vcpkg installation
-# automatically. Set both cache entries before find_package so the example uses
-# the same Vulkan headers and loader as the prebuilt VVE V3 library.
+if(EXISTS "${VVE_V3_MODULE_DIR}/VVEngine.pcm")
+    target_compile_definitions(physicsexample PRIVATE VPE_VVE_USES_VVENGINE)
+elseif(NOT EXISTS "${VVE_V3_MODULE_DIR}/VEEngine.pcm")
+    message(FATAL_ERROR
+        "The prebuilt VVE module is missing from ${VVE_V3_MODULE_DIR}. "
+        "Build ViennaVulkanEngine before configuring this example.")
+endif()
+
+# Reuse VVE's Vulkan selection. Loading a second Vulkan loader lets instance
+# handles cross loader boundaries and crashes during dispatcher initialization.
+load_cache("${VVE_V3_ROOT}/build/${VVE_V3_PLATFORM_BUILD_DIR}"
+    READ_WITH_PREFIX VVE_V3_CACHED_ Vulkan_LIBRARY Vulkan_INCLUDE_DIR)
 set(Vulkan_LIBRARY
-    "${VVE_V3_VCPKG_ROOT}/lib/${VVE_V3_VULKAN_LIBRARY_NAME}"
-    CACHE FILEPATH "Vulkan loader from the VVE V3 vcpkg installation" FORCE)
+    "${VVE_V3_CACHED_Vulkan_LIBRARY}"
+    CACHE FILEPATH "Vulkan loader used by the prebuilt VVE library" FORCE)
 set(Vulkan_INCLUDE_DIR
-    "${VVE_V3_VCPKG_ROOT}/include"
-    CACHE PATH "Vulkan headers from the VVE V3 vcpkg installation" FORCE)
+    "${VVE_V3_CACHED_Vulkan_INCLUDE_DIR}"
+    CACHE PATH "Vulkan headers used by the prebuilt VVE library" FORCE)
 find_package(Vulkan REQUIRED)
 
 add_library(ViennaVulkanEngineV3 SHARED IMPORTED)
@@ -86,7 +101,7 @@ set_target_properties(ViennaVulkanEngineV3 PROPERTIES
 
 add_library(VVEV3ImGui STATIC IMPORTED)
 set_target_properties(VVEV3ImGui PROPERTIES
-    IMPORTED_LOCATION "${VVE_V3_VCPKG_ROOT}/lib/libimgui.a"
+    IMPORTED_LOCATION "${VVE_V3_VCPKG_LIBRARY_DIR}/${VVE_V3_IMGUI_LIBRARY_NAME}"
 )
 
 add_library(VVEV3StdModule STATIC IMPORTED)
@@ -95,7 +110,7 @@ set_target_properties(VVEV3StdModule PROPERTIES
 )
 
 set_target_properties(physicsexample PROPERTIES
-    BUILD_RPATH "${VVE_V3_ROOT}/bin/release/lib"
+    BUILD_RPATH "${VVE_V3_ROOT}/bin/${VVE_V3_CONFIG_DIR}/lib"
 )
 
 target_include_directories(physicsexample BEFORE PUBLIC
@@ -114,24 +129,11 @@ target_compile_definitions(physicsexample PRIVATE
 )
 
 # Reuse the compiled public module interfaces from the already-built VVE V3
-# release tree. This consumes the V3 facade without rebuilding the engine.
+# module tree. This consumes the V3 facade without rebuilding the engine.
 target_compile_options(physicsexample PRIVATE
     -stdlib=libc++
     "-fmodule-file=std=${VVE_V3_STD_MODULE_DIR}/std.pcm"
-    "-fmodule-file=VEEngine=${VVE_V3_MODULE_DIR}/VEEngine.pcm"
-    "-fmodule-file=VEEngine.ECSContainer=${VVE_V3_MODULE_DIR}/VEEngine.ECSContainer.pcm"
-    "-fmodule-file=VEEngine.Entity=${VVE_V3_MODULE_DIR}/VEEngine.Entity.pcm"
-    "-fmodule-file=VEEngine.Error=${VVE_V3_MODULE_DIR}/VEEngine.Error.pcm"
-    "-fmodule-file=VEEngine.Handle=${VVE_V3_MODULE_DIR}/VEEngine.Handle.pcm"
-    "-fmodule-file=VEEngine.Math=${VVE_V3_MODULE_DIR}/VEEngine.Math.pcm"
-    "-fmodule-file=VEEngine.Types=${VVE_V3_MODULE_DIR}/VEEngine.Types.pcm"
-    "-fmodule-file=VEEngine.Vector=${VVE_V3_MODULE_DIR}/VEEngine.Vector.pcm"
-    "-fmodule-file=VEEngine:Assets=${VVE_V3_MODULE_DIR}/VEEngine-Assets.pcm"
-    "-fmodule-file=VEEngine:ECS=${VVE_V3_MODULE_DIR}/VEEngine-ECS.pcm"
-    "-fmodule-file=VEEngine:Gui=${VVE_V3_MODULE_DIR}/VEEngine-Gui.pcm"
-    "-fmodule-file=VEEngine:RenderSystem=${VVE_V3_MODULE_DIR}/VEEngine-RenderSystem.pcm"
-    "-fmodule-file=VEEngine:Window=${VVE_V3_MODULE_DIR}/VEEngine-Window.pcm"
-    "-fmodule-file=VEEngine:World=${VVE_V3_MODULE_DIR}/VEEngine-World.pcm"
+    "-fprebuilt-module-path=${VVE_V3_MODULE_DIR}"
 )
 
 target_link_options(physicsexample PRIVATE
@@ -140,7 +142,7 @@ target_link_options(physicsexample PRIVATE
 )
 
 target_link_directories(physicsexample PRIVATE
-    ${VVE_V3_VCPKG_ROOT}/lib
+    ${VVE_V3_VCPKG_LIBRARY_DIR}
 )
 
 target_link_libraries(physicsexample PRIVATE

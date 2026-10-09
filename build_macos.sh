@@ -80,14 +80,19 @@ else
     exit 1
   fi
 
-  VVE_LIBRARY="$VVE_ROOT/bin/release/lib/libViennaVulkanEngine.dylib"
-  VVE_MODULE="$VVE_ROOT/build/macos-release/src/CMakeFiles/ViennaVulkanEngine.dir/VEEngine.pcm"
-  VVE_STD_MODULE="$VVE_ROOT/build/macos-release/src/CMakeFiles/__cmake_cxx_std_23.dir/std.pcm"
-  VVE_VULKAN="$VVE_ROOT/vcpkg_installed/arm64-osx/lib/libvulkan.dylib"
-  for artifact in "$VVE_LIBRARY" "$VVE_MODULE" "$VVE_STD_MODULE" "$VVE_VULKAN"; do
+  VVE_LIBRARY="$VVE_ROOT/bin/$VARIANT_LOWER/lib/libViennaVulkanEngine.dylib"
+  VVE_MODULE_DIR="$VVE_ROOT/build/macos-$VARIANT_LOWER/src/CMakeFiles/ViennaVulkanEngine.dir"
+  if [[ -f "$VVE_MODULE_DIR/VVEngine.pcm" ]]; then
+    VVE_MODULE="$VVE_MODULE_DIR/VVEngine.pcm"
+  else
+    VVE_MODULE="$VVE_MODULE_DIR/VEEngine.pcm"
+  fi
+  VVE_STD_MODULE="$VVE_ROOT/build/macos-$VARIANT_LOWER/src/CMakeFiles/__cmake_cxx_std_23.dir/std.pcm"
+  VVE_CACHE="$VVE_ROOT/build/macos-$VARIANT_LOWER/CMakeCache.txt"
+  for artifact in "$VVE_LIBRARY" "$VVE_MODULE" "$VVE_STD_MODULE" "$VVE_CACHE"; do
     if [ ! -e "$artifact" ]; then
       printf 'Required VVE artifact is missing: %s\n' "$artifact" >&2
-      printf 'Build VVE first with: (cd %s && ./build_macos.sh release)\n' "$VVE_ROOT" >&2
+      printf 'Build VVE first with: (cd %s && ./build_macos.sh %s)\n' "$VVE_ROOT" "$VARIANT_LOWER" >&2
       printf 'Or use --without-vve to build VPE by itself.\n' >&2
       exit 1
     fi
