@@ -1,5 +1,6 @@
 {
     "files.associations": {
+        "*.ixx": "cpp",
 		"vector": "cpp",
 		"algorithm": "cpp",
 		"array": "cpp",

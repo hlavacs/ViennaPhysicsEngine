@@ -83,10 +83,15 @@ else
   fi
 
   VVE_LIBRARY="$VVE_ROOT/bin/release/lib/libViennaVulkanEngine.so"
-  VVE_MODULE="$VVE_ROOT/build/release-linux/src/CMakeFiles/ViennaVulkanEngine.dir/VEEngine.pcm"
+  VVE_MODULE_DIR="$VVE_ROOT/build/release-linux/src/CMakeFiles/ViennaVulkanEngine.dir"
+  if [ -f "$VVE_MODULE_DIR/VVEngine.pcm" ]; then
+    VVE_MODULE="$VVE_MODULE_DIR/VVEngine.pcm"
+  else
+    VVE_MODULE="$VVE_MODULE_DIR/VEEngine.pcm"
+  fi
   VVE_STD_MODULE="$VVE_ROOT/build/release-linux/src/CMakeFiles/__cmake_cxx_std_23.dir/std.pcm"
-  VVE_VULKAN="$VVE_ROOT/vcpkg_installed/x64-linux-llvm/lib/libvulkan.so"
-  for artifact in "$VVE_LIBRARY" "$VVE_MODULE" "$VVE_STD_MODULE" "$VVE_VULKAN"; do
+  VVE_CACHE="$VVE_ROOT/build/release-linux/CMakeCache.txt"
+  for artifact in "$VVE_LIBRARY" "$VVE_MODULE" "$VVE_STD_MODULE" "$VVE_CACHE"; do
     if [ ! -e "$artifact" ]; then
       printf 'Required VVE artifact is missing: %s\n' "$artifact" >&2
       printf 'Build VVE first with: (cd %s && ./build_linux.sh release)\n' "$VVE_ROOT" >&2

@@ -36,9 +36,37 @@ The engine is exposed as the `VEPhysicsEngine` C++23 module. The provided exampl
 
 Do **not** generate a Visual Studio solution for this project: the VS generator cannot build `import std`, which VVE requires. Open the folder in Visual Studio or VS Code as a CMake project instead, or use the build script.
 
-On Linux/macOS the example instead links VVE's already-built Clang release tree (see `build_linux.sh`, `build_macos.sh` and `VVE_V3_MIGRATION_NOTES.md`). The CMake option `VPE_VVE_IN_TREE` selects between the two modes; it defaults to ON on Windows and OFF elsewhere.
+On Linux/macOS the example instead links VVE's already-built Clang module tree: macOS uses the matching Debug/Release configuration, while Linux uses VVE's Release tree (see `build_linux.sh`, `build_macos.sh` and `VVE_V3_MIGRATION_NOTES.md`). The CMake option `VPE_VVE_IN_TREE` selects between the two modes; it defaults to ON on Windows and OFF elsewhere.
 
 The project will be updated regularly, so it makes sense to pull the newest version regularly.
+
+# Running And Debugging With VS Code
+
+Open the `ViennaPhysicsEngine` folder in VS Code and install the recommended
+Microsoft C/C++ extension (`ms-vscode.cpptools`). The checked-in
+`.vscode/launch.json` and `.vscode/tasks.json` provide Debug/Release builds and launch
+profiles for Windows (Visual Studio debugger), macOS (LLDB), and Linux (GDB).
+On Linux, install `gdb` in addition to the existing build prerequisites.
+
+For the rendered example, keep `ViennaVulkanEngine` next to this repository.
+On macOS, build VVE first with `./build_macos.sh debug` in the VVE folder.
+On Linux, build VVE first with `./build_linux.sh release` in the VVE folder.
+On Windows, the VPE build task builds VVE together with VPE.
+
+Select `VPE: physicsexample (<your OS>)` in **Run and Debug**, set a breakpoint
+in `modules/VPE.cpp`, `modules/VPE.ixx`, or the example, then press **F5**.
+The selected profile builds VPE before launching the example. Add `--cloth`
+to its `args` array to create cloth at startup. **Ctrl+F5** uses the same
+profile to run without debugging.
+
+To debug VPE without the renderer, select `VPE: standalone tests (<your OS>)`.
+Its build task builds and runs the VPE tests, then launches `vpe_compile_check`
+under the debugger. It does not require a VVE checkout or Vulkan.
+
+To run optimized executables, select `VPE: physicsexample Release (<your OS>)`
+or `VPE: standalone tests Release (<your OS>)`, then press **F5**. These profiles
+build Release and run without a debugger. On macOS, build VVE first with
+`./build_macos.sh release` in the VVE folder for the rendered example.
 
 # Using VPE
 

@@ -1,0 +1,84 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build VPE Debug",
+            "type": "process",
+            "command": "bash",
+            "args": ["build_linux.sh", "debug"],
+            "osx": {
+                "args": ["build_macos.sh", "debug"]
+            },
+            "windows": {
+                "command": "${env:ComSpec}",
+                "args": ["/d", "/c", "build_windows.cmd", "debug"],
+                "problemMatcher": "$msCompile"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": "$gcc",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Build VPE Debug (standalone)",
+            "type": "process",
+            "command": "bash",
+            "args": ["build_linux.sh", "debug", "--without-vve"],
+            "osx": {
+                "args": ["build_macos.sh", "debug", "--without-vve"]
+            },
+            "windows": {
+                "command": "${env:ComSpec}",
+                "args": ["/d", "/c", "build_windows.cmd", "debug", "--without-vve"],
+                "problemMatcher": "$msCompile"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": "$gcc",
+            "group": "build"
+        },
+        {
+            "label": "Build VPE Release",
+            "type": "process",
+            "command": "bash",
+            "args": ["build_linux.sh", "release"],
+            "osx": {
+                "args": ["build_macos.sh", "release"]
+            },
+            "windows": {
+                "command": "${env:ComSpec}",
+                "args": ["/d", "/c", "build_windows.cmd", "release"],
+                "problemMatcher": "$msCompile"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": "$gcc",
+            "group": "build"
+        },
+        {
+            "label": "Build VPE Release (standalone)",
+            "type": "process",
+            "command": "bash",
+            "args": ["build_linux.sh", "release", "--without-vve"],
+            "osx": {
+                "args": ["build_macos.sh", "release", "--without-vve"]
+            },
+            "windows": {
+                "command": "${env:ComSpec}",
+                "args": ["/d", "/c", "build_windows.cmd", "release", "--without-vve"],
+                "problemMatcher": "$msCompile"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": "$gcc",
+            "group": "build"
+        }
+    ]
+}
