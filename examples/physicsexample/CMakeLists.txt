@@ -73,6 +73,13 @@ set(VVE_V3_STD_MODULE_DIR
     "${VVE_V3_ROOT}/build/${VVE_V3_PLATFORM_BUILD_DIR}/src/CMakeFiles/__cmake_cxx_std_23.dir")
 set(VVE_V3_STD_MODULE_LIBRARY
     "${VVE_V3_ROOT}/build/${VVE_V3_PLATFORM_BUILD_DIR}/src/lib__cmake_cxx_std_23.a")
+# Newer CMake places the `import std` module at the build root as __cmake_cxx23.
+if(NOT EXISTS "${VVE_V3_STD_MODULE_DIR}/std.pcm")
+    set(VVE_V3_STD_MODULE_DIR
+        "${VVE_V3_ROOT}/build/${VVE_V3_PLATFORM_BUILD_DIR}/CMakeFiles/__cmake_cxx23.dir")
+    set(VVE_V3_STD_MODULE_LIBRARY
+        "${VVE_V3_ROOT}/build/${VVE_V3_PLATFORM_BUILD_DIR}/lib__cmake_cxx23.a")
+endif()
 
 if(EXISTS "${VVE_V3_MODULE_DIR}/VVEngine.pcm")
     target_compile_definitions(physicsexample PRIVATE VPE_VVE_USES_VVENGINE)

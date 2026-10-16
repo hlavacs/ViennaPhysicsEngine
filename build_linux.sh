@@ -90,6 +90,9 @@ else
     VVE_MODULE="$VVE_MODULE_DIR/VEEngine.pcm"
   fi
   VVE_STD_MODULE="$VVE_ROOT/build/release-linux/src/CMakeFiles/__cmake_cxx_std_23.dir/std.pcm"
+  if [ ! -f "$VVE_STD_MODULE" ]; then
+    VVE_STD_MODULE="$VVE_ROOT/build/release-linux/CMakeFiles/__cmake_cxx23.dir/std.pcm"
+  fi
   VVE_CACHE="$VVE_ROOT/build/release-linux/CMakeCache.txt"
   for artifact in "$VVE_LIBRARY" "$VVE_MODULE" "$VVE_STD_MODULE" "$VVE_CACHE"; do
     if [ ! -e "$artifact" ]; then
