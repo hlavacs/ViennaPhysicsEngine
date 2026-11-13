@@ -749,6 +749,7 @@ export namespace vpe {
 				glmmat3	m_K;			//mass matrix
 				glmmat3	m_K_inv;		//inverse mass matrix
 				real	m_vbias{ 0 };	//extra energy if bodies overlap
+				real	m_vrest{ 0 };	//separating speed along the normal that restitution asks for, fixed when the point is created
 				real	m_f{ 0 };		//accumulates force impulses along normal (1D) during a loop run
 				glmvec2	m_t{ 0 };		//accumulates force impulses along tangent (2D) during a loop run
 			};
@@ -893,7 +894,10 @@ export namespace vpe {
 
 			auto K_inv = glm::inverse(K);	//Inverse of mass matrix (roughly 1/mass)
 
-			contact.m_contact_points.emplace_back(positionW, type, restitution, friction, r0W, r1W, K, K_inv, vbias);
+			// The bounce target must come from the closing speed at impact. Recomputing it from the
+			// current velocity in every solver loop flips its sign each loop and cancels the bounce.
+			auto vrest = -restitution * d;
+			contact.m_contact_points.emplace_back(positionW, type, restitution, friction, r0W, r1W, K, K_inv, vbias, vrest);
 		}
 
 
@@ -1123,6 +1127,7 @@ export namespace vpe {
 					b->m_on_erase(b);	//call it first
 				}
 			}
+			m_body.reset();		//the selected body is gone too, its owner may already be deleted
 			m_constraints.clear();
 			m_collider.clear();
 			m_bodies.clear();
@@ -1135,6 +1140,7 @@ export namespace vpe {
 		/// <param name="body">(Shared) pointer to the body.</param>
 		void eraseBody(std::shared_ptr<Body> body) {
 			if (body->m_on_erase) body->m_on_erase(body);
+			if (m_body == body) m_body.reset();	//do not keep an erased body selected
 			m_collider.erase(body->m_owner);
 			m_bodies.erase(body->m_owner);
 			m_grid[intpair_t{ body->m_grid_x, body->m_grid_z }].erase(body->m_owner);
@@ -1154,6 +1160,7 @@ export namespace vpe {
 		void eraseBody(auto* owner) {
 			std::shared_ptr<Body> body = m_bodies[(void*)owner].second;
 			if (body->m_on_erase) body->m_on_erase(body);
+			if (m_body == body) m_body.reset();	//do not keep an erased body selected
 			m_collider.erase(body->m_owner);
 			m_bodies.erase(owner);
 			m_grid[intpair_t{ body->m_grid_x, body->m_grid_z }].erase(body->m_owner);
@@ -1512,7 +1519,7 @@ export namespace vpe {
 				real f{ 0.0_real }, t0{ 0.0_real }, t1{ 0.0_real };	//The impulses to be calculated
 
 				if (m_solver == 0) {	//All in one solver
-					auto F = cp.m_K_inv * (-cp.m_restitution * (dN + m_use_vbias * cp.m_vbias) * contact.m_normalW - vrel);
+					auto F = cp.m_K_inv * (cp.m_vrest * contact.m_normalW - vrel);
 					f = glm::dot(F, contact.m_normalW);
 					auto Fn = f * contact.m_normalW;
 					auto Ft = F - Fn;
@@ -1526,7 +1533,7 @@ export namespace vpe {
 
 					glmmat3 K = -mc1 * contact.m_body_inc.m_body->m_inertia_invW * mc1 - mc0 * contact.m_body_ref.m_body->m_inertia_invW * mc0;
 
-					auto dV = -cp.m_restitution * dN * contact.m_normalW - vrel;
+					auto dV = cp.m_vrest * contact.m_normalW - vrel;
 					auto kn = contact.m_body_ref.m_body->m_mass_inv + contact.m_body_inc.m_body->m_mass_inv + glm::dot(K * contact.m_normalW, contact.m_normalW);
 					f = (glm::dot(dV, contact.m_normalW) + m_use_vbias * cp.m_vbias) / kn;
 					cp.m_vbias = 0.0_real;
