@@ -65,8 +65,16 @@ for %%T in (cl.exe cmake.exe ninja.exe) do (
         goto fail
     )
 )
-set "CMAKE_BIN="
-for /f "delims=" %%T in ('where cmake.exe 2^>nul') do if not defined CMAKE_BIN set "CMAKE_BIN=%%T"
+rem The first cmake.exe on PATH may be an old copy bundled with another tool
+rem (Strawberry Perl, a pip package). Use the first one that is new enough:
+rem VVE in-tree needs 3.31.8 for `import std`; VPE by itself needs 3.28.
+if "%WITHOUT_VVE%"=="1" (
+    set "CMAKE_MIN_MAJOR=3"& set "CMAKE_MIN_MINOR=28"& set "CMAKE_MIN_PATCH=0"
+) else (
+    set "CMAKE_MIN_MAJOR=3"& set "CMAKE_MIN_MINOR=31"& set "CMAKE_MIN_PATCH=8"
+)
+call :find_cmake
+if errorlevel 1 goto fail
 
 rem Use CTest from the same installation as CMake, even if it is not on PATH.
 set "CTEST_BIN="
@@ -139,6 +147,45 @@ call "%VSINSTALL%\VC\Auxiliary\Build\vcvars64.bat" >nul
 if errorlevel 1 exit /b 1
 rem Keep an existing CMake first: it may be newer than Visual Studio's copy.
 set "PATH=%PATH%;%VSINSTALL%\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin;%VSINSTALL%\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja"
+exit /b 0
+
+:find_cmake
+set "CMAKE_BIN="
+for /f "delims=" %%T in ('where cmake.exe 2^>nul') do call :try_cmake "%%T"
+if not defined CMAKE_BIN call :try_cmake "%ProgramFiles%\CMake\bin\cmake.exe"
+if defined CMAKE_BIN exit /b 0
+echo No CMake %CMAKE_MIN_MAJOR%.%CMAKE_MIN_MINOR%.%CMAKE_MIN_PATCH% or newer was found.
+echo Install a current CMake ^(for example: winget install Kitware.CMake^) or update Visual Studio.
+exit /b 1
+
+:try_cmake
+rem Accept "%~1" as CMAKE_BIN if its version is at least the required minimum.
+if defined CMAKE_BIN exit /b 0
+if not exist "%~1" exit /b 0
+set "CM_VERSION="
+set "CM_VERSION_FILE=%TEMP%\vpe_cmake_version_%RANDOM%.txt"
+"%~1" --version > "%CM_VERSION_FILE%" 2>nul
+for /f "usebackq tokens=3" %%V in ("%CM_VERSION_FILE%") do if not defined CM_VERSION set "CM_VERSION=%%V"
+del "%CM_VERSION_FILE%" >nul 2>nul
+if not defined CM_VERSION exit /b 0
+set "CM_MAJOR=0"
+set "CM_MINOR=0"
+set "CM_PATCH=0"
+for /f "tokens=1-3 delims=.-" %%A in ("%CM_VERSION%") do (
+    set /a "CM_MAJOR=%%A" 2>nul
+    set /a "CM_MINOR=%%B" 2>nul
+    set /a "CM_PATCH=%%C" 2>nul
+)
+set "CM_OK=0"
+if %CM_MAJOR% GTR %CMAKE_MIN_MAJOR% set "CM_OK=1"
+if %CM_MAJOR% EQU %CMAKE_MIN_MAJOR% if %CM_MINOR% GTR %CMAKE_MIN_MINOR% set "CM_OK=1"
+if %CM_MAJOR% EQU %CMAKE_MIN_MAJOR% if %CM_MINOR% EQU %CMAKE_MIN_MINOR% if %CM_PATCH% GEQ %CMAKE_MIN_PATCH% set "CM_OK=1"
+if "%CM_OK%"=="1" (
+    set "CMAKE_BIN=%~1"
+    echo Using CMake %CM_VERSION%: "%~1"
+) else (
+    echo Skipping CMake %CM_VERSION% ^(older than %CMAKE_MIN_MAJOR%.%CMAKE_MIN_MINOR%.%CMAKE_MIN_PATCH%^): "%~1"
+)
 exit /b 0
 
 :find_ctest
